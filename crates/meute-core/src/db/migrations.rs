@@ -40,15 +40,14 @@ pub(super) fn migrate(
     let pending = migrations
         .pending_migrations(conn)
         .map_err(|e| CoreError::Migration(e.to_string()))?;
-    if let Some(path) = db_path
-        && version > 0
-        && pending > 0
-    {
-        let backup = backup_path(path, version);
-        if backup.exists() {
-            std::fs::remove_file(&backup)?;
+    if let Some(path) = db_path {
+        if version > 0 && pending > 0 {
+            let backup = backup_path(path, version);
+            if backup.exists() {
+                std::fs::remove_file(&backup)?;
+            }
+            conn.execute("VACUUM INTO ?1", [backup.to_string_lossy().as_ref()])?;
         }
-        conn.execute("VACUUM INTO ?1", [backup.to_string_lossy().as_ref()])?;
     }
     migrations
         .to_latest(conn)
