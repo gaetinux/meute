@@ -10,5 +10,6 @@ pub mod paths;
 pub mod project;
 pub mod quick_add;
 pub mod task;
+pub mod views;
 
 pub use error::{CoreError, Result};
