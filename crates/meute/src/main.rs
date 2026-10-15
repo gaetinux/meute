@@ -39,12 +39,15 @@ fn error_chain(err: &anyhow::Error) -> String {
 
 fn main() -> ExitCode {
     let cli = cli::Cli::parse();
-    let (result, now) = match app::App::init() {
-        Ok(app) => {
-            let now = app.now.clone();
-            (cli::run(cli, app), Some(now))
-        }
-        Err(err) => (Err(err), None),
+    let (result, now) = match cli::run_without_app(cli) {
+        Ok(result) => (result, None),
+        Err(cli) => match app::App::init() {
+            Ok(app) => {
+                let now = app.now.clone();
+                (cli::run(*cli, app), Some(now))
+            }
+            Err(err) => (Err(err), None),
+        },
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

@@ -29,7 +29,8 @@ peak_start_hour = 8
 peak_end_hour = 14
 "#;
 
-/// Whole configuration. Unknown top-level sections are ignored.
+/// Whole configuration. Unknown sections and unknown keys are ignored when loading,
+/// so an older binary can read a newer file.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -45,7 +46,7 @@ pub struct Config {
 
 /// `[repos]` section.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default)]
 pub struct ReposConfig {
     /// Folders scanned for Git repositories.
     pub roots: Vec<String>,
@@ -61,7 +62,7 @@ impl Default for ReposConfig {
 
 /// `[claude]` section.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default)]
 pub struct ClaudeConfig {
     /// Permission mode of launched sessions.
     pub permission_mode: String,
@@ -77,7 +78,7 @@ impl Default for ClaudeConfig {
 
 /// `[ui]` section.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default)]
 pub struct UiConfig {
     /// Dashboard width in columns.
     pub board_width: u16,
@@ -96,7 +97,7 @@ impl Default for UiConfig {
 
 /// `[quotas]` section.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default)]
 pub struct QuotasConfig {
     /// IANA time zone of the peak window.
     pub peak_timezone: String,

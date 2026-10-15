@@ -6,7 +6,6 @@ use meute_core::config::{ensure_config, load_config};
 use meute_core::db::Db;
 use meute_core::paths::Paths;
 use meute_core::project::Project;
-use std::path::PathBuf;
 use std::time::Duration;
 
 /// Busy timeout of the CLI connection.
@@ -17,7 +16,6 @@ pub struct App {
     pub db: Db,
     pub now: Zoned,
     pub actor: Actor,
-    pub config_file: PathBuf,
 }
 
 impl App {
@@ -41,12 +39,7 @@ impl App {
             channel: Channel::Cli,
             session_id: std::env::var("MEUTE_SESSION").ok(),
         };
-        Ok(App {
-            db,
-            now,
-            actor,
-            config_file: paths.config_file,
-        })
+        Ok(App { db, now, actor })
     }
 
     /// Finds a project by name or fails with the list of known projects.

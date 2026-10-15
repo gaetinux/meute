@@ -28,11 +28,20 @@ enum Command {
     Project(project::ProjectCommand),
 }
 
+/// Runs the command when it needs no [`App`] (configuration commands); otherwise
+/// hands the command back.
+pub fn run_without_app(cli: Cli) -> Result<anyhow::Result<()>, Box<Cli>> {
+    match cli.command {
+        Some(Command::Config(cmd)) => Ok(config::run(cmd)),
+        Some(Command::Task(_) | Command::Project(_)) | None => Err(Box::new(cli)),
+    }
+}
+
 /// Runs the parsed command.
 pub fn run(cli: Cli, mut app: App) -> anyhow::Result<()> {
     match cli.command {
         Some(Command::Task(cmd)) => task::run(cmd, &mut app),
-        Some(Command::Config(cmd)) => config::run(cmd, &app),
+        Some(Command::Config(cmd)) => config::run(cmd),
         Some(Command::Project(cmd)) => project::run(cmd, &mut app),
         None => Ok(()),
     }

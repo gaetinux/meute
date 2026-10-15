@@ -96,3 +96,13 @@ fn config_get_returns_default_for_absent_key() {
         "manual"
     );
 }
+
+#[test]
+fn load_config_tolerates_unknown_keys_in_known_sections() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    std::fs::write(&path, "[ui]\nboad_width = 1\nboard_width = 70\n").unwrap();
+    let cfg = load_config(&path).unwrap();
+    assert_eq!(cfg.ui.board_width, 70);
+    assert_eq!(cfg.ui.narrow_threshold, 120);
+}
