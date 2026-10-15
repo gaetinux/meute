@@ -23,6 +23,15 @@ jobs:
       - run: cargo nextest run --workspace
       - run: bash .claude/hooks/tests/run.sh
 
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85
+      - uses: rui314/setup-mold@v1
+      # `+1.85` is required: rust-toolchain.toml would otherwise select stable.
+      - run: cargo +1.85 check --workspace --all-targets
+
   deny:
     runs-on: ubuntu-latest
     steps:
