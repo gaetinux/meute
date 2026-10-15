@@ -1,6 +1,6 @@
 //! Task notes.
 
-use rusqlite::{Row, params};
+use rusqlite::{Row, TransactionBehavior, params};
 
 use super::Db;
 use super::tasks::fetch_task;
@@ -41,7 +41,9 @@ impl Db {
             return Err(CoreError::Invalid("la note ne peut pas être vide".into()));
         }
         let now = to_db(self.now());
-        let tx = self.conn.transaction()?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
         fetch_task(&tx, id)?;
         tx.execute(
             "INSERT INTO task_notes (task_id, body, author, channel, session_id, created_at) \
