@@ -39,6 +39,7 @@
 - Les horodatages sont stockés en texte RFC 3339 UTC (`jiff::Timestamp`), et les dates sans heure en `YYYY-MM-DD`.
 
 **Qualité et workflow**
+- **TDD systématique** : pour chaque comportement, on écrit le test, on le voit échouer pour la bonne raison, on écrit le code minimal qui le fait passer, puis on refactorise avec les tests au vert. Un correctif de bug commence toujours par un test qui reproduit le bug.
 - Chaque tâche doit passer `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` et `cargo nextest run` (§ 17).
 - Workflow Git :
   - une branche `feat/plan-1-socle-taches` créée depuis `main` ;
@@ -93,7 +94,7 @@ fn version_flag_prints_name_and_version() {
   - Lints de workspace : voir les contraintes globales. Chaque crate déclare `[lints] workspace = true`.
   - `rust-toolchain.toml` : `channel = "stable"`, avec `components = ["rustfmt", "clippy"]`.
   - `main.rs` : un `#[derive(Parser)]` avec `#[command(name = "meute", version)]`, sans sous-commande pour l'instant.
-  - `CLAUDE.md` : les commandes de vérification de l'étape 4, la règle « pas de `unwrap`/`expect` hors tests », la règle de langue (code en anglais, interface en français) et le workflow Git (branche, PR assignée à gaetinux, jamais de push sur `main`).
+  - `CLAUDE.md` : **la règle du TDD systématique** (aucun code de production sans un test écrit avant et vu en échec, un correctif de bug commence par un test qui reproduit le bug), les commandes de vérification de l'étape 4, la règle « pas de `unwrap`/`expect` hors tests », la règle de langue (code en anglais, interface en français) et le workflow Git (branche, PR assignée à gaetinux, jamais de push sur `main`).
   - `ci.yml` : sur `pull_request` et sur `push` vers `main`, exécuter `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` et `cargo nextest run`. nextest est installé avec `taiki-e/install-action@nextest`.
 
 - [ ] **Étape 4 : vérifier.**
