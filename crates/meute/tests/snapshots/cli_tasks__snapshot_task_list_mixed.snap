@@ -1,0 +1,11 @@
+---
+source: crates/meute/tests/cli_tasks.rs
+expression: "String::from_utf8(out.stdout).unwrap()"
+---
+#4 ◎ Relire la PR · à relire
+#7 · ! Appeler Marie · aujourd'hui 15:00
+#3 ✕ !! Déployer @meute · bloquée : attend la CI
+#2 » ! Écrire le guide @meute · demain
+#6 · Préparer la démo @meute · mer. 21 oct.
+#1 · Ranger le bureau
+#5 ✓ Clore le ticket @meute
