@@ -12,7 +12,10 @@
 - `serde`, `serde_json`, `toml`, `toml_edit` ;
 - `jiff` (fonctionnalité `serde`) ;
 - `thiserror`, `directories`, `clap` (fonctionnalité `derive`), `anyhow` ;
-- tests : `tempfile`, `assert_cmd`, `predicates`, `cargo-nextest`.
+- tests : `tempfile`, `assert_cmd`, `predicates`, `proptest`, `insta`, `cargo-nextest`, `cargo-insta` ;
+- qualité : `cargo-deny`, `cargo-machete`, `cargo-mutants`, linker `mold` (via `clang`).
+
+**Guide de référence :** `docs/dev/developpement-assiste-par-ia.md` (pratiques de développement assisté par IA). Il fait partie des exigences : chaque tâche doit le respecter.
 
 **Spécification :** `docs/superpowers/specs/2026-10-15-meute-design.md` (et la feuille de route `docs/superpowers/plans/2026-10-15-meute-v1-roadmap.md`).
 
@@ -21,7 +24,12 @@
 **Langage et code**
 - Rust stable, `edition = "2024"`, `rust-version = "1.85"`. Les champs `[workspace.package]` sont partagés par toutes les crates.
 - Licence `MIT OR Apache-2.0`, avec les fichiers `LICENSE-MIT` et `LICENSE-APACHE` à la racine.
-- Pas de `unwrap()` ni d'`expect()` hors des tests. On utilise `[workspace.lints.clippy]` avec `unwrap_used = "deny"` et `expect_used = "deny"`, et un `clippy.toml` contenant `allow-unwrap-in-tests = true` et `allow-expect-in-tests = true` (spécification § 16).
+- Lints : ceux du tableau du § 3 du guide, sans exception, déclarés dans `[workspace.lints]`. Un `clippy.toml` contient `allow-unwrap-in-tests = true` et `allow-expect-in-tests = true`. Dans `meute-core`, les attributs de crate sont `#![warn(missing_docs)]` et `#![deny(clippy::print_stdout, clippy::print_stderr)]`. Toute exception passe par `#[expect(lint, reason = "…")]` et est mentionnée dans la PR (spécification § 16, guide § 3).
+- Pas de `_ =>` sur nos propres enums, ni de `#[non_exhaustive]` sur des types internes au workspace (guide § 2).
+- Tous les éléments publics de `meute-core` sont documentés par des `///`.
+- Fichiers de moins de 300 lignes, avec un maximum indicatif de 400. Au-delà, on découpe en sous-modules (guide § 6).
+- En dehors des chemins critiques, on préfère des données possédées et `.clone()` à des signatures avec plusieurs durées de vie (guide § 6).
+- Dépendances ajoutées uniquement avec `cargo add`. La documentation de la version réellement installée est consultée (context7, docs.rs) avant d'utiliser une API. `Cargo.lock` est commité (guide § 7).
 - Erreurs typées avec `thiserror` dans `meute-core`, `anyhow` dans le binaire `meute` (§ 16).
 - Code synchrone, sans `tokio` dans ce plan (§ 4.3).
 - Identifiants et commentaires de code en anglais. Textes affichés à l'utilisateur en français pour la V1.
@@ -40,7 +48,9 @@
 
 **Qualité et workflow**
 - **TDD systématique** : pour chaque comportement, on écrit le test, on le voit échouer pour la bonne raison, on écrit le code minimal qui le fait passer, puis on refactorise avec les tests au vert. Un correctif de bug commence toujours par un test qui reproduit le bug.
-- Chaque tâche doit passer `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` et `cargo nextest run` (§ 17).
+- On ne modifie, ne supprime ni ne désactive (`#[ignore]`) jamais un test existant pour le faire passer. Si un test semble faux, on s'arrête et on le signale (guide § 1).
+- Les instantanés `insta` sont relus ligne par ligne par rapport à la spécification avant d'être acceptés avec `cargo insta review`. On n'utilise jamais `cargo insta accept` à l'aveugle (guide § 1).
+- Chaque tâche se termine par la vérification complète du § 9 du guide : `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run --workspace && cargo deny check && cargo machete` (spécification § 17). Les hooks du Task 2 l'appliquent automatiquement à partir du Task 3.
 - Workflow Git :
   - une branche `feat/plan-1-socle-taches` créée depuis `main` ;
   - un commit par tâche ;
@@ -49,29 +59,36 @@
 
 ## Points de vigilance
 
-1. **Ponctuation et adresses e-mail dans la saisie rapide.** `Corriger le bug!` et `écrire à a@b.fr` gardent `bug!` et `a@b.fr` dans le titre. Seuls les jetons séparés par des espaces et *commençant* par `@`, `!` ou `>` sont interprétés. Test au Task 4.
-2. **Saisie réduite à des jetons.** `@meute !! >demain` provoque une erreur « titre vide », et rien n'est créé. Test au Task 4.
-3. **Deux écritures concurrentes avec la même version.** La seconde reçoit `Conflict` avec l'état courant, aucun événement d'historique n'est écrit et la version n'est pas incrémentée deux fois. Test au Task 7.
-4. **Projet inconnu dans la saisie rapide.** `meute task add "x @inconnu"` échoue avec la liste des projets connus, et rien n'est créé : on ne crée jamais de projet sur une faute de frappe. Test au Task 9.
-5. **Configuration existante modifiée à la main.** `config set` préserve les commentaires et les clés inconnues. Un TOML invalide provoque une erreur qui cite le chemin et la ligne, et ne remplace jamais le fichier par les valeurs par défaut. Test au Task 2.
+1. **Ponctuation et adresses e-mail dans la saisie rapide.** `Corriger le bug!` et `écrire à a@b.fr` gardent `bug!` et `a@b.fr` dans le titre. Seuls les jetons séparés par des espaces et *commençant* par `@`, `!` ou `>` sont interprétés. Test au Task 5.
+2. **Saisie réduite à des jetons.** `@meute !! >demain` provoque une erreur « titre vide », et rien n'est créé. Test au Task 5.
+3. **Deux écritures concurrentes avec la même version.** La seconde reçoit `Conflict` avec l'état courant, aucun événement d'historique n'est écrit et la version n'est pas incrémentée deux fois. Test au Task 8.
+4. **Projet inconnu dans la saisie rapide.** `meute task add "x @inconnu"` échoue avec la liste des projets connus, et rien n'est créé : on ne crée jamais de projet sur une faute de frappe. Test au Task 10.
+5. **Configuration existante modifiée à la main.** `config set` préserve les commentaires et les clés inconnues. Un TOML invalide provoque une erreur qui cite le chemin et la ligne, et ne remplace jamais le fichier par les valeurs par défaut. Test au Task 3.
 
 ---
 
-### Task 1 : workspace, CI et règles du projet
+### Task 1 : workspace, lints, outillage, CI et règles du projet
 
 **Fichiers :**
-- Créer : `Cargo.toml` (workspace), `rust-toolchain.toml`, `clippy.toml`, `rustfmt.toml` (vide), `LICENSE-MIT`, `LICENSE-APACHE`, `CLAUDE.md`, `.github/workflows/ci.yml`
+- Créer : `Cargo.toml` (workspace), `Cargo.lock`, `rust-toolchain.toml`, `clippy.toml`, `rustfmt.toml` (vide), `deny.toml`, `.cargo/config.toml`, `LICENSE-MIT`, `LICENSE-APACHE`, `CLAUDE.md`, `.github/workflows/ci.yml`
 - Créer : `crates/meute-core/Cargo.toml`, `crates/meute-core/src/lib.rs`
 - Créer : `crates/meute/Cargo.toml`, `crates/meute/src/main.rs`
-- Test : `crates/meute/tests/cli_basics.rs`
+- Test : `crates/meute/tests/cli_basics.rs`, `crates/meute-core/tests/lint_guard.rs`
 
 **Interfaces :**
-- Produit : la crate bibliothèque `meute_core`, et le binaire `meute` avec `clap`. Ce dernier expose `meute --version`, qui affiche `meute <version>`.
+- Produit :
+  - la crate bibliothèque `meute_core`, avec les attributs de crate du guide § 3 ;
+  - le binaire `meute` avec `clap`, qui expose `meute --version` (affiche `meute <version>`) ;
+  - la vérification complète (guide § 9), qui passe à vide.
 
-- [ ] **Étape 1 : vérifier la chaîne d'outils.** Si Rust est absent, l'installer avec `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y`. Si nextest est absent, l'installer avec `cargo install cargo-nextest --locked`.
-  Vérification : `cargo --version && cargo nextest --version` affiche les deux versions.
+- [ ] **Étape 1 : vérifier la chaîne d'outils.**
+  - Installer ce qui manque :
+    - Rust : `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y`, puis `source ~/.cargo/env` ;
+    - outils cargo : `cargo install cargo-nextest cargo-insta cargo-deny cargo-machete cargo-mutants --locked` ;
+    - linker : `sudo apt install mold clang`. Cette commande demande des droits administrateur : si elle échoue, s'arrêter et demander à l'utilisateur de la lancer lui-même.
+  - Vérification : `cargo --version && cargo nextest --version && cargo insta --version && cargo deny --version && cargo machete --version && cargo mutants --version && mold --version` affiche toutes les versions.
 
-- [ ] **Étape 2 : écrire le test qui doit échouer.**
+- [ ] **Étape 2 : écrire les tests qui doivent échouer.**
 
 ```rust
 // crates/meute/tests/cli_basics.rs
@@ -88,24 +105,113 @@ fn version_flag_prints_name_and_version() {
 }
 ```
 
-- [ ] **Étape 3 : créer le workspace pour faire passer le test.**
+```rust
+// crates/meute-core/tests/lint_guard.rs
+// Garde-fou : les lints exigés par le guide (§ 3) sont bien déclarés dans le workspace.
+#[test]
+fn workspace_declares_required_lints() {
+    let manifest = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../Cargo.toml")).unwrap();
+    let doc: toml::Table = manifest.parse().unwrap();
+    let lints = &doc["workspace"]["lints"];
+    assert_eq!(lints["rust"]["unsafe_code"].as_str(), Some("forbid"));
+    for name in ["unwrap_used", "expect_used", "todo", "unimplemented", "dbg_macro",
+                 "allow_attributes_without_reason", "wildcard_enum_match_arm"] {
+        assert_eq!(lints["clippy"][name].as_str(), Some("deny"), "clippy::{name}");
+    }
+}
+```
+
+  `toml` est ajouté comme dépendance de développement de `meute-core`, avec `cargo add --dev toml`.
+
+- [ ] **Étape 3 : lancer les tests et constater l'échec.**
+  Commande : `cargo nextest run`.
+  Attendu : échec. Au tout premier passage, le workspace n'existe pas encore : créer d'abord les fichiers `Cargo.toml` minimaux, *sans* lints ni binaire, puis relancer pour voir les deux tests échouer sur leurs assertions.
+
+- [ ] **Étape 4 : compléter le workspace pour faire passer les tests.**
   - Workspace `members = ["crates/*"]`, `resolver = "3"`.
   - `[workspace.package]` : `version = "0.1.0"`, `edition = "2024"`, `rust-version = "1.85"`, `license = "MIT OR Apache-2.0"`, `repository = "https://github.com/gaetinux/meute"`.
-  - Lints de workspace : voir les contraintes globales. Chaque crate déclare `[lints] workspace = true`.
+  - `[workspace.lints]` : exactement le tableau du guide § 3. Chaque crate déclare `[lints] workspace = true`.
+  - `meute-core/src/lib.rs` : `#![warn(missing_docs)]`, `#![deny(clippy::print_stdout, clippy::print_stderr)]`, et une doc de crate `//!` d'une phrase.
   - `rust-toolchain.toml` : `channel = "stable"`, avec `components = ["rustfmt", "clippy"]`.
+  - `.cargo/config.toml` : pour `[target.x86_64-unknown-linux-gnu]`, `linker = "clang"` et `rustflags = ["-C", "link-arg=-fuse-ld=mold"]`.
+  - `deny.toml` (créé avec `cargo deny init`, puis ajusté) :
+    - `[licenses] allow = ["MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0", "Zlib"]`. Si une dépendance exige une autre licence, on l'ajoute avec un commentaire qui justifie le besoin, et on le mentionne dans la PR ;
+    - `[advisories]` : on refuse les vulnérabilités connues ;
+    - `[sources]` : uniquement crates.io.
   - `main.rs` : un `#[derive(Parser)]` avec `#[command(name = "meute", version)]`, sans sous-commande pour l'instant.
-  - `CLAUDE.md` : **la règle du TDD systématique** (aucun code de production sans un test écrit avant et vu en échec, un correctif de bug commence par un test qui reproduit le bug), les commandes de vérification de l'étape 4, la règle « pas de `unwrap`/`expect` hors tests », la règle de langue (code en anglais, interface en français) et le workflow Git (branche, PR assignée à gaetinux, jamais de push sur `main`).
-  - `ci.yml` : sur `pull_request` et sur `push` vers `main`, exécuter `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` et `cargo nextest run`. nextest est installé avec `taiki-e/install-action@nextest`.
+  - `CLAUDE.md` : court, pas plus de 60 lignes. Il contient, dans cet ordre :
+    1. une phrase de présentation du projet, avec un lien vers la spécification et vers la feuille de route ;
+    2. **la règle du TDD systématique et l'interdiction de modifier un test pour le faire passer** ;
+    3. la commande de vérification complète du guide § 9 ;
+    4. un résumé en une ligne de chaque section du guide, avec un lien vers `docs/dev/developpement-assiste-par-ia.md` ;
+    5. la règle de langue : code et commentaires en anglais, interface en français ;
+    6. le workflow Git : une branche, une PR assignée à gaetinux, jamais de push sur `main`, pas de lien de session dans les commits.
+  - `ci.yml` : sur `pull_request` et sur `push` vers `main`, trois jobs :
+    - `check` : `rui314/setup-mold@v1`, puis `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings` et `cargo nextest run --workspace`. nextest est installé avec `taiki-e/install-action@nextest` ;
+    - `deny` : `EmbarkStudios/cargo-deny-action@v2` ;
+    - `machete` : `bnjbvr/cargo-machete@main`.
 
-- [ ] **Étape 4 : vérifier.**
-  Lancer `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo nextest run`.
-  Attendu : `1 test run: 1 passed`, sans aucun avertissement.
+- [ ] **Étape 5 : faire la vérification complète (guide § 9).**
+  Attendu : `2 tests run: 2 passed`, aucun avertissement, `cargo deny check` sans erreur et `cargo machete` sans dépendance inutilisée.
 
-- [ ] **Étape 5 : commiter.** `git commit -m "chore: workspace Rust, CI et règles du projet"`
+- [ ] **Étape 6 : commiter.** `git commit -m "chore: workspace Rust, lints, outillage, CI et règles du projet"`
 
 ---
 
-### Task 2 : chemins XDG et configuration
+### Task 2 : hooks Claude Code du dépôt
+
+**Fichiers :**
+- Créer : `.claude/settings.json`, `.claude/hooks/rust-check.sh`, `.claude/hooks/verify.sh`
+- Test : `.claude/hooks/tests/run.sh`, avec ses données de test dans `.claude/hooks/tests/fixtures/`
+
+**Interfaces :**
+- Produit : les deux hooks décrits au § 5 du guide. Leur comportement exact est le suivant.
+  - **`rust-check.sh`** : il lit le JSON du hook sur stdin et prend `tool_input.file_path` (avec `jq`).
+    - Si le chemin ne se termine pas par `.rs`, il sort avec le code 0, sans rien afficher.
+    - Sinon, il lance `rustfmt --edition 2024 <fichier>`, puis `cargo check --workspace --all-targets --message-format=short`. Le dossier de travail est la racine du dépôt (`$CLAUDE_PROJECT_DIR`, ou par défaut le dossier courant).
+    - Si la vérification échoue, il écrit sur stderr `cargo check a échoué :` suivi des erreurs, en se limitant aux 60 premières lignes, puis sort avec le code **2**. Sinon, il sort avec le code 0.
+  - **`verify.sh`** : il lit le JSON sur stdin.
+    - Si `git status --porcelain -- '*.rs' 'Cargo.toml' '*/Cargo.toml' 'Cargo.lock'` est vide, il sort avec le code 0.
+    - Sinon, il lance `cargo clippy --workspace --all-targets -- -D warnings`, puis `cargo nextest run --workspace --failure-output final --hide-progress-bar`.
+    - Si tout passe, il sort avec le code 0.
+    - En cas d'échec, si `stop_hook_active` vaut `true`, il écrit `vérification toujours en échec — signale-le explicitement dans ton rapport` sur stderr et sort avec le code 0, pour éviter une boucle infinie.
+    - En cas d'échec sinon, il écrit `vérification en échec, corrige avant de terminer :` suivi des 60 dernières lignes de sortie, et sort avec le code **2**.
+  - **`.claude/settings.json`** :
+    - `hooks.PostToolUse` avec `matcher: "Edit|Write|MultiEdit"`, qui appelle `"$CLAUDE_PROJECT_DIR"/.claude/hooks/rust-check.sh` ;
+    - `hooks.Stop` et `hooks.SubagentStop`, qui appellent `"$CLAUDE_PROJECT_DIR"/.claude/hooks/verify.sh`.
+
+    Les deux scripts sont exécutables et commencent par `#!/usr/bin/env bash` et `set -uo pipefail`.
+
+- [ ] **Étape 1 : écrire le test qui doit échouer.** Le script `.claude/hooks/tests/run.sh` travaille dans un dossier temporaire. Il copie le contenu de `fixtures/` : une petite crate `fixture` avec un `src/lib.rs` valide, un `Cargo.toml` et un dépôt Git initialisé, avec un premier commit. Entre deux cas, il remet l'arbre dans son état initial (`git checkout -- . && git clean -fdq -e target`). Il vérifie ensuite chaque cas et affiche `OK <cas>` ou `ÉCHEC <cas>`. Il sort avec un code différent de 0 si au moins un cas échoue.
+
+| Cas | Entrée | Attendu |
+|---|---|---|
+| `non_rust_ignored` | `{"tool_input":{"file_path":"README.md"}}` vers `rust-check.sh` | code 0, stderr vide |
+| `rust_ok` | `lib.rs` valide | code 0 |
+| `rust_error_blocks` | `lib.rs` contenant `fn x() -> u8 { "a" }` | code 2, stderr contenant `cargo check a échoué` et `mismatched types` |
+| `verify_clean_tree` | arbre Git sans modification, avec un faux `cargo` placé en tête du `PATH` qui crée un fichier témoin | code 0, et le fichier témoin n'existe pas (cargo n'a pas été lancé) |
+| `verify_failing_blocks` | test en échec ajouté à la crate de test, `{"stop_hook_active":false}` | code 2, stderr contenant `corrige avant de terminer` |
+| `verify_loop_guard` | même arbre, `{"stop_hook_active":true}` | code 0, stderr contenant `signale-le explicitement` |
+
+- [ ] **Étape 2 : lancer le test et constater l'échec.**
+  Commande : `bash .claude/hooks/tests/run.sh`.
+  Attendu : `ÉCHEC` sur tous les cas, puisque les scripts n'existent pas encore.
+
+- [ ] **Étape 3 : écrire `rust-check.sh`, `verify.sh` et `.claude/settings.json` selon les interfaces ci-dessus.**
+
+- [ ] **Étape 4 : lancer le test et vérifier qu'il passe.**
+  Commande : `bash .claude/hooks/tests/run.sh`.
+  Attendu : six lignes `OK` et le code de sortie 0.
+
+- [ ] **Étape 5 : brancher le test dans la CI.** Ajouter au job `check` de `ci.yml` une étape `bash .claude/hooks/tests/run.sh`. Puis faire la vérification complète (guide § 9).
+
+- [ ] **Étape 6 : commiter.** `git commit -m "chore: hooks Claude Code de vérification Rust"`
+
+**Note pour l'exécutant :** les hooks ne s'activent qu'au chargement de la configuration du projet par Claude Code. À partir du Task 3, chaque sous-agent lancé dans le dépôt bénéficie de `cargo check` après chaque édition, et de la vérification avant de terminer.
+
+---
+
+### Task 3 : chemins XDG et configuration
 
 **Fichiers :**
 - Créer : `crates/meute-core/src/error.rs`, `crates/meute-core/src/paths.rs`, `crates/meute-core/src/config.rs`
@@ -245,7 +351,7 @@ fn config_get_returns_default_for_absent_key() {
 
 ---
 
-### Task 3 : types du domaine
+### Task 4 : types du domaine
 
 **Fichiers :**
 - Créer : `crates/meute-core/src/task.rs`, `crates/meute-core/src/actor.rs`, `crates/meute-core/src/project.rs`
@@ -334,14 +440,14 @@ fn task_id_displays_with_hash() {
 
 ---
 
-### Task 4 : saisie rapide et échéances
+### Task 5 : saisie rapide et échéances
 
 **Fichiers :**
 - Créer : `crates/meute-core/src/quick_add.rs`
 - Test : tests unitaires dans `quick_add.rs`
 
 **Interfaces :**
-- Consomme : `Priority` et `Due` (Task 3).
+- Consomme : `Priority` et `Due` (Task 4).
 - Produit :
   - `pub struct QuickAdd { pub title: String, pub project: Option<String>, pub priority: Priority, pub due: Option<Due> }` ;
   - `pub fn parse_quick_add(input: &str, now: &jiff::Zoned) -> Result<QuickAdd>` ;
@@ -428,6 +534,35 @@ fn only_tokens_is_an_error() {
   Commande : `cargo nextest run -p meute-core quick_add`.
   Attendu : erreur de compilation.
 
+  On ajoute des tests de propriétés `proptest` (guide § 4), avec `cargo add --dev proptest -p meute-core`. Ils se trouvent dans le même fichier, dans un module `proptests` :
+
+```rust
+proptest! {
+    #[test]
+    fn never_panics(input in ".{0,200}") {
+        let _ = parse_quick_add(&input, &now());
+        let _ = parse_due(&input, &now());
+    }
+
+    #[test]
+    fn ok_title_is_non_empty_trimmed_single_spaced(input in "[a-zA-Z0-9@!>+:\- ]{0,80}") {
+        if let Ok(q) = parse_quick_add(&input, &now()) {
+            prop_assert!(!q.title.is_empty());
+            prop_assert_eq!(q.title.trim(), q.title.as_str());
+            prop_assert!(!q.title.contains("  "));
+        }
+    }
+
+    #[test]
+    fn plain_words_are_kept_verbatim(words in proptest::collection::vec("[a-zéè]{1,10}", 1..8)) {
+        let input = words.join(" ");
+        let q = parse_quick_add(&input, &now()).unwrap();
+        prop_assert_eq!(q.title, input);
+        prop_assert_eq!(q.priority, Priority::Normal);
+    }
+}
+```
+
 - [ ] **Étape 3 : implémenter `parse_quick_add` et `parse_due` en suivant le tableau ci-dessus.** Utiliser l'arithmétique `jiff` sur `Zoned`, qui gère correctement les changements d'heure.
 
 - [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent.**
@@ -438,7 +573,7 @@ fn only_tokens_is_an_error() {
 
 ---
 
-### Task 5 : ouverture de la base et migrations
+### Task 6 : ouverture de la base et migrations
 
 **Fichiers :**
 - Créer : `crates/meute-core/src/db/mod.rs`, `crates/meute-core/src/db/migrations.rs`
@@ -557,14 +692,14 @@ fn reopening_is_idempotent_and_makes_no_backup() {
 
 ---
 
-### Task 6 : projets, création et lecture des tâches
+### Task 7 : projets, création et lecture des tâches
 
 **Fichiers :**
 - Créer : `crates/meute-core/src/db/projects.rs`, `crates/meute-core/src/db/tasks.rs`
 - Test : `crates/meute-core/tests/db_tasks.rs`
 
 **Interfaces :**
-- Consomme : `Db` (Task 5), et les types `Task`, `NewTask`, `Project` et `Actor` (Task 3).
+- Consomme : `Db` (Task 6), et les types `Task`, `NewTask`, `Project` et `Actor` (Task 4).
 - Produit (méthodes de `Db`) :
   - `create_project(&mut self, name: &str, description: &str) -> Result<Project>`. Un nom vide après `trim` donne `Invalid`. Un nom déjà pris, sans tenir compte de la casse, donne `Invalid("projet déjà existant : <nom>")` ;
   - `project_by_name(&self, name: &str) -> Result<Option<Project>>`, insensible à la casse ;
@@ -576,7 +711,7 @@ fn reopening_is_idempotent_and_makes_no_backup() {
 - Produit aussi :
   - `pub struct TaskFilter { pub include_done: bool, pub project: ProjectFilter, pub status: Option<&'static str> }`, avec `Default`. Le filtre `status` porte sur l'identifiant du statut ;
   - `pub enum ProjectFilter { Any, Project(ProjectId), Floating }`. `Floating` correspond aux tâches « volantes », sans projet (§ 9.5) ;
-  - l'ordre de `list_tasks` est par identifiant croissant. Le tri métier est fait par le Task 8.
+  - l'ordre de `list_tasks` est par identifiant croissant. Le tri métier est fait par le Task 9.
 
 - [ ] **Étape 1 : écrire les tests qui doivent échouer.** La fonction utilitaire `test_db()` renvoie `Db::open_in_memory()?.with_clock(|| "2026-10-14T08:30:00Z".parse().unwrap())`.
 
@@ -638,14 +773,14 @@ fn get_missing_task_is_not_found() {
 
 ---
 
-### Task 7 : mise à jour avec contrôle de version, notes et suppression
+### Task 8 : mise à jour avec contrôle de version, notes et suppression
 
 **Fichiers :**
 - Modifier : `crates/meute-core/src/db/tasks.rs`
 - Test : `crates/meute-core/tests/db_tasks.rs`
 
 **Interfaces :**
-- Consomme : `Db` et les méthodes du Task 6, ainsi que `TaskPatch`.
+- Consomme : `Db` et les méthodes du Task 7, ainsi que `TaskPatch`.
 - Produit (méthodes de `Db`) :
   - `update_task(&mut self, id: TaskId, expected_version: u32, patch: TaskPatch, actor: &Actor) -> Result<Task>` ;
   - `delete_task(&mut self, id: TaskId, expected_version: u32, actor: &Actor) -> Result<()>` ;
@@ -739,14 +874,14 @@ fn delete_checks_version_and_keeps_history() {
 
 ---
 
-### Task 8 : regroupement par urgence, tri et affichage des échéances
+### Task 9 : regroupement par urgence, tri et affichage des échéances
 
 **Fichiers :**
 - Créer : `crates/meute-core/src/views.rs`
 - Test : tests unitaires dans `views.rs`
 
 **Interfaces :**
-- Consomme : `Task`, `Due` et `Priority` (Task 3).
+- Consomme : `Task`, `Due` et `Priority` (Task 4).
 - Produit :
   - `pub enum Bucket { Overdue, Today, Upcoming, NoDue, DoneToday }`, avec `label()` qui renvoie `En retard`, `Aujourd'hui`, `À venir`, `Sans échéance` ou `Faites aujourd'hui` (§ 9.5) ;
   - `pub fn bucket_of(task: &Task, now: &Zoned) -> Option<Bucket>`, qui renvoie `None` pour une tâche terminée avant aujourd'hui ;
@@ -814,7 +949,7 @@ fn due_formatting_in_french() {
 
 ---
 
-### Task 9 : CLI — ajout, liste et affichage des tâches, projets
+### Task 10 : CLI — ajout, liste et affichage des tâches, projets
 
 **Fichiers :**
 - Créer : `crates/meute/src/cli/mod.rs` (définitions `clap`), `crates/meute/src/cli/task.rs`, `crates/meute/src/cli/project.rs`, `crates/meute/src/render.rs`, `crates/meute/src/app.rs`
@@ -900,6 +1035,12 @@ fn first_run_writes_default_config() {
   Commande : `cargo nextest run -p meute cli_tasks`.
   Attendu : échec, les sous-commandes sont inconnues.
 
+  On ajoute deux tests d'instantané `insta` (guide § 4), avec `cargo add --dev insta -p meute`. Chaque test crée des tâches variées : chaque statut, chaque priorité, avec et sans projet, une échéance en retard, aujourd'hui, demain et la semaine prochaine. Il fait ensuite `insta::assert_snapshot!` sur la sortie de la commande :
+  - `snapshot_task_list_mixed` porte sur `meute task list --all` ;
+  - `snapshot_task_show_with_notes` porte sur `meute task show 1` après deux notes.
+
+  Au premier passage, `cargo insta review` montre l'instantané proposé. **On le compare ligne par ligne avec les formats de ce task et de la spécification § 9.5 avant de l'accepter.**
+
 - [ ] **Étape 3 : implémenter les sous-commandes, `App` et `render::task_line`.** La conversion entre `CoreError` et code de sortie se fait par un `downcast_ref::<CoreError>()` sur l'erreur `anyhow`, dans `main`.
 
 - [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent.**
@@ -910,7 +1051,7 @@ fn first_run_writes_default_config() {
 
 ---
 
-### Task 10 : CLI — modification, statut, notes, suppression et configuration
+### Task 11 : CLI — modification, statut, notes, suppression et configuration
 
 **Fichiers :**
 - Modifier : `crates/meute/src/cli/mod.rs`, `crates/meute/src/cli/task.rs`
@@ -918,7 +1059,7 @@ fn first_run_writes_default_config() {
 - Test : `crates/meute/tests/cli_tasks.rs`, `crates/meute/tests/cli_config.rs`
 
 **Interfaces :**
-- Consomme : `Db::update_task`, `delete_task`, `add_note` (Task 7), `config_get` et `config_set` (Task 2), ainsi que `App` (Task 9).
+- Consomme : `Db::update_task`, `delete_task`, `add_note` (Task 8), `config_get` et `config_set` (Task 3), ainsi que `App` (Task 10).
 - Commandes :
 
 | Commande | Effet |
@@ -986,16 +1127,47 @@ fn edit_due_invalid_token_is_rejected() {
   Commande : `cargo nextest run -p meute`.
   Attendu : échec sur les nouvelles commandes.
 
+  Un test d'instantané `snapshot_conflict_message` porte sur stderr après un conflit de version. Il se relit avant d'être accepté, comme au Task 10.
+
 - [ ] **Étape 3 : implémenter les commandes.** La confirmation interactive utilise `std::io::IsTerminal` sur stdin.
 
 - [ ] **Étape 4 : faire la vérification complète.**
-  Commande : `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo nextest run`.
-  Attendu : tous les tests passent, sans aucun avertissement.
+  Commande : la vérification complète du guide § 9.
+  Attendu : tous les tests passent, sans aucun avertissement, et `cargo deny` et `cargo machete` sont propres.
+
+- [ ] **Étape 5 : commiter.** `git commit -m "feat(cli): modification, statut, notes, suppression et configuration"`
+
+---
+
+### Task 12 : tests de mutation, puis PR
+
+**Fichiers :**
+- Modifier : les fichiers de tests concernés par les mutations manquées
+- Créer : `docs/dev/mutants/2026-plan-1.md`, le rapport de mutation joint à la PR
+
+**Interfaces :**
+- Consomme : tout le code des Tasks 1 à 11.
+- Produit :
+  - un rapport de mutation ;
+  - la PR du plan 1.
+
+- [ ] **Étape 1 : lancer les tests de mutation.**
+  Commande : `cargo mutants --package meute-core --no-shuffle -- --hide-progress-bar` (guide § 4).
+  Résultat : le décompte `caught` / `missed` / `unviable` / `timeout`. La liste des mutations manquées est dans `mutants.out/missed.txt`.
+
+- [ ] **Étape 2 : traiter chaque mutation manquée en TDD.** Pour chacune, on écrit un test qui l'aurait détectée, on vérifie qu'il **échoue** sur le code muté (`cargo mutants --file <fichier> --re '<motif>'`, ou en appliquant la mutation à la main le temps de la vérification), puis qu'il passe sur le code réel. Si une mutation est équivalente au code d'origine (aucun comportement observable ne change), on la justifie en une phrase dans le rapport au lieu d'écrire un test.
+  Attendu : aucune mutation manquée sans test ni justification dans `quick_add.rs`, `views.rs`, `db/tasks.rs` et `config.rs`.
+
+- [ ] **Étape 3 : écrire le rapport.** `docs/dev/mutants/2026-plan-1.md` contient le décompte avant et après, la liste des tests ajoutés et les justifications. On ajoute `mutants.out*/` au `.gitignore`.
+
+- [ ] **Étape 4 : faire la vérification complète (guide § 9).**
+  Attendu : tout passe.
 
 - [ ] **Étape 5 : commiter, pousser et ouvrir la PR.**
 
 ```bash
-git commit -m "feat(cli): modification, statut, notes, suppression et configuration"
+git commit -m "test: renforce les tests d'après cargo-mutants"
 git push -u origin feat/plan-1-socle-taches
-gh pr create --base main --assignee gaetinux --title "Plan 1 : socle et tâches" --body "<résumé des 10 tasks, puis les lignes d'attribution>"
+gh pr create --base main --assignee gaetinux --title "Plan 1 : socle et tâches" \
+  --body "<résumé des 12 tasks, exceptions de lint avec leur raison, rapport de mutation, puis la ligne « 🤖 Generated with Claude Code », sans lien de session>"
 ```

@@ -14,6 +14,12 @@ La V1 est découpée en six plans. Chacun produit un logiciel utilisable et test
 | 5 | MCP | `meute mcp` et les outils de tâches, contexte composé (§ 8) | § 8, 12 |
 | 6 | Finitions de la V1 | Worktrees, reprise, états sauvegardés, projets créés automatiquement, `meute doctor`, README | § 6.5, 6.6, 10, 11, 13 |
 
+Règles communes à tous les plans :
+
+- Chaque plan respecte `docs/dev/developpement-assiste-par-ia.md` : TDD systématique, lints, hooks, `proptest` et `insta` là où ils s'appliquent, vérification complète.
+- Chaque plan se termine par une passe de `cargo-mutants`, dont le rapport est joint à sa PR.
+- Chaque plan est exécuté par des sous-agents (superpowers:subagent-driven-development) : un agent neuf par task, relu par un autre agent avant de passer à la suivante.
+
 Ce que ce découpage implique :
 
 - **Après le plan 1**, meute est déjà un gestionnaire de tâches en CLI, et le cœur métier (`meute-core`) existe.
