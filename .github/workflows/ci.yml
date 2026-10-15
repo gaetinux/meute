@@ -21,6 +21,7 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo nextest run --workspace
+      - run: bash .claude/hooks/tests/run.sh
 
   deny:
     runs-on: ubuntu-latest
