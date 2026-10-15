@@ -1,7 +1,7 @@
 # Spécification de conception — `meute`, poste de pilotage de sessions Claude Code
 
 - Date : 2026-10-15
-- Statut : brouillon à relire
+- Statut : relue par l'auteur ; mise à jour après les spikes S1 à S5
 - Sources : concept initial (non publié), brainstorm du 2026-10-15, mod Claude Code « session-board » v0.33.0
 - Nom : `meute` (binaire, crates, chemins). Slogan envisagé : « Lead your pack of coding agents. » Licence : MIT OR Apache-2.0.
 
@@ -154,7 +154,7 @@ On évite ainsi un protocole de socket, la gestion des versions entre clients, u
 ### 4.5 Rafraîchissement du TUI
 
 - Le TUI détecte les écritures en interrogeant `PRAGMA data_version` toutes les 500 ms. Il ne relit les données que si la base a changé.
-- L'état de tmux (fenêtres vivantes, panneaux morts) est relu toutes les 2 s.
+- L'état de tmux (panneaux vivants ou morts) et la sortie de `claude agents --json` (§ 5.5) sont relus toutes les 2 s.
 - L'état Git des sessions affichées est relu toutes les 10 s, et à la demande avec la touche `r`.
 
 ## 5. Disposition tmux
@@ -164,8 +164,10 @@ On évite ainsi un protocole de socket, la gestion des versions entre clients, u
 - `meute` utilise son propre serveur, `tmux -L meute`, avec un fichier de configuration généré par l'application. Le tmux personnel de l'utilisateur n'est jamais touché.
 - Ce serveur contient deux sessions tmux :
   - `meute` : une fenêtre avec deux panneaux, la zone principale et le tableau de bord. Le tableau est à droite par défaut, sur 60 colonnes, réglable ;
-  - `meute-bg` : une fenêtre par session gérée. La fenêtre porte l'option `@meute_id=<uuid>` et utilise `remain-on-exit on` pour conserver le code de sortie.
-- **Afficher une session** consiste à échanger, avec `swap-pane`, le panneau de la zone principale avec celui de la session. La session précédemment affichée retourne dans sa fenêtre de `meute-bg`.
+  - `meute-bg` : une fenêtre par session gérée.
+- **L'identité d'une session est portée par son panneau, pas par sa fenêtre.** `@meute_id=<uuid>` et `remain-on-exit on` sont posés comme **options de pane** (`set-option -p`). Lors d'un `swap-pane`, une option de fenêtre reste sur la fenêtre et ne suit pas le panneau. Pour la même raison, aucune option `@meute_*` n'est posée sur une fenêtre, puisqu'une option de pane hérite de celle de sa fenêtre (spike S4).
+- **Afficher une session** consiste à échanger, avec `swap-pane`, le panneau de la zone principale avec celui de la session. La session précédemment affichée retourne dans la fenêtre de `meute-bg` que l'autre panneau vient de libérer.
+- **Si le panneau principal disparaît**, par exemple parce que la session affichée s'est terminée sans `remain-on-exit`, le tableau de bord occupe toute la largeur. meute recrée alors un panneau d'accueil pour retrouver la disposition.
 - **Raccourcis globaux**, définis sans préfixe dans la configuration générée et modifiables :
   - `M-p` : focus sur le tableau de bord ;
   - `M-o` : focus sur la zone principale ;
@@ -182,17 +184,25 @@ Si la largeur du client est inférieure à 120 colonnes (réglable), le tableau 
 
 ### 5.3 Lancement depuis un tmux existant
 
-Si `meute` est lancé depuis un tmux (variable `$TMUX` définie), il se rattache au serveur `meute` en mode imbriqué, après avoir retiré `TMUX` de l'environnement, et affiche un avertissement sur les conflits de préfixe. Le comportement exact reste à valider (§ 14, S4).
+Si `meute` est lancé depuis un tmux (variable `$TMUX` définie), il se rattache au serveur `meute` en mode imbriqué, après avoir retiré `TMUX` de l'environnement, et affiche un avertissement sur les conflits de préfixe. Le spike S4 l'a validé : les raccourcis `M-*` traversent le tmux externe tant que celui-ci ne les utilise pas lui-même. C'est pourquoi ils sont configurables.
 
 ### 5.4 Réconciliation
 
-À l'ouverture du TUI, puis à chaque relecture de tmux, chaque session enregistrée « vivante » est comparée aux fenêtres portant `@meute_id` :
+À l'ouverture du TUI, puis à chaque relecture de tmux (`list-panes -a`), chaque session enregistrée « vivante » est comparée aux panneaux portant `@meute_id` :
 
-- **fenêtre absente** : la session passe à l'état `Unreachable` ;
-- **panneau mort** : elle passe à l'état `Exited(code)` ;
-- **fenêtre `@meute_id` inconnue de la base** : elle est affichée comme « orpheline », avec deux actions possibles, l'adopter ou la fermer.
+- **panneau absent** : la session passe à l'état `Unreachable` ;
+- **panneau mort** (`pane_dead=1`) : elle passe à l'état `Exited(code)`, avec `code = pane_dead_status` ;
+- **panneau `@meute_id` inconnu de la base** : il est affiché comme « orphelin », avec deux actions possibles, l'adopter ou le fermer.
 
 Aucune relance n'est automatique.
+
+### 5.5 Sessions Claude lancées hors de meute
+
+- `claude agents --json` liste toutes les sessions Claude actives de la machine, y compris celles lancées en dehors de meute. Pour chacune, il donne `pid`, `cwd`, `kind` (`interactive` / `background`), `sessionId`, `name` et `status` (`busy` / `waiting` / `idle`).
+- meute l'appelle à chaque relecture de tmux :
+  - les sessions qu'il ne gère pas sont affichées **en lecture seule** dans une section « hors meute », avec leur statut et leur dossier ;
+  - pour les sessions qu'il gère, il sert de **source d'état de secours** quand aucun hook n'a été reçu depuis longtemps.
+- meute ne lance pas lui-même de sessions `claude --bg`. Avec `--bg`, `--session-id` est ignoré, un dossier non approuvé bloque le démarrage, et la session peut créer des worktrees d'elle-même (spike S1).
 
 ## 6. Sessions
 
@@ -204,11 +214,12 @@ enum AgentKind { Claude, Bash }
 enum SessionState {
     // observés (événement reçu)
     Running, SubagentRunning, Compacting,
-    WaitingInput, PermissionRequested,
-    Idle,                       // tour terminé (Stop), en attente d'un nouveau prompt
+    PermissionRequested,        // PermissionRequest : outil et argument connus
+    WaitingInput,               // tour terminé (Stop) : « attend ta réponse », compté dans « à traiter »
+    Idle,                       // démarrée (SessionStart), aucun prompt encore envoyé
     Exited { code: Option<i32> },
     // déduits de tmux
-    Unreachable,                // fenêtre disparue (redémarrage machine, kill)
+    Unreachable,                // panneau disparu (redémarrage machine, kill)
     // supposés (affichés avec un « ? »)
     MaybeStuck,                 // Running sans événement depuis > N min (défaut 10)
     Unknown,
@@ -222,7 +233,9 @@ Une session comporte les champs suivants :
 - un projet, un dépôt et une tâche, tous facultatifs ;
 - `cwd`, la branche et le worktree ;
 - l'état et la dernière activité ;
-- le dernier outil appelé ;
+- le mode de permission ;
+- le dernier outil appelé, et le détail de la permission en attente ;
+- la dernière réponse de Claude (`Stop.last_assistant_message`, tronquée) ;
 - les dernières métriques (§ 7.2) ;
 - les dates de création et de fin.
 
@@ -234,16 +247,19 @@ Chaque adaptateur déclare ses capacités (`resume`, `metrics`, `states_observed
 - `settings.json` : les hooks et la statusline, pointant vers `meute ingest …` ;
 - `mcp.json` : le serveur `meute mcp`.
 
-Il lance ensuite, dans une nouvelle fenêtre de `meute-bg` :
+Il lance ensuite, en mode interactif, dans une nouvelle fenêtre de `meute-bg` :
 
 ```
 MEUTE_SESSION=<id> claude --settings <settings.json> --mcp-config <mcp.json> \
-    --session-id <uuid> --append-system-prompt "<contexte composé, § 8>"
+    --session-id <uuid> --permission-mode <mode> -n <titre> \
+    --append-system-prompt "<contexte composé, § 8>"
 ```
 
-- La disponibilité et la sémantique exactes de ces options doivent être validées (§ 14, S1). Si `--session-id` n'existe pas, l'identifiant natif est récupéré via le hook `SessionStart`.
-- Les réglages passés par `--settings` s'ajoutent à ceux de l'utilisateur sans les écraser. Ce point est également à valider dans S1.
-- `~/.claude/settings.json` n'est jamais modifié. Une installation globale facultative (`meute claude install-global`) pourra plus tard permettre de voir les sessions lancées hors de `meute`.
+- Le spike S1 a validé toutes ces options sur Claude Code 2.1.301. `--session-id` est respecté en mode interactif, et `MEUTE_SESSION` est transmise aux hooks et à la statusline. Le hook `SessionStart` confirme l'identifiant natif.
+- **Le mode de permission est toujours explicite.** meute passe toujours `--permission-mode`, avec la valeur choisie au lancement, ou celle de la configuration de meute (`claude.permission_mode`), ou `manual` par défaut. Une session ne doit jamais hériter en silence d'un mode permissif de l'utilisateur. Le spike S1 a montré qu'une session en mode `auto` peut aller jusqu'à pousser sur un remote. Le mode est affiché dans la liste des sessions, et les modes `auto`, `bypassPermissions` et `dontAsk` sont signalés en couleur.
+- **Dossier non approuvé** : au premier lancement dans un dossier, Claude affiche sa question de confiance (réponse par défaut : « No, exit »). L'utilisateur y répond lui-même dans la zone principale, et meute ne modifie jamais `~/.claude.json`. La confiance ne s'hérite pas du dossier parent, donc chaque nouveau worktree la redemande. Le formulaire de lancement le signale.
+- Il reste à vérifier pendant l'implémentation que les réglages passés par `--settings` s'ajoutent à ceux de l'utilisateur sans les écraser, notamment ses propres hooks.
+- `~/.claude/settings.json` n'est jamais modifié. Les sessions lancées hors de meute sont visibles via `claude agents --json` (§ 5.5).
 
 ### 6.3 Lancement d'une session Bash
 
@@ -259,8 +275,8 @@ Si une autre session vivante travaille déjà dans le même répertoire, le form
 
 ### 6.5 Arrêt et reprise
 
-- **Arrêter** (`x`, avec confirmation) envoie `C-c` puis, après 5 s, tue la fenêtre. La session passe à l'état `Exited`.
-- **Reprendre** n'est proposé que pour les sessions Claude dont la fenêtre a disparu ou dont le processus est terminé. Cette action lance une nouvelle fenêtre avec `claude --resume <native_id>`, réutilise l'`id` interne et remplace l'état.
+- **Arrêter** (`x`, avec confirmation) envoie `C-c` puis, après 5 s, tue le panneau. La session passe à l'état `Exited`.
+- **Reprendre** n'est proposé que pour les sessions Claude dont le panneau a disparu ou dont le processus est terminé. Cette action ouvre un nouveau panneau avec `claude --resume <native_id>`, réutilise l'`id` interne et remplace l'état.
 - La liste « sessions des derniers jours à reprendre » affiche les sessions Claude terminées depuis moins de 7 jours (valeur réglable).
 
 ### 6.6 États sauvegardés
@@ -275,27 +291,29 @@ Si une autre session vivante travaille déjà dans le même répertoire, le form
 
 | Hook | Effet |
 |---|---|
-| `SessionStart` | Enregistre `native_id` et `transcript_path`. État `Idle` |
-| `UserPromptSubmit` | `Running` |
+| `SessionStart` | Enregistre `native_id`, `transcript_path`, le modèle et le titre. État `Idle` |
+| `UserPromptSubmit` | `Running`, enregistre le mode de permission |
 | `PreToolUse` | `Running`, enregistre le dernier outil appelé (nom et extrait de l'argument) |
-| `Notification` | `PermissionRequested` ou `WaitingInput`, selon le message |
+| `PermissionRequest` | `PermissionRequested`, enregistre l'outil et l'argument concernés |
+| `PostToolUse` | `Running` (sortie de `PermissionRequested` après approbation) |
 | `PreCompact` | `Compacting` |
-| `SubagentStop` / démarrage de sous-agent | `SubagentRunning` / retour à `Running` |
-| `Stop` | `Idle` |
+| `SubagentStart` / `SubagentStop` | `SubagentRunning` / retour à `Running`. **Ignorés si `agent_type` est vide** (tâches internes de Claude, comme la suggestion de prompt) |
+| `Stop` | `WaitingInput`, enregistre `last_assistant_message` |
 | `SessionEnd` | `Exited` |
+| `Notification` | Enregistrée dans l'historique seulement. Pour les permissions, elle fait doublon avec `PermissionRequest`, qui est plus précis |
 
-La liste exacte des hooks et le contenu de leurs messages doivent être relevés sur la version cible (§ 14, S2). Les messages bruts sont enregistrés tels quels dans des fichiers de test.
+Le spike S2 a validé ces messages sur Claude Code 2.1.301. Aucune notification d'inactivité (`idle_prompt`) n'a été observée : l'état « attend ta réponse » se déduit donc de `Stop`. `SubagentStart` et `PreCompact` n'ont pas été déclenchés pendant le spike et seront vérifiés pendant l'implémentation. Les messages bruts, nettoyés des chemins personnels, servent de fichiers de test.
 
 ### 7.2 Statusline
 
-- `meute ingest statusline` lit le JSON sur stdin et enregistre un relevé de métriques :
-  - modèle ;
+- `meute ingest statusline` lit le JSON sur stdin et enregistre un relevé de métriques. Les champs ont été confirmés par le spike S3 :
+  - `session_id`, `model.id` / `model.display_name`, `effort.level` ;
   - `context_window.used_percentage` ;
-  - `cost.total_cost_usd` et `cost.total_duration_ms` ;
-  - lignes ajoutées et retirées ;
-  - `worktree.name` et `agent.name` ;
-  - `rate_limits.five_hour` / `seven_day` (pourcentage et heure de reset si présente).
-- Un relevé n'est écrit que si une valeur a changé, ou au plus une fois toutes les 30 s.
+  - `cost.total_cost_usd`, `cost.total_duration_ms`, `cost.total_lines_added` / `total_lines_removed` ;
+  - `worktree.{name, branch, path}` ;
+  - `workspace.repo.{host, owner, name}`, conservé pour détecter la forge en V1.1 ;
+  - `rate_limits.five_hour` / `seven_day` : `used_percentage` et `resets_at` (horodatage epoch en secondes).
+- La statusline est appelée très souvent, y compris sans terminal attaché. Un relevé n'est donc écrit que si une valeur a changé, ou au plus une fois toutes les 30 s.
 - La commande affiche ensuite la statusline : un portage Rust du script actuel, avec une largeur adaptative et les mêmes segments.
 - Si la configuration contient `statusline.chain = "<commande>"`, la commande indiquée reçoit le même JSON et sa sortie remplace celle de `meute`.
 
@@ -398,6 +416,7 @@ La suppression demande une confirmation et n'est possible que depuis le TUI ou l
 ## 11. Worktrees et Git
 
 - **Nouveau worktree** : `git worktree add <parent-du-dépôt>/<dépôt>.worktrees/<branche> -b <branche>`. Le dépôt n'est pas modifié et aucune entrée `.gitignore` n'est ajoutée.
+- **Pas de worktrees natifs de Claude** : meute n'utilise pas `claude -w`, qui crée le worktree dans `<dépôt>/.claude/worktrees/<nom>`, donc à l'intérieur du dépôt, avec un risque de pollution de `git status` si `.claude/` n'est pas ignoré (spike S5). Les worktrees créés par Claude lui-même (outil `EnterWorktree`) restent visibles grâce à `worktree.*` dans la statusline, et sont affichés comme tels.
 - **Nettoyage** : uniquement par une action explicite. Il est refusé s'il reste des modifications non commitées ou des commits non poussés, sauf si l'utilisateur confirme une seconde fois en voyant la liste.
 - **Informations affichées par session** : branche, `*` s'il reste des modifications non commitées, lignes ajoutées et retirées, commits à pousser ou à tirer (↑ ↓), mention « non poussée ».
 - **Ce que `meute` ne fait jamais** : commit, fusion, push.
@@ -428,23 +447,29 @@ Le serveur stdio `meute mcp` propose les outils suivants :
   - état : `~/.local/state/meute/`.
 - **Premier lancement** : écriture d'une configuration par défaut, commentée et fonctionnelle. Une configuration existante n'est jamais écrasée.
 - **`meute config get/set`** modifie le TOML en préservant les commentaires (`toml_edit`).
-- **`meute doctor`** vérifie les versions de `tmux` et de `claude`, l'accès à la base, l'état du serveur tmux dédié et les options de Claude utilisées.
+- **`meute doctor`** vérifie les versions de `tmux` (minimum 3.2, pour les options de pane) et de `claude`, l'accès à la base, l'état du serveur tmux dédié et les options de Claude utilisées.
+- **`claude.permission_mode`** : le mode de permission par défaut des sessions lancées par meute (`manual` si rien n'est défini, § 6.2).
 - **Migrations SQLite** : versionnées, appliquées à l'ouverture, avec une sauvegarde de la base (`meute.db.bak-<version>`) avant chaque migration.
 - **Tables** : `projects`, `repos`, `project_repos`, `tasks`, `task_notes`, `task_events`, `sessions`, `session_events`, `metric_samples`, `quota_samples`, `saved_states`.
 - **Purge** : les relevés de métriques de plus de 30 jours sont supprimés au démarrage du TUI.
 - **V1.1** : `credentials.toml` (droits `0600`) pour les tokens des forges, ou le trousseau système s'il est disponible, ou `token_cmd`/`token_env`. Les tokens ne sont jamais stockés en base ni intégrés dans une URL de clone.
 
-## 14. Points à valider avant le plan (spikes)
+## 14. Spikes réalisés
 
-| # | Question | Conséquence si la réponse est non |
+Les spikes S1 à S5 ont été réalisés le 2026-10-15 sur Claude Code 2.1.301 et tmux 3.5a. Le détail se trouve dans `docs/superpowers/spikes/2026-10-15-spikes-s1-s5.md`.
+
+| # | Question | Résultat |
 |---|---|---|
-| S1 | `claude` accepte-t-il `--settings`, `--mcp-config`, `--session-id` et `--append-system-prompt` ? Les réglages de `--settings` s'ajoutent-ils à ceux de l'utilisateur ? | Identifiant récupéré via `SessionStart`. Settings écrits dans un fichier passé autrement |
-| S2 | Liste des hooks disponibles et contenu réel de leurs messages, notamment pour distinguer `Notification` permission / attente | Moins d'états observés, plus d'états `Unknown` |
-| S3 | Le JSON de la statusline contient-il `session_id` et l'heure de reset des quotas ? À quelle fréquence est-il envoyé ? | Rattachement via `MEUTE_SESSION`. Pas d'affichage de l'heure de reset |
-| S4 | `swap-pane` entre sessions tmux, comportement en mode imbriqué, raccourcis `M-*` en SSH | Retour au mode plein écran (§ 5.2) comme mode principal |
-| S5 | Claude Code propose-t-il des worktrees natifs (le champ `worktree.name` le suggère) ? | Garder la convention du § 11 |
+| S1 | Options de `claude` | ✅ Toutes présentes. `--session-id` respecté en mode interactif, ignoré avec `--bg`. Mode de permission à passer explicitement (§ 6.2) |
+| S2 | Hooks | ✅ États observables. On s'appuie sur `PermissionRequest` et `Stop`, et on ignore les `SubagentStop` internes (§ 7.1) |
+| S3 | JSON de la statusline | ✅ `session_id`, quotas avec `resets_at`, `workspace.repo` (§ 7.2) |
+| S4 | Disposition tmux | ✅ Échange entre sessions, imbrication et raccourcis `M-*`. Options de pane uniquement (§ 5.1) |
+| S5 | Worktrees natifs | Ils existent, mais on garde la convention du § 11 |
 
-Chaque spike produit un court rapport et des fichiers de test réels (messages de hooks, JSON de statusline). Il n'aboutit à aucun code conservé.
+Restent à vérifier pendant l'implémentation :
+- l'ajout des réglages de `--settings` à ceux de l'utilisateur ;
+- le contenu effectif de `--mcp-config` et `--append-system-prompt` ;
+- les hooks `SubagentStart` et `PreCompact`.
 
 ## 15. Décisions ouvertes, non bloquantes
 
@@ -471,7 +496,7 @@ Chaque spike produit un court rapport et des fichiers de test réels (messages d
 
 Le plan d'implémentation détaillera les étapes suivantes :
 
-1. Spikes S1 à S5.
+1. ~~Spikes S1 à S5~~ (réalisés, § 14).
 2. Workspace, `meute-core` (modèle, base, migrations) et CLI des tâches.
 3. `meute-tmux` et disposition (§ 5), avec des sessions Bash.
 4. Adaptateur Claude : lancement, ingestion et statusline.
