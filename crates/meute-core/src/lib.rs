@@ -7,6 +7,7 @@ pub mod config;
 pub mod error;
 pub mod paths;
 pub mod project;
+pub mod quick_add;
 pub mod task;
 
 pub use error::{CoreError, Result};
