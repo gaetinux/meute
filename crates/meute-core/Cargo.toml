@@ -9,6 +9,8 @@ repository.workspace = true
 [dependencies]
 directories = "6.0.0"
 jiff = { version = "0.2.38", features = ["serde"] }
+rusqlite = { version = "0.39", features = ["bundled"] }
+rusqlite_migration = "2.5.0"
 serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2.0.21"
 toml = "1.1.8"

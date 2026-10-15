@@ -19,6 +19,12 @@ pub enum CoreError {
     /// Invalid user input (unknown key, wrong type, ...).
     #[error("valeur invalide : {0}")]
     Invalid(String),
+    /// SQLite error.
+    #[error("erreur de base de données : {0}")]
+    Db(#[from] rusqlite::Error),
+    /// Schema migration failure.
+    #[error("échec de la migration : {0}")]
+    Migration(String),
 }
 
 /// Result alias using [`CoreError`].
