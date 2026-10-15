@@ -2,6 +2,8 @@
 
 mod migrations;
 mod projects;
+mod task_notes;
+mod task_update;
 mod tasks;
 
 pub use tasks::{ProjectFilter, TaskFilter};

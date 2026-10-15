@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use jiff::Timestamp;
 use rusqlite::types::{Type, Value};
-use rusqlite::{Row, params, params_from_iter};
+use rusqlite::{Connection, ErrorCode, Row, params, params_from_iter};
 
 use super::Db;
 use crate::actor::{Actor, Author, Channel};
@@ -35,7 +35,7 @@ pub struct TaskFilter {
     pub status: Option<&'static str>,
 }
 
-const TASK_SELECT: &str = "SELECT t.id, t.title, t.description, t.status, t.blocked_reason, \
+pub(super) const TASK_SELECT: &str = "SELECT t.id, t.title, t.description, t.status, t.blocked_reason, \
      t.priority, t.due_date, t.due_at, t.project_id, p.name, t.repo_id, t.version, \
      t.created_at, t.updated_at, t.completed_at \
      FROM tasks t LEFT JOIN projects p ON p.id = t.project_id";
@@ -63,7 +63,7 @@ where
     text.map(|s| parse_at(idx, &s)).transpose()
 }
 
-fn row_to_task(row: &Row) -> rusqlite::Result<Task> {
+pub(super) fn row_to_task(row: &Row) -> rusqlite::Result<Task> {
     let status_id: String = row.get(3)?;
     let reason: Option<String> = row.get(4)?;
     let priority: String = row.get(5)?;
@@ -117,11 +117,43 @@ fn row_to_event(row: &Row) -> rusqlite::Result<TaskEvent> {
     })
 }
 
+/// Read one task on any connection or transaction.
+pub(super) fn fetch_task(conn: &Connection, id: TaskId) -> Result<Task> {
+    match conn.query_row(
+        &format!("{TASK_SELECT} WHERE t.id = ?1"),
+        [id.0],
+        row_to_task,
+    ) {
+        Ok(task) => Ok(task),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Err(CoreError::NotFound {
+            entity: "tâche",
+            id: id.to_string(),
+        }),
+        Err(other) => Err(other.into()),
+    }
+}
+
+/// Map a foreign-key violation on `project_id` to `NotFound { projet }`.
+pub(super) fn unknown_project(err: rusqlite::Error, project: Option<ProjectId>) -> CoreError {
+    match (&err, project) {
+        (rusqlite::Error::SqliteFailure(e, _), Some(p))
+            if e.code == ErrorCode::ConstraintViolation
+                && e.extended_code == rusqlite::ffi::SQLITE_CONSTRAINT_FOREIGNKEY =>
+        {
+            CoreError::NotFound {
+                entity: "projet",
+                id: p.0.to_string(),
+            }
+        }
+        _ => err.into(),
+    }
+}
+
 impl Db {
     /// Create a task (status `Todo`, version 1) and record a `created` event.
     ///
     /// # Errors
-    /// [`CoreError::Invalid`] on a blank title; [`CoreError::Db`] on an unknown project.
+    /// [`CoreError::Invalid`] on a blank title; [`CoreError::NotFound`] on an unknown project.
     pub fn create_task(&mut self, new: NewTask, actor: &Actor) -> Result<Task> {
         let title = new.title.trim();
         if title.is_empty() {
@@ -147,7 +179,8 @@ impl Db {
                 new.project_id.map(|p| p.0),
                 now
             ],
-        )?;
+        )
+        .map_err(|e| unknown_project(e, new.project_id))?;
         let id = tx.last_insert_rowid();
         tx.execute(
             "INSERT INTO task_events (task_id, field, old_value, new_value, author, channel, \
@@ -170,18 +203,7 @@ impl Db {
     /// # Errors
     /// [`CoreError::NotFound`] when the task does not exist.
     pub fn get_task(&self, id: TaskId) -> Result<Task> {
-        match self.conn.query_row(
-            &format!("{TASK_SELECT} WHERE t.id = ?1"),
-            [id.0],
-            row_to_task,
-        ) {
-            Ok(task) => Ok(task),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Err(CoreError::NotFound {
-                entity: "tâche",
-                id: id.to_string(),
-            }),
-            Err(other) => Err(other.into()),
-        }
+        fetch_task(&self.conn, id)
     }
 
     /// List tasks matching `filter`, by increasing id.

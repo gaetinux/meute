@@ -2,6 +2,8 @@
 
 use std::path::PathBuf;
 
+use crate::task::Task;
+
 /// Errors returned by `meute-core`.
 #[derive(Debug, thiserror::Error)]
 pub enum CoreError {
@@ -26,6 +28,12 @@ pub enum CoreError {
         entity: &'static str,
         /// Identifier as displayed to the user.
         id: String,
+    },
+    /// The task was modified since the caller read it.
+    #[error("modifiée entre-temps (version actuelle : {})", current.version)]
+    Conflict {
+        /// Current stored state of the task.
+        current: Box<Task>,
     },
     /// SQLite error.
     #[error("erreur de base de données : {0}")]

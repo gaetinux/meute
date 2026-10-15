@@ -155,3 +155,22 @@ fn get_missing_task_is_not_found() {
         Err(CoreError::NotFound { .. })
     ));
 }
+
+#[test]
+fn create_with_unknown_project_is_not_found() {
+    let mut db = test_db();
+    let err = db
+        .create_task(new_task("x", Some(ProjectId(42))), &user())
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            CoreError::NotFound {
+                entity: "projet",
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+    assert!(db.list_tasks(&TaskFilter::default()).unwrap().is_empty());
+}
