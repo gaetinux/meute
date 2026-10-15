@@ -19,6 +19,14 @@ pub enum CoreError {
     /// Invalid user input (unknown key, wrong type, ...).
     #[error("valeur invalide : {0}")]
     Invalid(String),
+    /// An entity looked up by identifier does not exist.
+    #[error("{entity} introuvable : {id}")]
+    NotFound {
+        /// Kind of entity (e.g. `tâche`).
+        entity: &'static str,
+        /// Identifier as displayed to the user.
+        id: String,
+    },
     /// SQLite error.
     #[error("erreur de base de données : {0}")]
     Db(#[from] rusqlite::Error),

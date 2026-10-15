@@ -1,5 +1,6 @@
 //! Who did something, and through which channel.
 
+use crate::{CoreError, Result};
 use serde::{Deserialize, Serialize};
 
 /// Who performed an action.
@@ -22,6 +23,19 @@ impl Author {
             Self::User => "user",
             Self::Claude => "claude",
             Self::System => "system",
+        }
+    }
+
+    /// Parses an identifier produced by [`Author::id`].
+    ///
+    /// # Errors
+    /// [`CoreError::Invalid`] on an unknown identifier.
+    pub fn from_id(id: &str) -> Result<Self> {
+        match id {
+            "user" => Ok(Self::User),
+            "claude" => Ok(Self::Claude),
+            "system" => Ok(Self::System),
+            other => Err(CoreError::Invalid(format!("auteur inconnu : {other}"))),
         }
     }
 }
@@ -49,6 +63,20 @@ impl Channel {
             Self::Cli => "cli",
             Self::Mcp => "mcp",
             Self::Forge => "forge",
+        }
+    }
+
+    /// Parses an identifier produced by [`Channel::id`].
+    ///
+    /// # Errors
+    /// [`CoreError::Invalid`] on an unknown identifier.
+    pub fn from_id(id: &str) -> Result<Self> {
+        match id {
+            "tui" => Ok(Self::Tui),
+            "cli" => Ok(Self::Cli),
+            "mcp" => Ok(Self::Mcp),
+            "forge" => Ok(Self::Forge),
+            other => Err(CoreError::Invalid(format!("canal inconnu : {other}"))),
         }
     }
 }

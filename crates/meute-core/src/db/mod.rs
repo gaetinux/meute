@@ -1,6 +1,10 @@
 //! SQLite access: connection, pragmas, clock and migrations.
 
 mod migrations;
+mod projects;
+mod tasks;
+
+pub use tasks::{ProjectFilter, TaskFilter};
 
 use std::path::Path;
 use std::time::Duration;
@@ -58,10 +62,6 @@ impl Db {
     }
 
     /// Current time according to the database clock.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "used by the task repositories from task 7")
-    )]
     pub(crate) fn now(&self) -> Timestamp {
         (self.clock)()
     }
