@@ -15,6 +15,9 @@ allow = [
     "Zlib",
 ]
 confidence-threshold = 0.8
+# option-ext (MPL-2.0, weak file-level copyleft) is pulled in by `directories`
+# (required by the spec for XDG paths); allowed for that crate only, unmodified.
+exceptions = [{ allow = ["MPL-2.0"], crate = "option-ext" }]
 
 [bans]
 multiple-versions = "warn"
