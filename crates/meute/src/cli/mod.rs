@@ -1,6 +1,8 @@
 //! `clap` definitions and dispatch.
+mod config;
 mod project;
 mod task;
+mod task_edit;
 
 use crate::app::App;
 use clap::{Parser, Subcommand};
@@ -18,6 +20,9 @@ enum Command {
     /// Gérer les tâches.
     #[command(subcommand)]
     Task(task::TaskCommand),
+    /// Gérer la configuration.
+    #[command(subcommand)]
+    Config(config::ConfigCommand),
     /// Gérer les projets.
     #[command(subcommand)]
     Project(project::ProjectCommand),
@@ -27,6 +32,7 @@ enum Command {
 pub fn run(cli: Cli, mut app: App) -> anyhow::Result<()> {
     match cli.command {
         Some(Command::Task(cmd)) => task::run(cmd, &mut app),
+        Some(Command::Config(cmd)) => config::run(cmd, &app),
         Some(Command::Project(cmd)) => project::run(cmd, &mut app),
         None => Ok(()),
     }

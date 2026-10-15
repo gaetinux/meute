@@ -1,4 +1,5 @@
 //! `meute task …`
+use super::task_edit;
 use crate::app::App;
 use crate::render;
 use clap::{Args, Subcommand};
@@ -28,6 +29,8 @@ pub enum TaskCommand {
         #[arg(long)]
         json: bool,
     },
+    #[command(flatten)]
+    Edit(task_edit::EditCommand),
 }
 
 #[derive(Args)]
@@ -54,6 +57,7 @@ pub fn run(cmd: TaskCommand, app: &mut App) -> anyhow::Result<()> {
         TaskCommand::Add { input, dry_run } => add(app, &input.join(" "), dry_run),
         TaskCommand::List(args) => list(app, &args),
         TaskCommand::Show { id, json } => show(app, TaskId(id), json),
+        TaskCommand::Edit(cmd) => task_edit::run(cmd, app),
     }
 }
 
