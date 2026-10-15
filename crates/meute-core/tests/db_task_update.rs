@@ -331,3 +331,44 @@ fn task_ids_are_never_reused_after_delete() {
         .collect();
     assert_eq!(fields, ["created", "deleted"]);
 }
+
+#[test]
+fn stored_timestamps_are_fixed_width_utc() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("meute.db");
+    let mut db = Db::open(&path, Duration::from_millis(100))
+        .unwrap()
+        .with_clock(|| "2026-10-14T08:30:00Z".parse().unwrap());
+    db.create_project("p", "").unwrap();
+    let t = db
+        .create_task(
+            NewTask {
+                due: Some(Due::At("2026-10-15T09:00:00Z".parse().unwrap())),
+                ..new_task("Relire la PR")
+            },
+            &user(),
+        )
+        .unwrap();
+    db.add_note(t.id, "n", &user()).unwrap();
+    let patch = TaskPatch {
+        status: Some(TaskStatus::Done),
+        ..TaskPatch::default()
+    };
+    db.update_task(t.id, 1, patch, &user()).unwrap();
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    for (table, column) in [
+        ("projects", "created_at"),
+        ("tasks", "created_at"),
+        ("tasks", "updated_at"),
+        ("tasks", "completed_at"),
+        ("tasks", "due_at"),
+        ("task_notes", "created_at"),
+        ("task_events", "created_at"),
+    ] {
+        let value: String = conn
+            .query_row(&format!("SELECT {column} FROM {table}"), [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(value.len(), 27, "{table}.{column} = {value}");
+        assert!(value.ends_with('Z') && value.contains('.'), "{value}");
+    }
+}

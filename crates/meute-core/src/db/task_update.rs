@@ -4,6 +4,7 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
 use super::Db;
 use super::tasks::{fetch_task, unknown_project};
+use super::time::to_db;
 use crate::actor::Actor;
 use crate::error::{CoreError, Result};
 use crate::project::ProjectId;
@@ -159,7 +160,7 @@ impl Db {
         patch: TaskPatch,
         actor: &Actor,
     ) -> Result<Task> {
-        let now = self.now().to_string();
+        let now = to_db(self.now());
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -182,7 +183,7 @@ impl Db {
             return Ok(cur);
         }
         let completed_at = match (&cur.status, &next.status) {
-            (TaskStatus::Done, TaskStatus::Done) => cur.completed_at.map(|t| t.to_string()),
+            (TaskStatus::Done, TaskStatus::Done) => cur.completed_at.map(to_db),
             (_, TaskStatus::Done) => Some(now.clone()),
             (_, _) => None,
         };
@@ -194,7 +195,7 @@ impl Db {
         };
         let (due_date, due_at) = match next.due {
             Some(Due::Date(d)) => (Some(d.to_string()), None),
-            Some(Due::At(at)) => (None, Some(at.to_string())),
+            Some(Due::At(at)) => (None, Some(to_db(at))),
             None => (None, None),
         };
         let rows = tx
@@ -244,7 +245,7 @@ impl Db {
     /// [`CoreError::Conflict`] on a version mismatch; [`CoreError::NotFound`]
     /// when the task does not exist.
     pub fn delete_task(&mut self, id: TaskId, expected_version: u32, actor: &Actor) -> Result<()> {
-        let now = self.now().to_string();
+        let now = to_db(self.now());
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;

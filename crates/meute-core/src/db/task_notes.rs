@@ -4,6 +4,7 @@ use rusqlite::{Row, params};
 
 use super::Db;
 use super::tasks::fetch_task;
+use super::time::{from_db, to_db};
 use crate::actor::{Actor, Author, Channel};
 use crate::error::{CoreError, Result};
 use crate::task::{Note, TaskId};
@@ -22,7 +23,7 @@ fn row_to_note(row: &Row) -> rusqlite::Result<Note> {
         author: Author::from_id(&author).map_err(|e| conv(3, e))?,
         channel: Channel::from_id(&channel).map_err(|e| conv(4, e))?,
         session_id: row.get(5)?,
-        created_at: created_at.parse().map_err(|e| {
+        created_at: from_db(&created_at).map_err(|e| {
             rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(e))
         })?,
     })
@@ -39,7 +40,7 @@ impl Db {
         if body.is_empty() {
             return Err(CoreError::Invalid("la note ne peut pas être vide".into()));
         }
-        let now = self.now().to_string();
+        let now = to_db(self.now());
         let tx = self.conn.transaction()?;
         fetch_task(&tx, id)?;
         tx.execute(

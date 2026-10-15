@@ -1,9 +1,9 @@
 //! Project repository.
 
-use jiff::Timestamp;
 use rusqlite::{ErrorCode, OptionalExtension, Row, params};
 
 use super::Db;
+use super::time::{from_db, to_db};
 use crate::error::{CoreError, Result};
 use crate::project::{Project, ProjectId};
 
@@ -16,7 +16,7 @@ fn row_to_project(row: &Row) -> rusqlite::Result<Project> {
         name: row.get(1)?,
         description: row.get(2)?,
         instructions: row.get(3)?,
-        created_at: created_at.parse::<Timestamp>().map_err(|e| {
+        created_at: from_db(&created_at).map_err(|e| {
             rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e))
         })?,
     })
@@ -34,7 +34,7 @@ impl Db {
                 "le nom du projet ne peut pas être vide".into(),
             ));
         }
-        let now = self.now().to_string();
+        let now = to_db(self.now());
         let tx = self.conn.transaction()?;
         let inserted = tx.execute(
             "INSERT INTO projects (name, description, created_at) VALUES (?1, ?2, ?3)",

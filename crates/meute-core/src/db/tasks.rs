@@ -7,6 +7,7 @@ use rusqlite::types::{Type, Value};
 use rusqlite::{Connection, ErrorCode, Row, params, params_from_iter};
 
 use super::Db;
+use super::time::{from_db, to_db};
 use crate::actor::{Actor, Author, Channel};
 use crate::error::{CoreError, Result};
 use crate::project::ProjectId;
@@ -55,6 +56,14 @@ where
     text.parse().map_err(|e| conversion(idx, e))
 }
 
+fn parse_ts(idx: usize, text: &str) -> rusqlite::Result<Timestamp> {
+    from_db(text).map_err(|e| conversion(idx, e))
+}
+
+fn parse_ts_opt(idx: usize, text: Option<String>) -> rusqlite::Result<Option<Timestamp>> {
+    text.map(|s| parse_ts(idx, &s)).transpose()
+}
+
 fn parse_opt<T>(idx: usize, text: Option<String>) -> rusqlite::Result<Option<T>>
 where
     T: FromStr,
@@ -68,7 +77,7 @@ pub(super) fn row_to_task(row: &Row) -> rusqlite::Result<Task> {
     let reason: Option<String> = row.get(4)?;
     let priority: String = row.get(5)?;
     let due_date: Option<jiff::civil::Date> = parse_opt(6, row.get(6)?)?;
-    let due_at: Option<Timestamp> = parse_opt(7, row.get(7)?)?;
+    let due_at: Option<Timestamp> = parse_ts_opt(7, row.get(7)?)?;
     let due = match (due_date, due_at) {
         (Some(d), _) => Some(Due::Date(d)),
         (None, Some(at)) => Some(Due::At(at)),
@@ -95,9 +104,9 @@ pub(super) fn row_to_task(row: &Row) -> rusqlite::Result<Task> {
         project,
         repo_id: row.get(10)?,
         version: row.get(11)?,
-        created_at: parse_at(12, &created_at)?,
-        updated_at: parse_at(13, &updated_at)?,
-        completed_at: parse_opt(14, row.get(14)?)?,
+        created_at: parse_ts(12, &created_at)?,
+        updated_at: parse_ts(13, &updated_at)?,
+        completed_at: parse_ts_opt(14, row.get(14)?)?,
     })
 }
 
@@ -113,7 +122,7 @@ fn row_to_event(row: &Row) -> rusqlite::Result<TaskEvent> {
         author: Author::from_id(&author).map_err(|e| conversion(4, e))?,
         channel: Channel::from_id(&channel).map_err(|e| conversion(5, e))?,
         session_id: row.get(6)?,
-        created_at: parse_at(7, &created_at)?,
+        created_at: parse_ts(7, &created_at)?,
     })
 }
 
@@ -159,10 +168,10 @@ impl Db {
         if title.is_empty() {
             return Err(CoreError::Invalid("le titre ne peut pas être vide".into()));
         }
-        let now = self.now().to_string();
+        let now = to_db(self.now());
         let (due_date, due_at) = match new.due {
             Some(Due::Date(d)) => (Some(d.to_string()), None),
-            Some(Due::At(at)) => (None, Some(at.to_string())),
+            Some(Due::At(at)) => (None, Some(to_db(at))),
             None => (None, None),
         };
         let tx = self.conn.transaction()?;

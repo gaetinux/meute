@@ -5,6 +5,7 @@ mod projects;
 mod task_notes;
 mod task_update;
 mod tasks;
+pub mod time;
 
 pub use tasks::{ProjectFilter, TaskFilter};
 
