@@ -314,3 +314,20 @@ fn delete_checks_version_and_keeps_history() {
     );
     assert!(db.notes(t.id).unwrap().is_empty());
 }
+
+#[test]
+fn task_ids_are_never_reused_after_delete() {
+    let mut db = test_db();
+    db.create_task(new_task("un"), &user()).unwrap();
+    let second = db.create_task(new_task("deux"), &user()).unwrap();
+    db.delete_task(second.id, 1, &user()).unwrap();
+    let third = db.create_task(new_task("trois"), &user()).unwrap();
+    assert_eq!(third.id.0, 3);
+    let fields: Vec<String> = db
+        .history(second.id)
+        .unwrap()
+        .into_iter()
+        .map(|e| e.field)
+        .collect();
+    assert_eq!(fields, ["created", "deleted"]);
+}

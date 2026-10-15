@@ -1,5 +1,5 @@
 CREATE TABLE projects (
-  id INTEGER PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE COLLATE NOCASE,
   description TEXT NOT NULL DEFAULT '',
   instructions TEXT NOT NULL DEFAULT '',
@@ -18,7 +18,7 @@ CREATE TABLE project_repos (
   PRIMARY KEY (project_id, repo_id)
 );
 CREATE TABLE tasks (
-  id INTEGER PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL CHECK (length(trim(title)) > 0),
   description TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL CHECK (status IN ('todo','in_progress','blocked','review','done')),
@@ -36,7 +36,7 @@ CREATE TABLE tasks (
   CHECK ((status = 'blocked') = (blocked_reason IS NOT NULL))
 );
 CREATE TABLE task_notes (
-  id INTEGER PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   body TEXT NOT NULL,
   author TEXT NOT NULL, channel TEXT NOT NULL, session_id TEXT,
