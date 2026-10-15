@@ -73,6 +73,7 @@ pub fn seed_mixed(tmp: &tempfile::TempDir) {
             Some(Due::At(at_today)),
             None,
         ),
+        new_task("Payer la facture", Priority::Normal, d(10, 10), None),
     ];
     for row in rows {
         db.create_task(row, &actor()).unwrap();
