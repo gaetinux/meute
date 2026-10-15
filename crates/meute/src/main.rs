@@ -29,6 +29,14 @@ fn exit_code(err: &anyhow::Error) -> u8 {
     }
 }
 
+/// Joins an error and its causes with French-style ` : ` separators.
+fn error_chain(err: &anyhow::Error) -> String {
+    err.chain()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(" : ")
+}
+
 fn main() -> ExitCode {
     let cli = cli::Cli::parse();
     let (result, now) = match app::App::init() {
@@ -41,7 +49,7 @@ fn main() -> ExitCode {
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
-            eprintln!("meute : {err:#}");
+            eprintln!("meute : {}", error_chain(&err));
             if let (Some(CoreError::Conflict { current }), Some(now)) =
                 (err.downcast_ref::<CoreError>(), now)
             {

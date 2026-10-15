@@ -16,7 +16,7 @@ pub enum CoreError {
         message: String,
     },
     /// Filesystem error.
-    #[error("erreur d'entrée/sortie : {0}")]
+    #[error("erreur d'entrée/sortie")]
     Io(#[from] std::io::Error),
     /// Invalid user input (unknown key, wrong type, ...).
     #[error("valeur invalide : {0}")]
@@ -36,7 +36,7 @@ pub enum CoreError {
         current: Box<Task>,
     },
     /// SQLite error.
-    #[error("erreur de base de données : {0}")]
+    #[error("erreur de base de données")]
     Db(#[from] rusqlite::Error),
     /// Schema migration failure.
     #[error("échec de la migration : {0}")]
