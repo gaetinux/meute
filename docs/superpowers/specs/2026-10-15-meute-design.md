@@ -2,7 +2,7 @@
 
 - Date : 2026-10-15
 - Statut : brouillon à relire
-- Sources : `concept.md` (archive), brainstorm du 2026-10-15, mod Claude Code « session-board » v0.33.0
+- Sources : concept initial (non publié), brainstorm du 2026-10-15, mod Claude Code « session-board » v0.33.0
 - Nom : `meute` (binaire, crates, chemins). Slogan envisagé : « Lead your pack of coding agents. » Licence : MIT OR Apache-2.0.
 
 ## 1. Objet
