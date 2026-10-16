@@ -11,7 +11,9 @@ use super::time::{from_db, to_db};
 use crate::actor::{Actor, Author, Channel};
 use crate::error::{CoreError, Result};
 use crate::project::ProjectId;
-use crate::task::{Due, NewTask, Priority, ProjectRef, Task, TaskEvent, TaskId, TaskStatus};
+use crate::task::{
+    Due, NewTask, Priority, ProjectRef, StatusKind, Task, TaskEvent, TaskId, TaskStatus,
+};
 
 /// Which projects a task listing covers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -32,8 +34,8 @@ pub struct TaskFilter {
     pub include_done: bool,
     /// Project restriction.
     pub project: ProjectFilter,
-    /// Restrict to one status identifier (see [`TaskStatus::id`]).
-    pub status: Option<&'static str>,
+    /// Restrict to one status; `Done` implies `include_done`.
+    pub status: Option<StatusKind>,
 }
 
 pub(super) const TASK_SELECT: &str = "SELECT t.id, t.title, t.description, t.status, t.blocked_reason, \
@@ -219,7 +221,7 @@ impl Db {
     pub fn list_tasks(&self, filter: &TaskFilter) -> Result<Vec<Task>> {
         let mut sql = format!("{TASK_SELECT} WHERE 1 = 1");
         let mut args: Vec<Value> = Vec::new();
-        if !filter.include_done {
+        if !filter.include_done && filter.status != Some(StatusKind::Done) {
             sql.push_str(" AND t.status <> 'done'");
         }
         match filter.project {
@@ -232,7 +234,7 @@ impl Db {
         }
         if let Some(status) = filter.status {
             sql.push_str(" AND t.status = ?");
-            args.push(Value::Text(status.to_owned()));
+            args.push(Value::Text(status.id().to_owned()));
         }
         sql.push_str(" ORDER BY t.id");
         let mut stmt = self.conn.prepare(&sql)?;

@@ -9,7 +9,7 @@ use meute_core::CoreError;
 use meute_core::actor::{Author, Channel};
 use meute_core::db::{Db, ProjectFilter, TaskFilter};
 use meute_core::project::ProjectId;
-use meute_core::task::{NewTask, Priority, TaskId, TaskStatus};
+use meute_core::task::{NewTask, Priority, StatusKind, TaskId, TaskPatch, TaskStatus};
 
 #[test]
 fn create_and_get_task_with_project() {
@@ -115,7 +115,7 @@ fn list_filters_done_floating_and_project() {
     assert_eq!(
         ids(&TaskFilter {
             include_done: true,
-            status: Some("done"),
+            status: Some(StatusKind::Done),
             ..TaskFilter::default()
         }),
         [3]
@@ -148,4 +148,37 @@ fn create_with_unknown_project_is_not_found() {
         "{err:?}"
     );
     assert!(db.list_tasks(&TaskFilter::default()).unwrap().is_empty());
+}
+
+#[test]
+fn done_status_filter_implies_done_tasks() {
+    let mut db = test_db();
+    let open = db.create_task(new_task("open", None), &user()).unwrap();
+    let finished = db.create_task(new_task("finished", None), &user()).unwrap();
+    db.update_task(
+        finished.id,
+        finished.version,
+        TaskPatch {
+            status: Some(TaskStatus::Done),
+            ..TaskPatch::default()
+        },
+        &user(),
+    )
+    .unwrap();
+    let ids = |filter: &TaskFilter| -> Vec<TaskId> {
+        db.list_tasks(filter)
+            .unwrap()
+            .into_iter()
+            .map(|t| t.id)
+            .collect()
+    };
+    assert_eq!(ids(&TaskFilter::default()), [open.id]);
+    assert_eq!(
+        ids(&TaskFilter {
+            include_done: false,
+            status: Some(StatusKind::Done),
+            ..TaskFilter::default()
+        }),
+        [finished.id]
+    );
 }

@@ -3,6 +3,50 @@
 use crate::{CoreError, Result};
 use serde::{Deserialize, Serialize};
 
+/// Status of a task without its payload (the blocked reason).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum StatusKind {
+    /// Not started.
+    Todo,
+    /// Being worked on.
+    InProgress,
+    /// Waiting on something.
+    Blocked,
+    /// Waiting for a review.
+    Review,
+    /// Finished.
+    Done,
+}
+
+impl StatusKind {
+    /// Stable identifier (same as [`TaskStatus::id`]).
+    #[must_use]
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Todo => "todo",
+            Self::InProgress => "in_progress",
+            Self::Blocked => "blocked",
+            Self::Review => "review",
+            Self::Done => "done",
+        }
+    }
+
+    /// Parses a status identifier.
+    ///
+    /// # Errors
+    /// [`CoreError::Invalid`] on an unknown identifier.
+    pub fn from_id(id: &str) -> Result<Self> {
+        match id {
+            "todo" => Ok(Self::Todo),
+            "in_progress" => Ok(Self::InProgress),
+            "blocked" => Ok(Self::Blocked),
+            "review" => Ok(Self::Review),
+            "done" => Ok(Self::Done),
+            other => Err(CoreError::Invalid(format!("statut inconnu : {other}"))),
+        }
+    }
+}
+
 /// Lifecycle state of a task.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -23,16 +67,22 @@ pub enum TaskStatus {
 }
 
 impl TaskStatus {
+    /// The status without its payload.
+    #[must_use]
+    pub fn kind(&self) -> StatusKind {
+        match self {
+            Self::Todo => StatusKind::Todo,
+            Self::InProgress => StatusKind::InProgress,
+            Self::Blocked { .. } => StatusKind::Blocked,
+            Self::Review => StatusKind::Review,
+            Self::Done => StatusKind::Done,
+        }
+    }
+
     /// Stable identifier (storage and JSON).
     #[must_use]
     pub fn id(&self) -> &'static str {
-        match self {
-            Self::Todo => "todo",
-            Self::InProgress => "in_progress",
-            Self::Blocked { .. } => "blocked",
-            Self::Review => "review",
-            Self::Done => "done",
-        }
+        self.kind().id()
     }
 
     /// French label shown to the user.

@@ -5,7 +5,7 @@ use crate::render;
 use clap::{Args, Subcommand};
 use meute_core::db::{ProjectFilter, TaskFilter};
 use meute_core::quick_add::parse_quick_add;
-use meute_core::task::{NewTask, TaskId, TaskStatus};
+use meute_core::task::{NewTask, StatusKind, TaskId};
 use meute_core::views::sort_for_display;
 
 #[derive(Subcommand)]
@@ -88,7 +88,7 @@ fn list(app: &mut App, args: &ListArgs) -> anyhow::Result<()> {
     let status = args
         .status
         .as_deref()
-        .map(|id| TaskStatus::from_id(id, Some("-")).map(|s| s.id()))
+        .map(StatusKind::from_id)
         .transpose()?;
     let project = match (&args.project, args.floating) {
         (Some(name), _) => ProjectFilter::Project(app.require_project(name)?.id),
@@ -96,7 +96,7 @@ fn list(app: &mut App, args: &ListArgs) -> anyhow::Result<()> {
         (None, false) => ProjectFilter::Any,
     };
     let filter = TaskFilter {
-        include_done: args.all || status == Some(TaskStatus::Done.id()),
+        include_done: args.all,
         project,
         status,
     };

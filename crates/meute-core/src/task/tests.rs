@@ -1,4 +1,5 @@
 use super::*;
+use crate::CoreError;
 use crate::project::ProjectId;
 
 #[test]
@@ -103,4 +104,43 @@ fn task_serializes_flat_status_and_due() {
     assert_eq!(v["project"], serde_json::json!({"id": 1, "name": "meute"}));
     assert_eq!(v["created_at"], "2026-10-15T08:00:00Z");
     assert!(v["completed_at"].is_null());
+}
+
+#[test]
+fn status_kind_ids_round_trip_and_match_task_status() {
+    for kind in [
+        StatusKind::Todo,
+        StatusKind::InProgress,
+        StatusKind::Blocked,
+        StatusKind::Review,
+        StatusKind::Done,
+    ] {
+        assert_eq!(StatusKind::from_id(kind.id()).unwrap(), kind);
+    }
+    assert_eq!(
+        TaskStatus::Blocked { reason: "x".into() }.kind(),
+        StatusKind::Blocked
+    );
+    assert_eq!(TaskStatus::Done.kind().id(), TaskStatus::Done.id());
+    assert!(
+        matches!(StatusKind::from_id("bloqué"), Err(CoreError::Invalid(m)) if m == "statut inconnu : bloqué")
+    );
+}
+
+#[test]
+fn due_serde_shape_matches_task_json() {
+    let d = Due::Date(jiff::civil::date(2026, 10, 20));
+    assert_eq!(
+        serde_json::to_value(d).unwrap(),
+        serde_json::json!({"kind": "date", "value": "2026-10-20"})
+    );
+    let at: jiff::Timestamp = "2026-10-20T12:00:00Z".parse().unwrap();
+    assert_eq!(
+        serde_json::to_value(Due::At(at)).unwrap(),
+        serde_json::json!({"kind": "at", "value": "2026-10-20T12:00:00Z"})
+    );
+    for due in [d, Due::At(at)] {
+        let back: Due = serde_json::from_value(serde_json::to_value(due).unwrap()).unwrap();
+        assert_eq!(back, due);
+    }
 }

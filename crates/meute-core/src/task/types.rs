@@ -20,6 +20,7 @@ impl fmt::Display for TaskId {
 
 /// Deadline of a task: a day, or an exact instant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum Due {
     /// A calendar day without time.
     Date(jiff::civil::Date),
@@ -68,13 +69,6 @@ pub struct Task {
     pub completed_at: Option<Timestamp>,
 }
 
-/// JSON shape of a deadline: `{"kind": "date"|"at", "value": "..."}`.
-#[derive(Serialize)]
-struct DueJson {
-    kind: &'static str,
-    value: String,
-}
-
 impl Serialize for Task {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let blocked_reason = match &self.status {
@@ -83,16 +77,6 @@ impl Serialize for Task {
                 None
             }
         };
-        let due = self.due.map(|d| match d {
-            Due::Date(date) => DueJson {
-                kind: "date",
-                value: date.to_string(),
-            },
-            Due::At(at) => DueJson {
-                kind: "at",
-                value: at.to_string(),
-            },
-        });
         let mut s = serializer.serialize_struct("Task", 13)?;
         s.serialize_field("id", &self.id)?;
         s.serialize_field("title", &self.title)?;
@@ -100,7 +84,7 @@ impl Serialize for Task {
         s.serialize_field("status", self.status.id())?;
         s.serialize_field("blocked_reason", &blocked_reason)?;
         s.serialize_field("priority", &self.priority)?;
-        s.serialize_field("due", &due)?;
+        s.serialize_field("due", &self.due)?;
         s.serialize_field("project", &self.project)?;
         s.serialize_field("repo_id", &self.repo_id)?;
         s.serialize_field("version", &self.version)?;
