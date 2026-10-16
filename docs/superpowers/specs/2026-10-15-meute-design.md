@@ -1,13 +1,14 @@
 # Spécification de conception — `meute`, poste de pilotage de sessions Claude Code
 
 - Date : 2026-10-15
-- Statut : relue par l'auteur ; mise à jour après les spikes S1 à S5
+- Statut : relue par l'auteur ; mise à jour après les spikes S1 à S5, puis migrée vers Python (spike S6)
+- Langue : L'interface est en anglais ; la spécification reste en français.
 - Sources : concept initial (non publié), brainstorm du 2026-10-15, mod Claude Code « session-board » v0.33.0
-- Nom : `meute` (binaire, crates, chemins). Slogan envisagé : « Lead your pack of coding agents. » Licence : MIT OR Apache-2.0.
+- Nom : `meute` (commande, paquet, chemins). Slogan envisagé : « Lead your pack of coding agents. » Licence : MIT OR Apache-2.0.
 
 ## 1. Objet
 
-`meute` est une application Rust, TUI et CLI, qui permet de piloter en parallèle plusieurs sessions Claude Code et terminaux Bash depuis un terminal, y compris en SSH, et de les relier à une gestion de tâches légère.
+`meute` est une application Python, TUI et CLI, qui permet de piloter en parallèle plusieurs sessions Claude Code et terminaux Bash depuis un terminal, y compris en SSH, et de les relier à une gestion de tâches légère.
 
 ### 1.1 Contexte
 
@@ -46,20 +47,20 @@ L'auteur travaille toute la journée en SSH sur un serveur de développement, da
 |---|---|
 | Disposition | Tableau de bord fixe dans un panneau tmux, session affichée dans la zone principale (§ 5) |
 | Sessions | Lancement Claude Code et Bash, avec ou sans worktree. Échange, rattachement, arrêt explicite |
-| Vue Sessions | Regroupement par projet, statut, dernière activité, durée, coût, contexte %, branche et état Git, filtre « à traiter », sessions terminées repliées |
-| Quotas | Fenêtres 5 h et 7 j, reset, projection « limite vers HH:MM », heures pleines/creuses |
+| Vue Sessions | Regroupement par projet, statut, dernière activité, durée, coût, contexte %, branche et état Git, filtre « needs attention », sessions terminées repliées |
+| Quotas | Fenêtres 5 h et 7 j, reset, projection « limit around HH:MM », heures pleines/creuses |
 | Vue Tâches | Saisie rapide, filtres, regroupement par urgence ou par projet, détail, notes |
 | MCP | Outils de lecture et d'écriture des tâches pour Claude |
 | États sauvegardés | Sauvegarder l'ensemble des sessions ouvertes, puis rouvrir un état sauvegardé |
 | Reprise | Reprendre une session Claude récente (`--resume`) |
-| Statusline | Statusline Claude fournie par `meute` (portage Rust du script actuel) |
+| Statusline | Statusline Claude fournie par `meute` (portage Python du script actuel) |
 | Configuration | Fichier TOML commenté créé au premier lancement, commandes `meute config get/set` |
 
 ### 3.2 V1.1 — Forges
 
 - Configuration de forges GitHub, Gitea et GitLab dans un écran du TUI.
 - PR/MR et état de la CI affichés sur chaque session.
-- Rappels après un merge : « repasser sur main », « worktree à supprimer ».
+- Rappels après un merge : « back to main », « worktree to delete ».
 - Transitions de tâche déclenchées par des faits observés sur la forge (§ 9.4).
 - Catalogue des dépôts distants, clonage, puis lancement de session.
 - Ordre d'implémentation : GitHub, puis Gitea, puis GitLab.
@@ -103,7 +104,9 @@ L'auteur travaille toute la journée en SSH sur un serveur de développement, da
 - **Claude Code appelle `meute`** (hooks, statusline, MCP stdio). `meute` n'interroge pas Claude Code.
 - **tmux détient les processus.** Le TUI peut être fermé et relancé à tout moment.
 
-### 4.2 Un binaire, plusieurs sous-commandes
+### 4.2 Une commande, plusieurs sous-commandes
+
+`meute` est le script installé par `uv tool`. Son point d'entrée, `_entry`, dispatche `ingest` avant tout import lourd (Typer, Textual, SDK MCP), pour tenir le budget du § 7.3 (spike S6, § 14).
 
 | Commande | Rôle |
 |---|---|
@@ -114,31 +117,36 @@ L'auteur travaille toute la journée en SSH sur un serveur de développement, da
 | `meute mcp` | Serveur MCP stdio, lancé par Claude Code |
 | `meute task …`, `meute session …`, `meute state …`, `meute config …`, `meute doctor` | CLI |
 
-### 4.3 Workspace Cargo
+### 4.3 Paquet Python
 
-| Crate | Responsabilité | Dépend de |
+Un seul paquet `meute`, en disposition `src/meute/`, géré par uv (Python 3.13). Chaque package ci-dessous est un sous-package.
+
+| Package | Responsabilité | Peut importer |
 |---|---|---|
-| `meute-core` | Modèle métier, règles, transitions d'état, accès SQLite et migrations, analyse de la saisie rapide | — |
-| `meute-tmux` | Pilotage de tmux : serveur dédié, fenêtres, panneaux, `swap-pane`, `capture-pane`, options utilisateur `@meute_*` | — |
-| `meute-git` | Découverte des dépôts, état Git, worktrees | — |
-| `meute-claude` | Adaptateur Claude : construction de la ligne de commande, fichiers `--settings` et `--mcp-config`, interprétation des hooks et de la statusline | `meute-core` |
-| `meute-tui` | Écrans ratatui | `meute-core` |
-| `meute-mcp` | Outils MCP | `meute-core` |
-| `meute-forge` (V1.1) | Trait `Forge` et adaptateurs GitHub, Gitea, GitLab | `meute-core` |
-| `meute` | Binaire : `clap`, assemblage | toutes |
+| `meute.core` | Modèle métier, règles, transitions d'état, accès SQLite et migrations, analyse de la saisie rapide, lecture de la configuration, chemins XDG, modèles de vue | stdlib uniquement |
+| `meute.ingest` | `ingest hook` et `ingest statusline` : le chemin chaud | `meute.core` (sous-modules nécessaires seulement), stdlib |
+| `meute.tmux` | Pilotage de tmux : serveur dédié, fenêtres, panneaux, `swap-pane`, `capture-pane`, options utilisateur `@meute_*` | stdlib uniquement |
+| `meute.git` | Découverte des dépôts, état Git, worktrees | stdlib uniquement |
+| `meute.claude` | Adaptateur Claude : construction de la ligne de commande, fichiers `--settings` et `--mcp-config`, interprétation des hooks et de la statusline | `meute.core` |
+| `meute.tui` | Écrans Textual | `meute.core`, `textual` |
+| `meute.mcp` | Outils MCP | `meute.core`, `mcp` |
+| `meute.forge` (V1.1) | Protocole `Forge` et adaptateurs GitHub, Gitea, GitLab | `meute.core` |
+| `meute.cli` | Typer, assemblage, édition de la configuration (`tomlkit`) | tous |
+| `meute._entry` | Point d'entrée : dispatche sur `sys.argv`, imports paresseux | `meute.ingest`, `meute.cli` |
 
-Règles :
+Règles (vérifiées par import-linter) :
 
-- Le code est **synchrone par défaut**. Seule `meute-mcp` peut utiliser `tokio` si la bibliothèque MCP retenue l'exige.
-- Toute règle métier vit dans `meute-core`. Les autres crates n'appellent que ses opérations publiques.
+- Le code est **synchrone par défaut**. L'asynchrone n'apparaît que dans `meute.tui` et `meute.mcp`, là où Textual et le SDK MCP l'imposent.
+- Toute règle métier vit dans `meute.core`. Les autres packages n'appellent que ses opérations publiques. `meute.core`, `meute.tmux` et `meute.git` sont indépendants les uns des autres ; l'assemblage se fait dans `meute.cli`.
+- `meute/core/__init__.py` n'importe ni ne réexporte rien, et `ingest` n'importe que les sous-modules de `core` dont il a besoin : le chemin chaud ne paie que ce qu'il utilise (marge du spike S6 : environ 3 ms). Un test `importtime` échoue si `ingest` importe un module tiers.
 - Bibliothèques pressenties :
-  - interface : `ratatui`, `crossterm`, `clap` ;
-  - stockage : `rusqlite` (compilation `bundled`), `rusqlite_migration` ;
-  - sérialisation : `serde`, `serde_json`, `toml` ;
-  - dates : `jiff` (dates et fuseaux horaires) ;
-  - divers : `uuid`, `directories` ;
-  - MCP : `rmcp` ;
-  - forges (V1.1) : `reqwest` en mode bloquant.
+  - interface : Typer (CLI), Textual (TUI) ;
+  - stockage : `sqlite3` de la stdlib, migrations en fichiers SQL numérotés, sans ORM ;
+  - configuration : `tomllib` en lecture, `tomlkit` pour `meute config set` ;
+  - dates : `datetime` et `zoneinfo` ;
+  - divers : `uuid`, chemins XDG codés à la main ;
+  - MCP : SDK officiel `mcp` ;
+  - forges (V1.1) : un client HTTP synchrone.
 
 ### 4.4 Pourquoi pas de service de fond
 
@@ -149,7 +157,7 @@ Les besoins couverts par le service du concept initial sont déjà assurés autr
 - **état partagé** : SQLite ;
 - **réconciliation** : faite à l'ouverture du TUI.
 
-On évite ainsi un protocole de socket, la gestion des versions entre clients, une unité systemd et toute une catégorie de bugs. **Contrepartie** : quand le TUI est fermé, rien n'est interrogé, ni forges ni horloge. Les faits observés pendant cette période sont rattrapés au prochain affichage. Si ce retard devient gênant (notifications système, interrogation des forges), un service de fond pourra être ajouté au-dessus de `meute-core` sans rien réécrire.
+On évite ainsi un protocole de socket, la gestion des versions entre clients, une unité systemd et toute une catégorie de bugs. **Contrepartie** : quand le TUI est fermé, rien n'est interrogé, ni forges ni horloge. Les faits observés pendant cette période sont rattrapés au prochain affichage. Si ce retard devient gênant (notifications système, interrogation des forges), un service de fond pourra être ajouté au-dessus de `meute.core` sans rien réécrire.
 
 ### 4.5 Rafraîchissement du TUI
 
@@ -171,8 +179,8 @@ On évite ainsi un protocole de socket, la gestion des versions entre clients, u
 - **Raccourcis globaux**, définis sans préfixe dans la configuration générée et modifiables :
   - `M-p` : focus sur le tableau de bord ;
   - `M-o` : focus sur la zone principale ;
-  - `M-n` / `M-N` : session suivante / précédente parmi celles « à traiter ».
-- **La barre d'état tmux** affiche la session affichée et le nombre de sessions à traiter.
+  - `M-n` / `M-N` : session suivante / précédente parmi celles « needs attention ».
+- **La barre d'état tmux** affiche la session affichée et le nombre de sessions « needs attention ».
 - **Se détacher** (`prefix d` ou fermeture du terminal) laisse tout tourner. Relancer `meute` permet de se rattacher.
 
 ### 5.2 Mode étroit
@@ -192,7 +200,7 @@ Si `meute` est lancé depuis un tmux (variable `$TMUX` définie), il se rattache
 
 - **panneau absent** : la session passe à l'état `Unreachable` ;
 - **panneau mort** (`pane_dead=1`) : elle passe à l'état `Exited(code)`, avec `code = pane_dead_status` ;
-- **panneau `@meute_id` inconnu de la base** : il est affiché comme « orphelin », avec deux actions possibles, l'adopter ou le fermer.
+- **panneau `@meute_id` inconnu de la base** : il est affiché comme « orphan », avec deux actions possibles, l'adopter ou le fermer.
 
 Aucune relance n'est automatique.
 
@@ -200,7 +208,7 @@ Aucune relance n'est automatique.
 
 - `claude agents --json` liste toutes les sessions Claude actives de la machine, y compris celles lancées en dehors de meute. Pour chacune, il donne `pid`, `cwd`, `kind` (`interactive` / `background`), `sessionId`, `name` et `status` (`busy` / `waiting` / `idle`).
 - meute l'appelle à chaque relecture de tmux :
-  - les sessions qu'il ne gère pas sont affichées **en lecture seule** dans une section « hors meute », avec leur statut et leur dossier ;
+  - les sessions qu'il ne gère pas sont affichées **en lecture seule** dans une section « outside meute », avec leur statut et leur dossier ;
   - pour les sessions qu'il gère, il sert de **source d'état de secours** quand aucun hook n'a été reçu depuis longtemps.
 - meute ne lance pas lui-même de sessions `claude --bg`. Avec `--bg`, `--session-id` est ignoré, un dossier non approuvé bloque le démarrage, et la session peut créer des worktrees d'elle-même (spike S1).
 
@@ -208,22 +216,29 @@ Aucune relance n'est automatique.
 
 ### 6.1 Modèle
 
-```rust
-enum AgentKind { Claude, Bash }
+```python
+class AgentKind(Enum):
+    CLAUDE = "claude"
+    BASH = "bash"
 
-enum SessionState {
-    // observés (événement reçu)
-    Running, SubagentRunning, Compacting,
-    PermissionRequested,        // PermissionRequest : outil et argument connus
-    WaitingInput,               // tour terminé (Stop) : « attend ta réponse », compté dans « à traiter »
-    Idle,                       // démarrée (SessionStart), aucun prompt encore envoyé
-    Exited { code: Option<i32> },
-    // déduits de tmux
-    Unreachable,                // panneau disparu (redémarrage machine, kill)
-    // supposés (affichés avec un « ? »)
-    MaybeStuck,                 // Running sans événement depuis > N min (défaut 10)
-    Unknown,
-}
+# Chaque variante est une dataclass gelée ; seule Exited porte une donnée.
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Exited:
+    code: int | None
+
+SessionState = (
+    # observés (événement reçu)
+    Running | SubagentRunning | Compacting
+    | PermissionRequested   # PermissionRequest : outil et argument connus
+    | WaitingInput          # tour terminé (Stop) : « waiting for your reply », compté dans « needs attention »
+    | Idle                  # démarrée (SessionStart), aucun prompt encore envoyé
+    | Exited
+    # déduits de tmux
+    | Unreachable           # panneau disparu (redémarrage machine, kill)
+    # supposés (affichés avec un « ? »)
+    | MaybeStuck            # Running sans événement depuis > N min (défaut 10)
+    | Unknown
+)
 ```
 
 Une session comporte les champs suivants :
@@ -243,7 +258,7 @@ Chaque adaptateur déclare ses capacités (`resume`, `metrics`, `states_observed
 
 ### 6.2 Lancement d'une session Claude
 
-`meute-claude` génère deux fichiers, dans `~/.local/state/meute/sessions/<id>/` :
+`meute.claude` génère deux fichiers, dans `~/.local/state/meute/sessions/<id>/` :
 - `settings.json` : les hooks et la statusline, pointant vers `meute ingest …` ;
 - `mcp.json` : le serveur `meute mcp`.
 
@@ -277,7 +292,7 @@ Si une autre session vivante travaille déjà dans le même répertoire, le form
 
 - **Arrêter** (`x`, avec confirmation) envoie `C-c` puis, après 5 s, tue le panneau. La session passe à l'état `Exited`.
 - **Reprendre** n'est proposé que pour les sessions Claude dont le panneau a disparu ou dont le processus est terminé. Cette action ouvre un nouveau panneau avec `claude --resume <native_id>`, réutilise l'`id` interne et remplace l'état.
-- La liste « sessions des derniers jours à reprendre » affiche les sessions Claude terminées depuis moins de 7 jours (valeur réglable).
+- La liste « recent sessions to resume » affiche les sessions Claude terminées depuis moins de 7 jours (valeur réglable).
 
 ### 6.6 États sauvegardés
 
@@ -302,7 +317,7 @@ Si une autre session vivante travaille déjà dans le même répertoire, le form
 | `SessionEnd` | `Exited` |
 | `Notification` | Enregistrée dans l'historique seulement. Pour les permissions, elle fait doublon avec `PermissionRequest`, qui est plus précis |
 
-Le spike S2 a validé ces messages sur Claude Code 2.1.301. Aucune notification d'inactivité (`idle_prompt`) n'a été observée : l'état « attend ta réponse » se déduit donc de `Stop`. `SubagentStart` et `PreCompact` n'ont pas été déclenchés pendant le spike et seront vérifiés pendant l'implémentation. Les messages bruts, nettoyés des chemins personnels, servent de fichiers de test.
+Le spike S2 a validé ces messages sur Claude Code 2.1.301. Aucune notification d'inactivité (`idle_prompt`) n'a été observée : l'état « waiting for your reply » se déduit donc de `Stop`. `SubagentStart` et `PreCompact` n'ont pas été déclenchés pendant le spike et seront vérifiés pendant l'implémentation. Les messages bruts, nettoyés des chemins personnels, servent de fichiers de test.
 
 ### 7.2 Statusline
 
@@ -314,7 +329,7 @@ Le spike S2 a validé ces messages sur Claude Code 2.1.301. Aucune notification 
   - `workspace.repo.{host, owner, name}`, conservé pour détecter la forge en V1.1 ;
   - `rate_limits.five_hour` / `seven_day` : `used_percentage` et `resets_at` (horodatage epoch en secondes).
 - La statusline est appelée très souvent, y compris sans terminal attaché. Un relevé n'est donc écrit que si une valeur a changé, ou au plus une fois toutes les 30 s.
-- La commande affiche ensuite la statusline : un portage Rust du script actuel, avec une largeur adaptative et les mêmes segments.
+- La commande affiche ensuite la statusline : un portage Python du script actuel, avec une largeur adaptative et les mêmes segments.
 - Si la configuration contient `statusline.chain = "<commande>"`, la commande indiquée reçoit le même JSON et sa sortie remplace celle de `meute`.
 
 ### 7.3 Contraintes des commandes `ingest`
@@ -329,7 +344,7 @@ Ces commandes sont appelées par Claude Code à chaque événement. Elles **ne d
 ### 7.4 Quotas et projection
 
 - Les quotas sont propres au compte. On retient le relevé le plus récent, toutes sessions confondues.
-- **Projection** : régression linéaire sur les relevés de la fenêtre 5 h des 30 dernières minutes. Si la limite de 100 % est atteinte avant le reset, on affiche « limite vers HH:MM à ce rythme ».
+- **Projection** : régression linéaire sur les relevés de la fenêtre 5 h des 30 dernières minutes. Si la limite de 100 % est atteinte avant le reset, on affiche « limit around HH:MM at this rate ».
 - **Heures pleines** : la plage est réglable. Par défaut, du lundi au vendredi de 8 h à 14 h, heure de New York, comme dans le script actuel. Il s'agit d'une heuristique et elle est documentée comme telle.
 - **Couleurs** des pourcentages (quotas et contexte) : vert en dessous de 50 %, orange de 50 à 80 %, rouge au-delà.
 
@@ -339,11 +354,11 @@ Ces commandes sont appelées par Claude Code à chaque événement. Elles **ne d
 
 1. les consignes globales (configuration) ;
 2. les consignes du projet ;
-3. pour une session liée à une tâche : « Tu travailles sur la tâche #N. Lis-la avec l'outil `task_read` et rends compte de ton avancement avec `task_note_add`. »
+3. pour une session liée à une tâche : « You are working on task #N. Read it with the `task_read` tool and report your progress with `task_note_add`. »
 
 Le texte de la tâche n'est pas injecté : Claude le lit via MCP.
 
-**Règle de résolution des contradictions**, écrite en tête du texte composé : « Les fichiers `CLAUDE.md` du dépôt font autorité sur les conventions de code. La tâche fait autorité sur l'objectif. En cas de contradiction, signale-la à l'utilisateur au lieu de choisir. »
+**Règle de résolution des contradictions**, écrite en tête du texte composé : « The repository's `CLAUDE.md` files are authoritative on code conventions. The task is authoritative on the goal. If they contradict each other, point it out to the user instead of choosing. »
 
 `meute` n'écrit jamais dans le dépôt.
 
@@ -351,9 +366,18 @@ Le texte de la tâche n'est pas injecté : Claude le lit via MCP.
 
 ### 9.1 Modèle
 
-```rust
-enum TaskStatus { Todo, InProgress, Blocked { reason: String }, Review, Done }
-enum Priority { Urgent, High, Normal, Low }
+```python
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Blocked:
+    reason: str
+
+TaskStatus = Todo | InProgress | Blocked | Review | Done  # Todo, InProgress, Review, Done : sans donnée
+
+class Priority(Enum):
+    URGENT = "urgent"
+    HIGH = "high"
+    NORMAL = "normal"
+    LOW = "low"
 ```
 
 Une tâche comporte les champs suivants :
@@ -371,18 +395,18 @@ L'auteur vaut `user`, `claude` ou `system` et est accompagné du canal : `tui`, 
 
 ### 9.2 Concurrence
 
-Toute écriture fournit la `version` attendue. Si elle ne correspond pas, l'opération est rejetée et l'état courant est renvoyé. Il n'y a jamais d'écrasement silencieux. Dans le TUI, un conflit affiche « modifiée entre-temps », puis recharge la tâche.
+Toute écriture fournit la `version` attendue. Si elle ne correspond pas, l'opération est rejetée et l'état courant est renvoyé. Il n'y a jamais d'écrasement silencieux. Dans le TUI, un conflit affiche « modified in the meantime », puis recharge la tâche.
 
 ### 9.3 Saisie rapide
 
 Syntaxe :
 
 ```
-titre libre [@projet] [!|!!] [>échéance]
+free title [@project] [!|!!] [>due]
 ```
 
 - `!` correspond à la priorité haute et `!!` à la priorité urgente.
-- `>échéance` accepte les formes `>demain`, `>ce-soir`, `>lun`, `>lun-9h`, `>+2h`, `>2026-10-20` et `>2026-10-20T14:00`.
+- `>due` accepte les formes `>tomorrow`, `>tonight`, `>mon`, `>mon-9h`, `>+2h`, `>2026-10-20` et `>2026-10-20T14:00`.
 - Les jetons non reconnus restent dans le titre.
 - Le résultat analysé est affiché avant la validation.
 
@@ -396,11 +420,11 @@ titre libre [@projet] [!|!!] [>échéance]
 ### 9.5 Vue Tâches
 
 Fonctionnalités reprises du mod :
-- les filtres `toutes · ce projet · volantes` (une tâche volante n'a pas de projet) ;
-- le regroupement par urgence (en retard, aujourd'hui, à venir, sans échéance, faites aujourd'hui) ou par projet ;
+- les filtres `all · this project · floating` (une tâche volante n'a pas de projet) ;
+- le regroupement par urgence (overdue, today, upcoming, no due date, done today) ou par projet ;
 - les compteurs de tâches ouvertes et en retard ;
-- une ligne par tâche, avec un symbole de statut (`·` `»` `✕` `◎` `✓`), `!`/`!!`, le titre, `@projet`, puis l'échéance ou la raison du blocage ;
-- un détail avec l'édition des champs, des reports rapides (+1 h, ce soir 18 h, demain 9 h, lundi 9 h, retirer), les notes, les sessions liées et l'action « lancer Claude sur cette tâche ».
+- une ligne par tâche, avec un symbole de statut (`·` `»` `✕` `◎` `✓`), `!`/`!!`, le titre, `@project`, puis l'échéance ou la raison du blocage ;
+- un détail avec l'édition des champs, des reports rapides (+1 h, tonight 6 pm, tomorrow 9 am, Monday 9 am, clear), les notes, les sessions liées et l'action « launch Claude on this task ».
 
 La suppression demande une confirmation et n'est possible que depuis le TUI ou la CLI.
 
@@ -418,7 +442,7 @@ La suppression demande une confirmation et n'est possible que depuis le TUI ou l
 - **Nouveau worktree** : `git worktree add <parent-du-dépôt>/<dépôt>.worktrees/<branche> -b <branche>`. Le dépôt n'est pas modifié et aucune entrée `.gitignore` n'est ajoutée.
 - **Pas de worktrees natifs de Claude** : meute n'utilise pas `claude -w`, qui crée le worktree dans `<dépôt>/.claude/worktrees/<nom>`, donc à l'intérieur du dépôt, avec un risque de pollution de `git status` si `.claude/` n'est pas ignoré (spike S5). Les worktrees créés par Claude lui-même (outil `EnterWorktree`) restent visibles grâce à `worktree.*` dans la statusline, et sont affichés comme tels.
 - **Nettoyage** : uniquement par une action explicite. Il est refusé s'il reste des modifications non commitées ou des commits non poussés, sauf si l'utilisateur confirme une seconde fois en voyant la liste.
-- **Informations affichées par session** : branche, `*` s'il reste des modifications non commitées, lignes ajoutées et retirées, commits à pousser ou à tirer (↑ ↓), mention « non poussée ».
+- **Informations affichées par session** : branche, `*` s'il reste des modifications non commitées, lignes ajoutées et retirées, commits à pousser ou à tirer (↑ ↓), mention « not pushed ».
 - **Ce que `meute` ne fait jamais** : commit, fusion, push.
 
 ## 12. MCP
@@ -446,7 +470,7 @@ Le serveur stdio `meute mcp` propose les outils suivants :
   - base : `~/.local/share/meute/meute.db` ;
   - état : `~/.local/state/meute/`.
 - **Premier lancement** : écriture d'une configuration par défaut, commentée et fonctionnelle. Une configuration existante n'est jamais écrasée.
-- **`meute config get/set`** modifie le TOML en préservant les commentaires (`toml_edit`).
+- **`meute config get/set`** modifie le TOML en préservant les commentaires (`tomlkit`).
 - **`meute doctor`** vérifie les versions de `tmux` (minimum 3.2, pour les options de pane) et de `claude`, l'accès à la base, l'état du serveur tmux dédié et les options de Claude utilisées.
 - **`claude.permission_mode`** : le mode de permission par défaut des sessions lancées par meute (`manual` si rien n'est défini, § 6.2).
 - **Migrations SQLite** : versionnées, appliquées à l'ouverture, avec une sauvegarde de la base (`meute.db.bak-<version>`) avant chaque migration.
@@ -456,7 +480,7 @@ Le serveur stdio `meute mcp` propose les outils suivants :
 
 ## 14. Spikes réalisés
 
-Les spikes S1 à S5 ont été réalisés le 2026-10-15 sur Claude Code 2.1.301 et tmux 3.5a. Le détail se trouve dans `docs/superpowers/spikes/2026-10-15-spikes-s1-s5.md`.
+Les spikes S1 à S5 ont été réalisés le 2026-10-15 sur Claude Code 2.1.301 et tmux 3.5a. Le détail se trouve dans `docs/superpowers/spikes/2026-10-15-spikes-s1-s5.md`. Le spike S6 (démarrage de Python) a été réalisé le 2026-10-16 ; son rapport est `docs/superpowers/spikes/2026-10-16-spike-s6-demarrage-python.md`.
 
 | # | Question | Résultat |
 |---|---|---|
@@ -465,6 +489,7 @@ Les spikes S1 à S5 ont été réalisés le 2026-10-15 sur Claude Code 2.1.301 e
 | S3 | JSON de la statusline | ✅ `session_id`, quotas avec `resets_at`, `workspace.repo` (§ 7.2) |
 | S4 | Disposition tmux | ✅ Échange entre sessions, imbrication et raccourcis `M-*`. Options de pane uniquement (§ 5.1) |
 | S5 | Worktrees natifs | Ils existent, mais on garde la convention du § 11 |
+| S6 | Démarrage de `meute ingest` en Python | ✅ Médiane ≈ 46,7 ms avec `--compile-bytecode` (bande 35–50 ms) : on continue, le test `importtime` reste un garde-fou strict (§ 4.3, § 7.3). [Rapport](../spikes/2026-10-16-spike-s6-demarrage-python.md) |
 
 Restent à vérifier pendant l'implémentation :
 - l'ajout des réglages de `--settings` à ceux de l'utilisateur ;
@@ -480,27 +505,28 @@ Restent à vérifier pendant l'implémentation :
 
 - **tmux absent ou trop ancien** : erreur explicite au démarrage, avec la version minimale requise et une indication d'installation.
 - **`claude` absent** : les sessions Bash restent disponibles et le lancement de sessions Claude est désactivé, avec la raison.
-- **Base indisponible ou verrouillée** : la vue Sessions continue à partir de tmux, sans métriques. La vue Tâches affiche « Tâches indisponibles : raison ».
+- **Base indisponible ou verrouillée** : la vue Sessions continue à partir de tmux, sans métriques. La vue Tâches affiche « Tasks unavailable: reason ».
 - **Commandes `ingest`** : voir § 7.3.
-- **Code** : pas de `unwrap()` ni d'`expect()` hors des tests (règle clippy). Les erreurs sont typées avec `thiserror` dans les bibliothèques et `anyhow` dans le binaire.
+- **Code** : les erreurs sont des exceptions typées (hiérarchie `MeuteError` dans `meute.core`, avec des données attachées, par exemple `VersionConflict`), traduites en messages et en codes de sortie par la CLI. Pas d'`assert` hors des tests.
 
 ## 17. Tests
 
-- **`meute-core`** : tests unitaires des transitions d'état, de la concurrence par version, de l'analyse de la saisie rapide (cas tirés du § 9.3) et des migrations (base vide, puis base de la version précédente).
-- **`meute-claude`** : tests à partir des messages réels enregistrés pendant les spikes S2 et S3.
-- **`meute-tmux`** : tests d'intégration sur un serveur jetable `tmux -L meute-test-<uuid>`, sans jamais toucher aux serveurs réels.
-- **`meute-tui`** : captures d'écran avec `ratatui::backend::TestBackend` et `insta`, en largeur normale et en largeur étroite.
-- **CI et règle de projet** (CLAUDE.md) : chaque changement passe `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` et `cargo nextest run`.
+- **`meute.core`** : tests unitaires des transitions d'état, de la concurrence par version, de l'analyse de la saisie rapide (cas tirés du § 9.3, plus des propriétés hypothesis) et des migrations (base vide, puis base de la version précédente).
+- **`meute.claude`** : tests à partir des messages réels enregistrés pendant les spikes S2 et S3.
+- **`meute.tmux`** : tests d'intégration sur un serveur jetable `tmux -L meute-test-<uuid>`, sans jamais toucher aux serveurs réels.
+- **`meute.tui`** : trois niveaux. Modèle de vue pur dans `meute.core.views`, testé en texte avec syrupy ; comportement avec `App.run_test` et `Pilot` ; rendu avec `pytest-textual-snapshot`, en largeur normale et en largeur étroite.
+- **Sorties de la CLI** : instantanés syrupy, relus ligne par ligne.
+- **CI et règle de projet** (CLAUDE.md) : chaque changement passe `bash scripts/verify.sh` (ruff, basedpyright, import-linter, pytest, deptry, pip-audit, licences). Détail des outils : `docs/dev/developpement-assiste-par-ia.md`.
 
 ## 18. Ordre de réalisation indicatif
 
 Le plan d'implémentation détaillera les étapes suivantes :
 
-1. ~~Spikes S1 à S5~~ (réalisés, § 14).
-2. Workspace, `meute-core` (modèle, base, migrations) et CLI des tâches.
-3. `meute-tmux` et disposition (§ 5), avec des sessions Bash.
+1. ~~Spikes S1 à S6~~ (réalisés, § 14).
+2. Paquet Python, `meute.core` (modèle, base, migrations) et CLI des tâches.
+3. `meute.tmux` et disposition (§ 5), avec des sessions Bash.
 4. Adaptateur Claude : lancement, ingestion et statusline.
-5. TUI : vue Sessions, quotas, filtre « à traiter ».
+5. TUI : vue Sessions, quotas, filtre « needs attention ».
 6. TUI : vue Tâches, puis MCP.
 7. Worktrees, reprise et états sauvegardés.
 8. Préparation de la V1 : `doctor`, configuration par défaut, documentation.
