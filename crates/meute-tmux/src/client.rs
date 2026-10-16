@@ -18,6 +18,17 @@ fn classify_spawn_error(err: io::Error) -> TmuxError {
     }
 }
 
+/// Interprets the output of `tmux -V` against the minimum version.
+fn classify_version(output: &str) -> Result<Option<TmuxVersion>, TmuxError> {
+    let text = output.trim();
+    match parse_version(text) {
+        Some(found) if found < MIN_VERSION => Err(TmuxError::TooOld {
+            found: text.strip_prefix("tmux").unwrap_or(text).trim().to_owned(),
+        }),
+        other => Ok(other),
+    }
+}
+
 impl Tmux {
     /// Creates a handle; nothing is spawned.
     pub fn new(socket: impl Into<String>, config_file: Option<PathBuf>) -> Tmux {
@@ -92,14 +103,15 @@ impl Tmux {
             .arg("-V")
             .output()
             .map_err(classify_spawn_error)?;
-        let text = String::from_utf8_lossy(&output.stdout);
-        let text = text.trim();
-        match parse_version(text) {
-            Some(found) if found < MIN_VERSION => Err(TmuxError::TooOld {
-                found: text.to_owned(),
-            }),
-            other => Ok(other),
+        if !output.status.success() {
+            return Err(TmuxError::Command {
+                args: "-V".to_owned(),
+                stderr: String::from_utf8_lossy(&output.stderr)
+                    .trim_end()
+                    .to_owned(),
+            });
         }
+        classify_version(&String::from_utf8_lossy(&output.stdout))
     }
 }
 
@@ -111,6 +123,23 @@ mod tests {
     fn missing_binary_is_not_installed() {
         let err = classify_spawn_error(io::Error::from(io::ErrorKind::NotFound));
         assert!(matches!(err, TmuxError::NotInstalled));
+    }
+
+    #[test]
+    fn too_old_version_is_reported_without_prefix() {
+        let err = classify_version("tmux 2.9a").unwrap_err();
+        assert!(matches!(&err, TmuxError::TooOld { found } if found == "2.9a"));
+        assert_eq!(
+            err.to_string(),
+            "tmux 2.9a est trop ancien : meute a besoin de tmux 3.2 ou plus récent"
+        );
+    }
+
+    #[test]
+    fn recent_and_unreadable_versions_are_accepted() {
+        let found = classify_version("tmux 3.5a").unwrap();
+        assert_eq!(found, Some(TmuxVersion { major: 3, minor: 5 }));
+        assert_eq!(classify_version("tmux master").unwrap(), None);
     }
 
     #[test]
