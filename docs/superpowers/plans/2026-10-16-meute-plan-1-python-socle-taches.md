@@ -17,7 +17,7 @@
 ## Contraintes globales
 
 **Code**
-- `meute.core` n'importe que la stdlib et `meute.core.*` (garde `test_stdlib_only_packages`). `src/meute/core/__init__.py` et `src/meute/core/db/__init__.py` ne contiennent qu'une docstring, sans aucun import ni réexport (garde `test_core_init_has_no_imports` pour le premier). On importe toujours le sous-module précis (`from meute.core.task import Task`).
+- `meute.core` n'importe que la stdlib et `meute.core.*` (garde `test_packages_import_only_the_stdlib_and_their_allowed_meute_packages`, et les contrats import-linter « core, tmux and git import no other meute package » et « lower layers import no UI or heavy dependency »). `src/meute/core/__init__.py` et `src/meute/core/db/__init__.py` ne contiennent qu'une docstring, sans aucun import ni réexport (garde `test_core_init_has_no_imports` pour le premier). On importe toujours le sous-module précis (`from meute.core.task import Task`).
 - Seul `meute.cli` importe `typer` et `tomlkit` (contrats import-linter existants).
 - Données : `@dataclass(frozen=True, slots=True, kw_only=True)` ; une valeur par défaut qui est une instance passe par `field(default_factory=…)` (ruff `RUF009`, `B008`). Une variante porteuse de données est une dataclass gelée dans une union ; une variante sans donnée est une dataclass gelée **vide** (`case Todo():`) ; une énumération simple est un `enum.Enum`. Identifiants : `NewType`. Jamais de `case _:` sauf `case _: assert_never(x)`.
 - Docstrings (Google) sur tout élément public de `meute.core`.
