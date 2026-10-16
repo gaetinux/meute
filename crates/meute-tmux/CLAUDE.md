@@ -1,0 +1,1 @@
+Tests uniquement sur un serveur tmux jetable (`tests/common::TestServer`, socket `meute-test-<uuid>`, configuration `/dev/null`), tué par `Drop`. Ne jamais appeler tmux sans `-L`, ni viser le socket `meute`.

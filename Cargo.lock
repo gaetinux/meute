@@ -584,6 +584,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "meute-tmux"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
 name = "normalize-line-endings"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
