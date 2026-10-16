@@ -2,6 +2,7 @@
 mod app;
 mod cli;
 mod render;
+mod repos;
 
 use clap::Parser;
 use meute_core::CoreError;

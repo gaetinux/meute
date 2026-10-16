@@ -2,6 +2,7 @@
 
 mod migrations;
 mod projects;
+mod repos;
 mod sessions;
 mod task_notes;
 mod task_update;

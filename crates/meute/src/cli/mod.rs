@@ -1,6 +1,7 @@
 //! `clap` definitions and dispatch.
 mod config;
 mod project;
+mod repo;
 mod task;
 mod task_edit;
 
@@ -26,6 +27,9 @@ enum Command {
     /// Gérer les projets.
     #[command(subcommand)]
     Project(project::ProjectCommand),
+    /// Gérer les dépôts.
+    #[command(subcommand)]
+    Repo(repo::RepoCommand),
 }
 
 /// Runs the command when it needs no [`App`] (configuration commands); otherwise
@@ -33,7 +37,9 @@ enum Command {
 pub fn run_without_app(cli: Cli) -> Result<anyhow::Result<()>, Box<Cli>> {
     match cli.command {
         Some(Command::Config(cmd)) => Ok(config::run(cmd)),
-        Some(Command::Task(_) | Command::Project(_)) | None => Err(Box::new(cli)),
+        Some(Command::Task(_) | Command::Project(_) | Command::Repo(_)) | None => {
+            Err(Box::new(cli))
+        }
     }
 }
 
@@ -43,6 +49,7 @@ pub fn run(cli: Cli, mut app: App) -> anyhow::Result<()> {
         Some(Command::Task(cmd)) => task::run(cmd, &mut app),
         Some(Command::Config(cmd)) => config::run(cmd),
         Some(Command::Project(cmd)) => project::run(cmd, &mut app),
+        Some(Command::Repo(cmd)) => repo::run(cmd, &mut app),
         None => Ok(()),
     }
 }

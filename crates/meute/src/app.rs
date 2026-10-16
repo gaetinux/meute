@@ -2,7 +2,7 @@
 use anyhow::{Context, anyhow};
 use jiff::Zoned;
 use meute_core::actor::{Actor, Author, Channel};
-use meute_core::config::{ensure_config, load_config};
+use meute_core::config::{Config, ensure_config, load_config};
 use meute_core::db::Db;
 use meute_core::paths::Paths;
 use meute_core::project::Project;
@@ -16,6 +16,9 @@ pub struct App {
     pub db: Db,
     pub now: Zoned,
     pub actor: Actor,
+    pub config: Config,
+    #[expect(dead_code, reason = "read by the tmux commands of the next tasks")]
+    pub paths: Paths,
 }
 
 impl App {
@@ -24,7 +27,7 @@ impl App {
         let paths = Paths::from_env()?;
         paths.ensure_dirs()?;
         ensure_config(&paths.config_file)?;
-        load_config(&paths.config_file)?;
+        let config = load_config(&paths.config_file)?;
         let now = current_time()?;
         let timestamp = now.timestamp();
         let db = Db::open(&paths.db_file, BUSY_TIMEOUT)?;
@@ -39,7 +42,13 @@ impl App {
             channel: Channel::Cli,
             session_id: std::env::var("MEUTE_SESSION").ok(),
         };
-        Ok(App { db, now, actor })
+        Ok(App {
+            db,
+            now,
+            actor,
+            config,
+            paths,
+        })
     }
 
     /// Finds a project by name or fails with the list of known projects.

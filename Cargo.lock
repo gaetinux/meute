@@ -560,6 +560,7 @@ dependencies = [
  "insta",
  "jiff",
  "meute-core",
+ "meute-git",
  "predicates",
  "serde_json",
  "tempfile",
