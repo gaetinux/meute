@@ -107,7 +107,7 @@ peak_end_hour = 14
 - `from_env` : une variable absente, vide ou relative est ignorée ; défauts `home/.config`, `home/.local/share`, `home/.local/state`.
 - `validate_config` : sections et clés inconnues ignorées (un ancien binaire lit un fichier récent) ; clé absente → défaut. Types : `roots` liste de chaînes ; `permission_mode` dans `PERMISSION_MODES` ; `board_width` et `narrow_threshold` entiers (pas `bool`) ≥ 1 ; `peak_start_hour` et `peak_end_hour` entiers (pas `bool`) entre 0 et 24 ; `peak_timezone` accepté par `zoneinfo.ZoneInfo`. Message : `<section.clé>: <attendu>`, par exemple `ui.board_width: expected an integer >= 1`.
 - `load_config` : fichier absent → `Config()` ; `tomllib.TOMLDecodeError` ou `InvalidInput` → `ConfigError(path, message)` (le message de `tomllib` contient `line N`) ; toute autre `OSError` remonte (un dossier n'est pas « absent »).
-- `config_get` : valeur du fichier, sinon défaut ; chaîne telle quelle, entier en décimal, liste en JSON (`["~/git"]`).
+- `config_get` : valeur du fichier, sinon défaut ; chaîne telle quelle, entier en décimal, liste par `json.dumps(value, ensure_ascii=False)` avec les séparateurs par défaut (`["~/git"]`, `["~/a", "~/b"]`).
 - `CLAUDE.md` du cœur, 10 lignes au plus : stdlib uniquement, `__init__.py` sans import, docstrings Google, `datetime` conscientes, erreurs `MeuteError`.
 
 - [ ] **Étape 1 : écrire les tests qui doivent échouer.**
@@ -337,7 +337,7 @@ def test_parse_zoned_reads_the_bracketed_zone() -> None:
 
 **Fichiers :**
 - Créer : `src/meute/core/due_parse.py`, `src/meute/core/quick_add.py`, `tests/conftest.py`
-- Modifier : `pyproject.toml` et `uv.lock` (via `uv add --dev hypothesis`), `.github/workflows/ci.yml` (variable `HYPOTHESIS_PROFILE: ci` sur l'étape `bash scripts/verify.sh`)
+- Modifier : `pyproject.toml` et `uv.lock` (via `uv add --dev hypothesis`), `.gitignore` (ajout de `.hypothesis/`), `.github/workflows/ci.yml` (variable `HYPOTHESIS_PROFILE: ci` sur l'étape `bash scripts/verify.sh`)
 - Test : `tests/test_due_parse.py`, `tests/test_quick_add.py`
 
 **Remplace :** `crates/meute-core/src/quick_add/tests.rs`, `crates/meute-core/tests/quick_add_due_mutants.rs`.
@@ -358,13 +358,15 @@ def test_parse_zoned_reads_the_bracketed_zone() -> None:
 | `tomorrow` | `DueDate(aujourd'hui + 1)` |
 | `tonight` | `DueAt(aujourd'hui 18:00)`, même si l'heure est passée |
 | `mon` `tue` `wed` `thu` `fri` `sat` `sun` | `DueDate` du prochain jour de ce nom, **strictement** après aujourd'hui |
-| `<jour>-<H>am`, `<jour>-<H>pm`, `<jour>-<H>:<MM>am`, `<jour>-<H>:<MM>pm` | `DueAt` ce jour-là ; H de 1 à 12 (1 ou 2 chiffres), MM de `00` à `59` (2 chiffres) ; `12am` = 00:00, `12pm` = 12:00. Aucune autre forme d'heure (`mon-14:00`, `mon-9`) |
+| `<jour>-<H>am`, `<jour>-<H>pm` | `DueAt` ce jour-là à l'heure pleine ; H de 1 à 12 (1 ou 2 chiffres) ; `12am` = 00:00, `12pm` = 12:00. C'est la seule forme d'heure (spécification § 9.3) : ni minutes (`mon-2:30pm`), ni 24 heures (`mon-14:00`), ni heure nue (`mon-9`) |
 | `+Nh`, `+Nm` | `DueAt(now + N heures / minutes)` en temps **réel** (calcul en UTC) ; N de 1 à 9999 |
 | `+Nd` | `DueAt` N jours plus tard à la même heure **murale** |
 | `YYYY-MM-DD` | `DueDate` si la date existe |
 | `YYYY-MM-DDTHH:MM` | `DueAt` (heure locale) si elle existe ; séparateur `T` obligatoire |
 
 - Les chiffres sont des chiffres ASCII (`s.isascii() and s.isdigit()`) : `str.isdigit()` seul accepte `²` et `٣`.
+- Les formes ISO : vérifier la forme exacte (`DDDD-DD-DD` ou `DDDD-DD-DDTDD:DD`, chiffres ASCII) **avant** `date.fromisoformat` / `datetime.fromisoformat`, qui acceptent aussi `20261020`, `2026-W42-3`, `2026-10-20T14`, un suffixe `Z` ou des secondes.
+- Une conversion hors limites (`OverflowError`, par exemple `0001-01-01T00:00` à Paris converti en UTC) donne `None`.
 - Une heure locale est construite avec `datetime.combine(jour, heure, tzinfo=now.tzinfo)` puis convertie en UTC : une heure inexistante (saut de printemps) est ainsi décalée d'une heure, une heure ambiguë prend la première occurrence (`fold=0`).
 
 - [ ] **Étape 1 : écrire les tests qui doivent échouer.** `NOW` est le mercredi 2026-10-14 à 10:30, Europe/Paris.
@@ -377,7 +379,7 @@ P = "[Europe/Paris]"
     ("tomorrow", date_due("2026-10-15")), ("tonight", at_due(f"2026-10-14T18:00{P}")),
     ("mon", date_due("2026-10-19")), ("wed", date_due("2026-10-21")),
     ("mon-9am", at_due(f"2026-10-19T09:00{P}")), ("mon-2pm", at_due(f"2026-10-19T14:00{P}")),
-    ("fri-2:30pm", at_due(f"2026-10-16T14:30{P}")), ("+2h", at_due(f"2026-10-14T12:30{P}")),
+    ("fri-2pm", at_due(f"2026-10-16T14:00{P}")), ("+2h", at_due(f"2026-10-14T12:30{P}")),
     ("+30m", at_due(f"2026-10-14T11:00{P}")), ("+3d", at_due(f"2026-10-17T10:30{P}")),
     ("2026-10-20", date_due("2026-10-20")), ("2026-10-20T14:00", at_due(f"2026-10-20T14:00{P}")),
     ("Tomorrow", date_due("2026-10-15")), ("MON-9AM", at_due(f"2026-10-19T09:00{P}")),
@@ -394,11 +396,13 @@ def test_every_weekday_name_is_strictly_after_today(name: str, day: str) -> None
 def test_twelve_hour_bounds() -> None:
     assert parse_due("mon-12am", NOW) == at_due(f"2026-10-19T00:00{P}")
     assert parse_due("mon-12pm", NOW) == at_due(f"2026-10-19T12:00{P}")
-    assert parse_due("mon-11:59pm", NOW) == at_due(f"2026-10-19T23:59{P}")
+    assert parse_due("mon-11pm", NOW) == at_due(f"2026-10-19T23:00{P}")
 
 @pytest.mark.parametrize("token", [
-    "mon-0am", "mon-13pm", "mon-9", "mon-14:00", "mon-9:60am", "mon-9:5am", "mon-009am",
+    "mon-0am", "mon-13pm", "mon-9", "mon-14:00", "mon-2:30pm", "mon-9:00am", "mon-009am",
     "2026-10-14 16:45", "2026-02-30", "2026-10-20T25:00", "+0h", "+10000h", "+2w", "+h", "soon",
+    "20261020", "2026-W42-3", "2026-10-20T14", "2026-10-20T14:00Z", "2026-10-20T14:00:00",
+    "0001-01-01T00:00",
     "+٣h", "+²h", "mon-٩am", "mon-+5pm", "", "monday",
 ])
 def test_rejected_tokens(token: str) -> None:
@@ -490,7 +494,8 @@ def test_plain_words_are_kept_verbatim(words: list[str]) -> None:
     - `Database.in_memory(*, clock: Clock = utc_now) -> Database` : `foreign_keys = ON`, puis `migrate(conn, None)` ;
     - `now(self) -> datetime`, `schema_version(self) -> int`, `pragma(self, name: str) -> str` (`name` doit correspondre à `[a-z_]+`, sinon `InvalidInput`) ;
     - `transaction(self) -> AbstractContextManager[sqlite3.Connection]` : `BEGIN IMMEDIATE`, `COMMIT` en sortie normale, `ROLLBACK` sur exception ;
-    - `close(self)`, `__enter__` / `__exit__` (ferme la connexion).
+    - `close(self)`, `__enter__` / `__exit__` (ferme la connexion) ;
+  - `connection.py`, frontière typée des lignes SQLite (typeshed type `fetchone()` et l'itération d'un curseur en `Any`, refusé par `reportAny` même annoté) : `fetch_one(conn: sqlite3.Connection, sql: str, params: Sequence[object] = ()) -> tuple[object, ...] | None` et `fetch_all(conn: sqlite3.Connection, sql: str, params: Sequence[object] = ()) -> list[tuple[object, ...]]`. Chacune porte **une seule** suppression `# pyright: ignore[reportAny] — sqlite3 rows are untyped` (forme acceptée par `tests/guards.py`). C'est le seul endroit du cœur qui lit des lignes : `migrations.py`, `pragma` et les Tasks 5–6 passent par elles.
 
 **Règles de `migrate`** (spécification § 13) :
 - Version actuelle `v`, cible `n = len(migrations)`. `v > n` → `MigrationError("database schema version {v} is newer than this meute ({n})")`, rien n'est touché. `v == n` → rien.
@@ -638,10 +643,10 @@ def test_newer_database_is_refused_untouched(tmp_path: Path) -> None:
 **Remplace :** `crates/meute-core/tests/db_tasks.rs`, `create_project_only_maps_constraint_violations_to_duplicates` et `create_task_only_maps_foreign_key_violations_to_unknown_project` de `crates/meute-core/tests/db_errors_mutants.rs`, et les utilitaires de `crates/meute-core/tests/common/mod.rs`.
 
 **Interfaces :**
-- Consomme : `Database` (Task 4), types du Task 2.
+- Consomme : `Database`, `fetch_one`, `fetch_all` (Task 4), types du Task 2.
 - Produit :
   - `errors.py` : `class NotFound(MeuteError)`, attributs `entity: str` (`task` ou `project`) et `ident: str` (`#99`, `42`), `str()` = `{entity} not found: {ident}` ;
-  - `rows.py` : `TASK_SELECT: str` (tâche + `LEFT JOIN projects`), `row_to_task(row) -> Task`, `row_to_event(row) -> TaskEvent`, `row_to_note(row) -> Note`, `fetch_task(conn: sqlite3.Connection, task_id: TaskId) -> Task` (`NotFound("task", "#N")`), `insert_event(conn, task_id, field, old, new, actor, now) -> None`, `due_columns(due: Due | None) -> tuple[str | None, str | None]` ;
+  - `rows.py` : `TASK_SELECT: str` (tâche + `LEFT JOIN projects`), `row_to_task(row) -> Task`, `row_to_event(row) -> TaskEvent`, `row_to_note(row) -> Note`, `fetch_task(conn: sqlite3.Connection, task_id: TaskId) -> Task` (`NotFound("task", "#N")`), `EventRecord(task_id: TaskId, field: str, old_value: str | None, new_value: str | None, actor: Actor, at: datetime)` (dataclass gelée) et `insert_event(conn: sqlite3.Connection, event: EventRecord) -> None`, `due_columns(due: Due | None) -> tuple[str | None, str | None]` ;
   - `projects.py` : `create_project(db: Database, name: str, description: str = "") -> Project` (nom nettoyé ; vide → `InvalidInput("project name cannot be empty")` ; `name_key` déjà pris → `InvalidInput("project already exists: <name>")`, seulement pour `sqlite3.IntegrityError` de code `SQLITE_CONSTRAINT_UNIQUE`) ; `project_by_name(db, name: str) -> Project | None` (par `name.strip().casefold()`) ; `list_projects(db) -> list[Project]` (par `name_key`, puis `id`) ;
   - `tasks.py` :
     - `AnyProject()`, `InProject(project_id: ProjectId)`, `Floating()` et `ProjectFilter = AnyProject | InProject | Floating` (`Floating` : tâches sans projet, spécification § 9.5) ;
@@ -728,7 +733,7 @@ def test_create_task_only_maps_foreign_key_violations(file_db: tuple[Database, P
 ```
 
 - [ ] **Étape 2 : constater l'échec.** `uv run pytest tests/test_db_projects.py tests/test_db_tasks.py` → `ModuleNotFoundError`.
-- [ ] **Étape 3 : implémenter** `rows.py`, `projects.py`, `tasks.py`, `NotFound`, et les ajouts à `tests/support.py` et `tests/conftest.py`. La conversion ligne → objet est regroupée dans `rows.py` ; une valeur de statut ou de priorité inconnue en base lève `ValueError` (base corrompue, pas une entrée utilisateur).
+- [ ] **Étape 3 : implémenter** `rows.py`, `projects.py`, `tasks.py`, `NotFound`, et les ajouts à `tests/support.py` et `tests/conftest.py`. Les lignes sont lues par `fetch_one` / `fetch_all` (Task 4) et la conversion ligne → objet est regroupée dans `rows.py`, qui rétrécit chaque colonne `object` par `isinstance` (`str`, `int`, `None`) ; une valeur de statut ou de priorité inconnue en base lève `ValueError` (base corrompue, pas une entrée utilisateur).
 - [ ] **Étape 4 : constater le succès.**
 - [ ] **Étape 5 : `bash scripts/verify.sh`, `/simplify`, `/security-review`.**
 - [ ] **Étape 6 : commiter.** `git commit -m "feat(core): projects, task creation and listing"`
@@ -744,7 +749,7 @@ def test_create_task_only_maps_foreign_key_violations(file_db: tuple[Database, P
 **Remplace :** `crates/meute-core/tests/db_task_update.rs`. Son test `blank_blocked_reason_is_rejected_and_nothing_written` est sans objet : `Blocked` ne peut plus être construit avec une raison blanche (Task 2).
 
 **Interfaces :**
-- Consomme : `Database`, `rows.*`, `get_task`, `history` (Tasks 4–5), `TaskPatch`, `KEEP` (Task 2).
+- Consomme : `Database`, `fetch_one`, `fetch_all` (Task 4), `rows.*` dont `EventRecord` et `insert_event`, `get_task`, `history` (Task 5), `TaskPatch`, `KEEP` (Task 2).
 - Produit :
   - `errors.py` : `class VersionConflict(MeuteError)`, attribut `current: Task`, `str()` = `modified in the meantime (current version: {current.version})` (spécification § 9.2 ; `Task` importé sous `TYPE_CHECKING`) ;
   - `task_update.py` : `update_task(db, task_id: TaskId, expected_version: int, patch: TaskPatch, actor: Actor) -> Task` et `delete_task(db, task_id: TaskId, expected_version: int, actor: Actor) -> None` ;
@@ -840,7 +845,7 @@ def test_blank_note_and_missing_task_are_rejected(db: Database) -> None:
 ```
 
 - [ ] **Étape 2 : constater l'échec.** `uv run pytest tests/test_db_task_update.py tests/test_db_task_notes.py` → `ModuleNotFoundError`.
-- [ ] **Étape 3 : implémenter** `VersionConflict`, `task_update.py` et `task_notes.py` selon les règles. Le calcul des changements (`TaskPatch` appliqué à la tâche courante → valeurs suivantes et liste des changements) est une fonction pure, séparée de l'écriture.
+- [ ] **Étape 3 : implémenter** `VersionConflict`, `task_update.py` et `task_notes.py` selon les règles, en lisant les lignes par `fetch_one` / `fetch_all` et `rows.py`, jamais par le curseur directement. Le calcul des changements (`TaskPatch` appliqué à la tâche courante → valeurs suivantes et liste des changements) est une fonction pure, séparée de l'écriture.
 - [ ] **Étape 4 : constater le succès.**
 - [ ] **Étape 5 : `bash scripts/verify.sh`, `/simplify`, `/security-review`.**
 - [ ] **Étape 6 : commiter.** `git commit -m "feat(core): versioned task updates, notes and deletion"`
@@ -947,7 +952,8 @@ def test_bucket_labels() -> None:
     - `require_project(ctx: CliContext, name: str) -> Project` : `InvalidInput("unknown project: <name> (projects: a, b)")`, ou `(no projects)` s'il n'y en a aucun. On ne crée jamais de projet sur une faute de frappe.
   - `render.py` (fonctions pures) : `task_line(task: Task, now: datetime) -> str`, `preview_line(parsed: QuickAdd, now: datetime) -> str`, `task_detail(task: Task, notes: Sequence[Note], now: datetime) -> str`.
   - `task_app.py` : `task_app = typer.Typer(no_args_is_help=True)`, partagé par `task_commands.py` (Task 8) et `task_edit_commands.py` (Task 9).
-  - `cli/__init__.py` : `app.add_typer(task_app, name="task")` et `project_app`, imports des modules de commandes ; `run(argv)` traduit les erreurs (ci-dessous).
+  - `project_commands.py` : `project_app = typer.Typer(no_args_is_help=True)` et ses commandes `add` et `list` ;
+  - `cli/__init__.py` : `app.add_typer(task_app, name="task")` et `app.add_typer(project_app, name="project")`, imports des modules de commandes ; `run(argv)` traduit les erreurs (ci-dessous).
   - `tests/conftest.py` : fixture `sandbox(tmp_path) -> Sandbox`, avec `Sandbox.root: Path`, `Sandbox.run(*args: str, env: Mapping[str, str] | None = None, stdin: str = "") -> subprocess.CompletedProcess[str]` (sous-processus `sys.executable -m meute`, environnement copié sans `MEUTE_SESSION`, avec `HOME=root/home`, `XDG_CONFIG_HOME=root/config`, `XDG_DATA_HOME=root/data`, `XDG_STATE_HOME=root/state`, `MEUTE_NOW=2026-10-14T10:30[Europe/Paris]`) et `Sandbox.db() -> AbstractContextManager[Database]` (`root/data/meute/meute.db`, horloge `FIXED`).
   - `tests/support.py` : `seed_mixed(db: Database) -> None` et `load_json(text: str) -> object` (`json.loads`, une seule suppression `reportAny` justifiée).
 
@@ -1016,8 +1022,8 @@ def test_unknown_project_without_any_project(sandbox: Sandbox) -> None:
     # "task add x @nope" → stderr "meute: unknown project: nope (no projects)\n"
 
 def test_dry_run_creates_nothing(sandbox: Sandbox) -> None:
-    result = sandbox.run("task", "add", "--dry-run", "Pay", "!!", ">fri-2:30pm")
-    assert result.stdout == "Parsed: · !! Pay · Fri Oct 16 2:30pm\n"
+    result = sandbox.run("task", "add", "--dry-run", "Pay", "!!", ">fri-2pm")
+    assert result.stdout == "Parsed: · !! Pay · Fri Oct 16 2pm\n"
     assert sandbox.run("task", "list", "--json").stdout == "[]\n"
 
 def test_show_missing_task_exits_4(sandbox: Sandbox) -> None:
@@ -1056,10 +1062,10 @@ def test_snapshot_task_list_mixed(sandbox: Sandbox, snapshot: SnapshotAssertion)
 
 def test_snapshot_task_show_with_notes(sandbox: Sandbox, snapshot: SnapshotAssertion) -> None:
     # seed_mixed ; notes sur #1 : "First item done." par USER, "Review still to do." par
-    # Actor(CLAUDE, MCP, "s1") ; snapshot == sandbox.run("task", "show", "1").stdout
+    # CLAUDE (tests/support.py) ; snapshot == sandbox.run("task", "show", "1").stdout
 ```
 
-  Instantanés attendus, à comparer ligne par ligne avant d'accepter (`uv run pytest --snapshot-update` une seule fois, puis relecture du diff de `.ambr`) : pour `task show 1`, le bloc `task_detail` ci-dessus ; pour `task list --all` :
+  Instantanés attendus, à comparer ligne par ligne avant d'accepter (`uv run pytest -n 0 --snapshot-update tests/test_cli_tasks.py` une seule fois, sans xdist, puis relecture du diff de `.ambr`) : pour `task show 1`, le bloc `task_detail` ci-dessus ; pour `task list --all` :
 
 ```
 #8 · Pay the invoice · Sat Oct 10 (overdue)
@@ -1095,6 +1101,8 @@ def test_os_error_is_printed_exactly_once(sandbox: Sandbox) -> None:
     assert "Traceback" not in result.stderr
 ```
 
+  La fixture `sandbox` (`tests/conftest.py`) et `seed_mixed` (`tests/support.py`) sont écrites dans cette même étape, avant les tests qui s'en servent.
+
 - [ ] **Étape 2 : constater l'échec.** `uv add --dev syrupy`, puis `uv run pytest tests/test_cli_tasks.py tests/test_cli_projects.py tests/test_cli_errors.py` → échec : `No such command 'task'` (code 2).
 - [ ] **Étape 3 : implémenter** `context.py`, `render.py`, `task_app.py`, `task_commands.py`, `project_commands.py` et `run`. Options Typer avec `Annotated[…, typer.Option(help=…)]`, aides en anglais. `test_entry.py` et `test_importtime.py` restent verts : `ingest` n'importe toujours pas la CLI.
 - [ ] **Étape 4 : constater le succès**, instantanés relus et acceptés.
@@ -1114,7 +1122,7 @@ def test_os_error_is_printed_exactly_once(sandbox: Sandbox) -> None:
 
 **Interfaces :**
 - Consomme : `update_task`, `delete_task`, `add_note` (Task 6), `parse_due`, `parse_priority`, `parse_status_kind`, `status_from_kind` (Tasks 2–3), `config_key`, `validate_config`, `write_atomic`, `ensure_config`, `config_get` (Task 1), `open_context`, `require_project`, `render.task_line`, `task_app` (Task 8).
-- Produit : `config_edit.config_set(path: Path, key: str, value: str) -> None`, et les commandes ci-dessous.
+- Produit : `config_edit.config_set(path: Path, key: str, value: str) -> None` ; `config_commands.py` : `config_app = typer.Typer(no_args_is_help=True)` (commandes `path`, `get`, `set`), enregistré par `app.add_typer(config_app, name="config")` ; `task_edit_commands.py` enregistre `edit`, `status`, `note`, `rm` sur `task_app` ; et les commandes ci-dessous.
 
 | Commande | Effet et sortie |
 |---|---|
@@ -1217,7 +1225,7 @@ def test_set_accepts_strings_and_lists(tmp_path: Path) -> None:
 
 - [ ] **Étape 2 : constater l'échec.** `uv add tomlkit`, puis `uv run pytest tests/test_cli_task_edit.py tests/test_cli_config.py tests/test_config_edit.py` → `No such command 'edit'` et `ModuleNotFoundError: No module named 'meute.cli.config_edit'`.
 - [ ] **Étape 3 : implémenter** les trois modules et les enregistrer dans `cli/__init__.py`. Lire la documentation `tomlkit` de la version installée pour `tomlkit.value` et la conservation des commentaires.
-- [ ] **Étape 4 : constater le succès**, instantané du conflit relu et accepté.
+- [ ] **Étape 4 : constater le succès**, instantané du conflit créé par `uv run pytest -n 0 --snapshot-update tests/test_cli_task_edit.py`, relu et accepté.
 - [ ] **Étape 5 : `bash scripts/verify.sh`, `/simplify`, `/security-review`.**
 - [ ] **Étape 6 : commiter.** `git commit -m "feat(cli): edit, status, notes, deletion and configuration"`
 
@@ -1233,7 +1241,7 @@ def test_set_accepts_strings_and_lists(tmp_path: Path) -> None:
 - Consomme : tout le code des Tasks 1 à 9.
 - Produit : le rapport de mutation et la PR du plan 1 Python.
 
-- [ ] **Étape 1 : configurer `mutmut`** d'après la documentation de la version installée : mutation de `src/meute/core/` uniquement. Les tests de la CLI passent par un sous-processus et ne voient pas les mutants : la couverture des mutations repose sur les tests en processus du cœur, c'est voulu. Noter dans le rapport la configuration retenue (en particulier vis-à-vis de `-n auto`). `/mutants/` est déjà ignoré par Git.
+- [ ] **Étape 1 : configurer `mutmut`** d'après la documentation de la version installée : mutation de `src/meute/core/` uniquement. Les tests de la CLI passent par un sous-processus et ne voient pas les mutants : la couverture des mutations repose sur les tests en processus du cœur, c'est voulu. La sélection de tests de mutmut se limite aux tests en processus du cœur : elle exclut `tests/test_guards.py`, `tests/test_guards_unit.py`, `tests/test_importtime.py`, `tests/test_entry.py` et les `tests/test_cli_*.py` (sous-processus), et tourne sans xdist (`-n 0`, qui neutralise le `-n auto` d'`addopts`). Avec mutmut 3, cela passe par `[tool.mutmut]` (`paths_to_mutate`, et les options d'arguments pytest et de sélection de tests, par exemple `pytest_add_cli_args`) : vérifier les noms exacts dans la documentation de la version installée. Noter la configuration retenue dans le rapport. `/mutants/` est déjà ignoré par Git.
 - [ ] **Étape 2 : lancer `mutmut run`**, puis `mutmut results`. Noter le décompte (tués, survivants, délais, suspects).
 - [ ] **Étape 3 : traiter chaque survivant en TDD.** Un test qui l'aurait tué ; preuve qu'il **échoue** sur le code muté (`mutmut apply <id>` le temps de la vérification, ou mutation à la main), puis passe sur le code réel. Une mutation équivalente (aucun comportement observable ne change) est justifiée en une phrase dans le rapport. Attendu : aucun survivant sans test ni justification dans `quick_add.py`, `due_parse.py`, `views.py`, `config.py`, `db/`.
 - [ ] **Étape 4 : écrire le rapport** `docs/dev/mutants/2026-plan-1-python.md` : commande, décompte avant et après, tests ajoutés (fichier, test, mutation tuée), justifications. Mettre à jour la phrase « Seuls `pytest` et `pytest-xdist` sont installés » du guide § 4 et la ligne § 4 de `CLAUDE.md`.

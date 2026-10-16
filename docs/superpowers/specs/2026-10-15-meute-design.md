@@ -411,7 +411,7 @@ free title [@project] [!|!!] [>due]
 ```
 
 - `!` correspond à la priorité haute et `!!` à la priorité urgente.
-- `>due` accepte les formes `>tomorrow`, `>tonight`, `>mon`, `>mon-9am`, `>mon-2pm`, `>+2h`, `>2026-10-20` et `>2026-10-20T14:00`. Pour l'heure d'un jour nommé, une seule forme est acceptée : `9am` / `2pm` (pas de `14:00` après un nom de jour) ; `>+2h` est une durée relative.
+- `>due` accepte les formes `>tomorrow`, `>tonight`, `>mon`, `>mon-9am`, `>mon-2pm`, `>+2h`, `>+30m`, `>+3d`, `>2026-10-20` et `>2026-10-20T14:00`. Pour l'heure d'un jour nommé, une seule forme est acceptée : `9am` / `2pm` (pas de `14:00` après un nom de jour) ; `>+2h`, `>+30m` et `>+3d` sont des durées relatives (heures, minutes, jours).
 - Les jetons non reconnus restent dans le titre.
 - Le résultat analysé est affiché avant la validation.
 

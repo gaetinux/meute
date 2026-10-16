@@ -41,5 +41,5 @@ Décisions prises à la revue finale du plan 1, à traiter au début des plans s
   - une forme serde de `Due` alignée sur le JSON de `Task` (`{kind, value}`) ;
   - la suppression de la validation de statut par un `Blocked("-")` jetable dans la CLI.
 - **Plan 3, critère d'entrée — ouverture concurrente de la base** : deux processus qui ouvrent ou migrent la base en même temps (les hooks de Claude se déclenchent en parallèle) doivent passer par un verrou `IMMEDIATE`, ou relire la version et réessayer, autour de la sauvegarde et de la migration.
-- **Avant les plans 2 à 6 — tests** : regrouper les fonctions utilitaires de test de `meute-core` dans `tests/common/` — *intégré au plan 1 Python* (`tests/conftest.py`).
+- **Avant les plans 2 à 6 — tests** : regrouper les fonctions utilitaires de test de `meute-core` dans `tests/common/` — *intégré au plan 1 Python* (fixtures dans `tests/conftest.py`, fonctions dans `tests/support.py`).
 
