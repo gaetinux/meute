@@ -23,6 +23,7 @@ dev = [
     "deptry>=0.25.1",
     "import-linter>=2.15",
     "pip-audit>=2.10.1",
+    "pip-licenses>=5.5.5",
     "pytest>=9.1.1",
     "pytest-xdist>=3.8.0",
     "ruff>=0.17.1",
@@ -100,10 +101,53 @@ source_modules = ["meute.ingest"]
 forbidden_modules = ["meute.tmux", "meute.git", "meute.claude"]
 
 [[tool.importlinter.contracts]]
-name = "only meute.cli imports typer"
+name = "core, tmux and git import no other meute package"
 type = "forbidden"
-source_modules = ["meute.tui", "meute.mcp"]
-forbidden_modules = ["typer"]
+source_modules = ["meute.core", "meute.tmux", "meute.git"]
+forbidden_modules = [
+    "meute.ingest",
+    "meute.claude",
+    "meute.tui",
+    "meute.mcp",
+    "meute.cli",
+    "meute._entry",
+]
+
+[[tool.importlinter.contracts]]
+name = "ingest, claude, tui and mcp import neither tmux nor git"
+type = "forbidden"
+source_modules = ["meute.ingest", "meute.claude", "meute.tui", "meute.mcp"]
+forbidden_modules = ["meute.tmux", "meute.git"]
+
+# meute.cli assembles everything, so its indirect imports (cli -> tui -> textual) are expected.
+[[tool.importlinter.contracts]]
+name = "textual belongs to meute.tui"
+type = "forbidden"
+source_modules = [
+    "meute.core", "meute.tmux", "meute.git", "meute.ingest", "meute.claude", "meute.mcp",
+    "meute.cli", "meute._entry",
+]
+forbidden_modules = ["textual"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "mcp belongs to meute.mcp"
+type = "forbidden"
+source_modules = [
+    "meute.core", "meute.tmux", "meute.git", "meute.ingest", "meute.claude", "meute.tui",
+    "meute.cli", "meute._entry",
+]
+forbidden_modules = ["mcp"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "typer and tomlkit belong to meute.cli"
+type = "forbidden"
+source_modules = [
+    "meute.core", "meute.tmux", "meute.git", "meute.ingest", "meute.claude", "meute.tui",
+    "meute.mcp",
+]
+forbidden_modules = ["typer", "tomlkit"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,6 +1,7 @@
 """Command-line interface."""
 
 import importlib.metadata
+import sys
 from collections.abc import Sequence
 
 import typer
@@ -32,5 +33,11 @@ def run(argv: Sequence[str]) -> int:
     try:
         app(args=list(argv), prog_name="meute")
     except SystemExit as exit_:
-        return exit_.code if isinstance(exit_.code, int) else 1
+        code = exit_.code
+        if code is None:
+            return 0
+        if isinstance(code, int):
+            return code
+        print(code, file=sys.stderr)
+        return 1
     return 0

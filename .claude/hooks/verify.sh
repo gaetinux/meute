@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stop / SubagentStop hook: when Python or uv files changed, require lint, types, import contracts
+# Stop / SubagentStop hook: when Python, SQL, snapshot or uv files changed, require lint, types, import contracts
 # and tests to pass. Exit 2 prevents the agent from declaring itself done.
 set -uo pipefail
 
@@ -12,7 +12,7 @@ except Exception:
 
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
 
-if [ -z "$(git status --porcelain -- '*.py' 'pyproject.toml' 'uv.lock')" ]; then
+if [ -z "$(git status --porcelain -- '*.py' '*.sql' '*.ambr' 'pyproject.toml' 'uv.lock')" ]; then
     exit 0
 fi
 

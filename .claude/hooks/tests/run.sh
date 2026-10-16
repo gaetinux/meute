@@ -168,6 +168,23 @@ case_verify_type_error_blocks() {
         && [[ "$err" == *"is not assignable"* ]]
 }
 
+# Plan 1 adds SQL migrations and syrupy snapshots: changing them must trigger the checks too.
+case_verify_sql_change_runs_checks() {
+    reset_tree
+    mkdir -p "$proj/migrations"
+    printf 'CREATE TABLE t (id INTEGER);\n' > "$proj/migrations/001.sql"
+    run_hook verify.sh '{"stop_hook_active":false}' "$work/fakebin"
+    [ "$code" = 0 ] && [ -e "$work/witness" ]
+}
+
+case_verify_ambr_change_runs_checks() {
+    reset_tree
+    mkdir -p "$proj/tests/__snapshots__"
+    printf '# serializer version: 1\n' > "$proj/tests/__snapshots__/test_x.ambr"
+    run_hook verify.sh '{"stop_hook_active":false}' "$work/fakebin"
+    [ "$code" = 0 ] && [ -e "$work/witness" ]
+}
+
 case_verify_loop_guard() {
     reset_tree
     add_failing_test
@@ -177,7 +194,8 @@ case_verify_loop_guard() {
 
 for c in non_python_ignored python_ok python_is_formatted python_type_error_blocks \
     odd_file_name_is_safe outside_project_ignored missing_uv_does_not_block_edit \
-    missing_uv_blocks_stop verify_clean_tree verify_failing_blocks verify_import_contract_blocks verify_type_error_blocks verify_loop_guard; do
+    missing_uv_blocks_stop verify_clean_tree verify_failing_blocks verify_import_contract_blocks verify_type_error_blocks \
+    verify_sql_change_runs_checks verify_ambr_change_runs_checks verify_loop_guard; do
     if "case_$c"; then report "$c" 1; else report "$c" 0; fi
 done
 

@@ -42,6 +42,25 @@ def test_non_stdlib_imports_ignores_stdlib_meute_and_relative() -> None:
     assert guards.non_stdlib_imports(source) == ["typer"]
 
 
+def test_foreign_imports_allow_stdlib_and_own_meute_packages() -> None:
+    source = "import os\nfrom meute.core import x\nimport meute.core.y\nfrom . import z\n"
+    assert guards.foreign_imports(source, ("core",)) == []
+
+
+def test_foreign_imports_report_third_party_and_other_meute_packages() -> None:
+    source = "import typer\nimport meute.claude\nfrom meute.ingest.x import y\n"
+    assert guards.foreign_imports(source, ("core",)) == ["typer", "meute.claude", "meute.ingest.x"]
+
+
+def test_foreign_imports_report_from_meute_import_subpackage() -> None:
+    assert guards.foreign_imports("from meute import tmux\n", ("core",)) == ["meute.tmux"]
+    assert guards.foreign_imports("import meute\n", ("core",)) == ["meute"]
+
+
+def test_foreign_imports_do_not_confuse_prefix_siblings() -> None:
+    assert guards.foreign_imports("import meute.core_extra\n", ("core",)) == ["meute.core_extra"]
+
+
 def test_pyright_mode_lowering_directives_are_always_reported() -> None:
     for directive in ("basic", "standard", "off"):
         source = f"# pyright: {directive} — because\nx = 1\n"
@@ -58,6 +77,13 @@ def test_pyright_rule_override_with_reason_is_allowed() -> None:
 
 def test_pyright_strict_is_allowed() -> None:
     assert guards.suppressions_without_reason("# pyright: strict\n") == []
+    assert guards.suppressions_without_reason("#pyright:   strict  \n") == []
+
+
+def test_pyright_strict_with_rule_override_is_reported() -> None:
+    assert guards.suppressions_without_reason("# pyright: strict, reportAny=false\n") == [1]
+    assert guards.suppressions_without_reason("# pyright: strictListInference=false\n") == [1]
+    assert guards.suppressions_without_reason("# pyright: strict, reportAny=false — raw\n") == []
 
 
 def test_file_level_ruff_noqa_without_reason_is_reported() -> None:

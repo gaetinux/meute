@@ -80,7 +80,7 @@ Le risque principal du TDD avec une IA, ce sont des tests qui passent sans rien 
 | Hook | Déclencheur | Action |
 |---|---|---|
 | `.claude/hooks/py-check.sh` | `PostToolUse` sur `Edit`, `Write` ou `MultiEdit` d'un fichier `.py` | Lance `ruff format`, `ruff check --fix` puis `basedpyright` sur le fichier. En cas d'erreur, il sort avec le code **2** et écrit les erreurs sur stderr : Claude les voit immédiatement |
-| `.claude/hooks/verify.sh` | `Stop` et `SubagentStop` | Si des fichiers `*.py`, `pyproject.toml` ou `uv.lock` ont changé (`git status --porcelain`), il exige que `ruff check`, `basedpyright`, `lint-imports` et `pytest` passent. Sinon, il sort avec le code 2 : l'agent ne peut pas annoncer « terminé » |
+| `.claude/hooks/verify.sh` | `Stop` et `SubagentStop` | Si des fichiers `*.py`, `*.sql` (migrations), `*.ambr` (instantanés), `pyproject.toml` ou `uv.lock` ont changé (`git status --porcelain`), il exige que `ruff check`, `basedpyright`, `lint-imports` et `pytest` passent. Sinon, il sort avec le code 2 : l'agent ne peut pas annoncer « terminé » |
 
 Comportements à connaître :
 

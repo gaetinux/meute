@@ -136,7 +136,7 @@ Les snapshots Textual sont des SVG, illisibles en diff. La logique d'affichage e
 ### 5.3 Hooks Claude Code et CI
 
 - **`PostToolUse`** sur un fichier `.py` : `ruff format` sur le fichier, `ruff check --fix` sur le fichier, puis basedpyright sur le fichier. Il sort avec le code 2 et les erreurs sur stderr.
-- **`Stop` / `SubagentStop`** : si un fichier `.py`, `pyproject.toml` ou `uv.lock` a changé, il exige que `ruff check`, basedpyright, `lint-imports` et `pytest` passent. Le garde-fou `stop_hook_active` est conservé.
+- **`Stop` / `SubagentStop`** : si un fichier `.py`, `.sql`, `.ambr`, `pyproject.toml` ou `uv.lock` a changé, il exige que `ruff check`, basedpyright, `lint-imports` et `pytest` passent. Le garde-fou `stop_hook_active` est conservé.
 - Les tests des hooks (`.claude/hooks/tests/`) sont réécrits pour les nouveaux hooks.
 - **CI** : `astral-sh/setup-uv`, `uv sync --locked`, installation de tmux, vérification complète, tests des hooks. `mold`, `.cargo/` et le job MSRV disparaissent.
 

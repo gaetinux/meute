@@ -30,14 +30,18 @@ def test_every_suppression_has_a_reason() -> None:
     assert offenders == set()
 
 
-def test_stdlib_only_packages() -> None:
-    files = [PACKAGE / "_entry.py"]
-    for package in guards.STDLIB_ONLY_PACKAGES:
-        files.extend(_python_files(PACKAGE / package))
+def test_packages_import_only_the_stdlib_and_their_allowed_meute_packages() -> None:
     offenders = {
         f"{path}: {name}"
-        for path in files
-        for name in guards.non_stdlib_imports(path.read_text(encoding="utf-8"))
+        for package, allowed in guards.ALLOWED_MEUTE_IMPORTS.items()
+        for path in _python_files(PACKAGE / package)
+        for name in guards.foreign_imports(path.read_text(encoding="utf-8"), allowed)
+    }
+    # The entry point may only reach the hot path and the CLI (lazily), beside the stdlib.
+    entry = PACKAGE / "_entry.py"
+    offenders |= {
+        f"{entry}: {name}"
+        for name in guards.foreign_imports(entry.read_text(encoding="utf-8"), ("ingest", "cli"))
     }
     assert offenders == set()
 
