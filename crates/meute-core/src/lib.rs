@@ -9,6 +9,8 @@ pub mod error;
 pub mod paths;
 pub mod project;
 pub mod quick_add;
+pub mod repo;
+pub mod session;
 pub mod task;
 pub mod views;
 

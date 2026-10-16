@@ -10,7 +10,7 @@ fn open_creates_file_with_wal_and_latest_schema() {
     let path = dir.path().join("sub/meute.db");
     let db = Db::open(&path, Duration::from_millis(5000)).unwrap();
     assert!(path.exists());
-    assert_eq!(db.schema_version().unwrap(), 1);
+    assert_eq!(db.schema_version().unwrap(), 2);
     assert_eq!(db.pragma_string("journal_mode").unwrap(), "wal");
     assert_eq!(db.pragma_string("foreign_keys").unwrap(), "1");
 }

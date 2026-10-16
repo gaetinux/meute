@@ -2,6 +2,7 @@
 
 mod migrations;
 mod projects;
+mod sessions;
 mod task_notes;
 mod task_update;
 mod tasks;
@@ -111,7 +112,7 @@ mod tests {
     #[test]
     fn in_memory_db_is_migrated_with_foreign_keys() {
         let db = Db::open_in_memory().unwrap();
-        assert_eq!(db.schema_version().unwrap(), 1);
+        assert_eq!(db.schema_version().unwrap(), 2);
         assert_eq!(db.pragma_string("foreign_keys").unwrap(), "1");
     }
 }

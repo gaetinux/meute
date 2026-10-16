@@ -15,6 +15,7 @@ serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2.0.21"
 toml = "1.1.8"
 toml_edit = "0.25.17"
+uuid = { version = "1.26.1", features = ["v4", "serde"] }
 
 [lints]
 workspace = true

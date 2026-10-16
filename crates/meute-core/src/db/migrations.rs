@@ -8,10 +8,11 @@ use rusqlite_migration::{M, Migrations};
 use crate::error::{CoreError, Result};
 
 const MIGRATION_1: &str = include_str!("sql/001_init.sql");
+const MIGRATION_2: &str = include_str!("sql/002_sessions.sql");
 
 /// All migrations of the application, in order.
 pub(super) fn all() -> Migrations<'static> {
-    Migrations::new(vec![M::up(MIGRATION_1)])
+    Migrations::new(vec![M::up(MIGRATION_1), M::up(MIGRATION_2)])
 }
 
 /// Current schema version of the database (0 when never migrated).
