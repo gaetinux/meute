@@ -138,6 +138,8 @@ Règles (vérifiées par import-linter) :
 
 - Le code est **synchrone par défaut**. L'asynchrone n'apparaît que dans `meute.tui` et `meute.mcp`, là où Textual et le SDK MCP l'imposent.
 - Toute règle métier vit dans `meute.core`. Les autres packages n'appellent que ses opérations publiques. `meute.core`, `meute.tmux` et `meute.git` sont indépendants les uns des autres ; l'assemblage se fait dans `meute.cli`.
+- `meute.tui`, `meute.mcp` et `meute.claude` sont indépendants les uns des autres.
+- Seul `meute.cli` importe `typer` et `tomlkit`, seul `meute.tui` importe `textual`, seul `meute.mcp` importe `mcp` (et, en V1.1, seul `meute.forge` importe son client HTTP).
 - `meute/core/__init__.py` n'importe ni ne réexporte rien, et `ingest` n'importe que les sous-modules de `core` dont il a besoin : le chemin chaud ne paie que ce qu'il utilise (marge du spike S6 : environ 3 ms). Un test `importtime` échoue si `ingest` importe un module tiers.
 - Bibliothèques pressenties :
   - interface : Typer (CLI), Textual (TUI) ;
@@ -222,6 +224,7 @@ class AgentKind(Enum):
     BASH = "bash"
 
 # Chaque variante est une dataclass gelée ; seule Exited porte une donnée.
+# Les variantes sans donnée sont des dataclasses gelées vides (`case Running():` est sans ambiguïté).
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Exited:
     code: int | None
@@ -367,11 +370,13 @@ Le texte de la tâche n'est pas injecté : Claude le lit via MCP.
 ### 9.1 Modèle
 
 ```python
+# Chaque variante est une dataclass gelée ; seule Blocked porte une donnée.
+# Les variantes sans donnée sont des dataclasses gelées vides (`case Todo():` est sans ambiguïté).
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Blocked:
     reason: str
 
-TaskStatus = Todo | InProgress | Blocked | Review | Done  # Todo, InProgress, Review, Done : sans donnée
+TaskStatus = Todo | InProgress | Blocked | Review | Done
 
 class Priority(Enum):
     URGENT = "urgent"
@@ -406,7 +411,7 @@ free title [@project] [!|!!] [>due]
 ```
 
 - `!` correspond à la priorité haute et `!!` à la priorité urgente.
-- `>due` accepte les formes `>tomorrow`, `>tonight`, `>mon`, `>mon-9h`, `>+2h`, `>2026-10-20` et `>2026-10-20T14:00`.
+- `>due` accepte les formes `>tomorrow`, `>tonight`, `>mon`, `>mon-9am`, `>mon-2pm`, `>+2h`, `>2026-10-20` et `>2026-10-20T14:00`. Pour l'heure d'un jour nommé, une seule forme est acceptée : `9am` / `2pm` (pas de `14:00` après un nom de jour) ; `>+2h` est une durée relative.
 - Les jetons non reconnus restent dans le titre.
 - Le résultat analysé est affiché avant la validation.
 
