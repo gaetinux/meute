@@ -82,12 +82,15 @@ fn unknown_reference(err: rusqlite::Error, new: &NewSession) -> CoreError {
                 && e.extended_code == rusqlite::ffi::SQLITE_CONSTRAINT_FOREIGNKEY
     );
     if is_foreign_key {
-        CoreError::Invalid(format!(
-            "référence inconnue (projet {:?}, dépôt {:?}, tâche {:?})",
-            new.project_id.map(|p| p.0),
-            new.repo_id.map(|r| r.0),
-            new.task_id.map(|t| t.0)
-        ))
+        let parts: Vec<String> = [
+            new.project_id.map(|p| format!("projet {}", p.0)),
+            new.repo_id.map(|r| format!("dépôt {}", r.0)),
+            new.task_id.map(|t| format!("tâche {}", t.0)),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        CoreError::Invalid(format!("référence inconnue : {}", parts.join(", ")))
     } else {
         CoreError::Db(err)
     }

@@ -9,6 +9,7 @@ use std::time::Duration;
 use jiff::Timestamp;
 use meute_core::CoreError;
 use meute_core::db::Db;
+use meute_core::project::ProjectId;
 use meute_core::repo::RepoId;
 use meute_core::session::{AgentKind, NewSession, SessionFilter, SessionId, SessionState};
 use rusqlite_migration::{M, Migrations};
@@ -201,4 +202,16 @@ fn migrating_a_v1_file_keeps_tasks_and_backs_it_up() {
     assert_eq!(tasks.len(), 1);
     assert_eq!(tasks[0].title, "ancienne");
     assert!(dir.path().join("meute.db.bak-1").exists());
+}
+
+#[test]
+fn create_with_unknown_references_names_only_the_set_ids() {
+    let mut db = common::test_db();
+    let mut new = bash_session(SessionId::new(), "s");
+    new.project_id = Some(ProjectId(999));
+    new.repo_id = Some(RepoId(4));
+    match db.create_session(new) {
+        Err(CoreError::Invalid(m)) => assert_eq!(m, "référence inconnue : projet 999, dépôt 4"),
+        other => panic!("unexpected: {other:?}"),
+    }
 }
