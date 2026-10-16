@@ -32,6 +32,8 @@ dev = [
 target-version = "py313"
 line-length = 100
 src = ["src", "tests"]
+# Ruff 0.17 formats Markdown code blocks; the docs hold illustrative snippets, not source.
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["ALL"]
