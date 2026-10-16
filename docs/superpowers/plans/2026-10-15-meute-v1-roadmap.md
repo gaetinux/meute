@@ -25,3 +25,16 @@ Ce que ce découpage implique :
 - **Après le plan 1**, meute est déjà un gestionnaire de tâches en CLI, et le cœur métier (`meute-core`) existe.
 - **Après le plan 3**, l'auteur peut remplacer son mod pour la supervision, avec un tableau de bord minimal.
 - **Après le plan 4**, le critère de réussite n° 1 de la spécification (§ 1.2) est atteignable.
+
+## Reports issus du plan 1
+
+Décisions prises à la revue finale du plan 1, à traiter au début des plans suivants :
+
+- **Plan 2, première tâche — refonte de l'API de `meute-core`** :
+  - un `StatusKind` sans données à la place de `TaskFilter.status: Option<&'static str>` ;
+  - un filtre de statut `done` qui implique les tâches terminées, dans le cœur et non dans la CLI ;
+  - une forme serde de `Due` alignée sur le JSON de `Task` (`{kind, value}`) ;
+  - la suppression de la validation de statut par un `Blocked("-")` jetable dans la CLI.
+- **Plan 3, critère d'entrée — ouverture concurrente de la base** : deux processus qui ouvrent ou migrent la base en même temps (les hooks de Claude se déclenchent en parallèle) doivent passer par un verrou `IMMEDIATE`, ou relire la version et réessayer, autour de la sauvegarde et de la migration.
+- **Avant les plans 2 à 6 — tests** : regrouper les fonctions utilitaires de test de `meute-core` dans `tests/common/`.
+

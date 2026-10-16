@@ -1,0 +1,6 @@
+---
+source: crates/meute/tests/cli_task_edit.rs
+expression: "String::from_utf8(out.stderr).unwrap()"
+---
+meute : modifiée entre-temps (version actuelle : 2)
+#1 · A
