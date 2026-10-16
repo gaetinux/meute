@@ -584,6 +584,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "meute-git"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+]
+
+[[package]]
 name = "meute-tmux"
 version = "0.1.0"
 dependencies = [

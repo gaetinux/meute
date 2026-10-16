@@ -1,0 +1,15 @@
+[package]
+name = "meute-git"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"
