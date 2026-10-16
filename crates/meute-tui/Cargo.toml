@@ -1,0 +1,19 @@
+[package]
+name = "meute-tui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+meute-core = { version = "0.1.0", path = "../meute-core" }
+ratatui = "0.29.0"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+insta = "1.49.0"
+jiff = "0.2.38"
+uuid = "1.26.1"

@@ -1,6 +1,8 @@
 [advisories]
 # Known vulnerabilities are denied (default behaviour of cargo-deny).
-ignore = []
+# RUSTSEC-2024-0436: `paste` is unmaintained (no vulnerability); it is a
+# transitive dependency of ratatui 0.29, the last release compatible with Rust 1.85.
+ignore = ["RUSTSEC-2024-0436"]
 
 [licenses]
 # Add other licenses only with a comment justifying the need.
