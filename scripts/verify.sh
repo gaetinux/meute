@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+uv lock --check
 uv run --frozen ruff format --check
 uv run --frozen ruff check
 uv run --frozen basedpyright

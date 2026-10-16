@@ -40,3 +40,41 @@ def test_empty_reason_is_reported() -> None:
 def test_non_stdlib_imports_ignores_stdlib_meute_and_relative() -> None:
     source = "import os\nimport typer\nfrom meute.core import x\nfrom . import y\n"
     assert guards.non_stdlib_imports(source) == ["typer"]
+
+
+def test_pyright_mode_lowering_directives_are_always_reported() -> None:
+    for directive in ("basic", "standard", "off"):
+        source = f"# pyright: {directive} — because\nx = 1\n"
+        assert guards.suppressions_without_reason(source) == [1], directive
+
+
+def test_pyright_rule_override_without_reason_is_reported() -> None:
+    assert guards.suppressions_without_reason("# pyright: reportAny=false\n") == [1]
+
+
+def test_pyright_rule_override_with_reason_is_allowed() -> None:
+    assert guards.suppressions_without_reason("# pyright: reportAny=false — raw JSON\n") == []
+
+
+def test_pyright_strict_is_allowed() -> None:
+    assert guards.suppressions_without_reason("# pyright: strict\n") == []
+
+
+def test_file_level_ruff_noqa_without_reason_is_reported() -> None:
+    assert guards.suppressions_without_reason("# ruff: noqa: E501\n") == [1]
+
+
+def test_file_level_ruff_noqa_with_reason_is_allowed() -> None:
+    assert guards.suppressions_without_reason("# ruff: noqa: E501 — generated\n") == []
+
+
+def test_uppercase_noqa_is_reported() -> None:
+    assert guards.suppressions_without_reason("x = 1  # NOQA: E501\n") == [1]
+
+
+def test_noqa_after_another_comment_is_reported() -> None:
+    assert guards.suppressions_without_reason("x = 1  # see docs  # noqa: E501\n") == [1]
+
+
+def test_type_ignore_without_reason_is_reported() -> None:
+    assert guards.suppressions_without_reason("x = 1  # type: ignore[assignment]\n") == [1]

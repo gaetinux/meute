@@ -5,6 +5,7 @@ IMPORT_TIME_PREFIX = "import time:"
 
 
 def import_time_output(args: list[str], stdin: str) -> str:
+    """Return the -X importtime trace; fail if meute itself crashed."""
     result = subprocess.run(
         [sys.executable, "-X", "importtime", "-m", "meute", *args],
         input=stdin,
@@ -12,6 +13,7 @@ def import_time_output(args: list[str], stdin: str) -> str:
         text=True,
         check=False,
     )
+    assert result.returncode == 0, result.stderr
     return result.stderr
 
 
@@ -27,8 +29,8 @@ def imported_roots(args: list[str], stdin: str) -> set[str]:
 
 def test_ingest_path_imports_only_stdlib_and_meute() -> None:
     roots = imported_roots(["ingest", "hook", "PostToolUse"], "{}")
-    # Interpreter start-up noise, not ours: _virtualenv bootstraps uv environments,
-    # sitecustomize and apport_python_hook are injected by the distribution's site setup.
+    # Interpreter start-up noise, not ours: _virtualenv bootstraps uv environments;
+    # sitecustomize and apport_python_hook come from Ubuntu's system Python start-up.
     allowed = set(sys.stdlib_module_names) | {
         "meute",
         "_virtualenv",
@@ -40,6 +42,7 @@ def test_ingest_path_imports_only_stdlib_and_meute() -> None:
 
 def test_ingest_path_never_loads_the_cli() -> None:
     output = import_time_output(["ingest", "hook", "PostToolUse"], "{}")
+    assert "meute.ingest" in output  # witness: the ingest path really ran
     assert "meute.cli" not in output
 
 

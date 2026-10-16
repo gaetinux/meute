@@ -8,7 +8,10 @@ import tokenize
 
 STDLIB_ONLY_PACKAGES: tuple[str, ...] = ("core", "tmux", "git", "ingest")
 
-_SUPPRESSION = re.compile(r"#\s*(?:noqa|pyright:\s*ignore|type:\s*ignore)\b")
+# Directives that lower the type-checking mode of a file: forbidden even with a reason.
+_MODE_LOWERING = re.compile(r"\bpyright:\s*(?:basic|standard|off)\b", re.IGNORECASE)
+# Any other directive that silences a checker: allowed only with a reason.
+_SUPPRESSION = re.compile(r"\bnoqa\b|\bpyright:(?!\s*strict\b)|\btype:\s*ignore\b", re.IGNORECASE)
 _REASON_SEPARATOR = " — "
 
 
@@ -34,14 +37,18 @@ def wildcard_cases(source: str) -> list[int]:
 
 
 def suppressions_without_reason(source: str) -> list[int]:
-    """Return the lines whose noqa / pyright: ignore comment lacks a ` — reason`."""
+    """Return the lines with a forbidden or reason-less checker suppression comment."""
     lines: list[int] = []
     for token in tokenize.generate_tokens(io.StringIO(source).readline):
-        if token.type != tokenize.COMMENT or not _SUPPRESSION.match(token.string):
+        if token.type != tokenize.COMMENT:
             continue
-        _, separator, reason = token.string.partition(_REASON_SEPARATOR)
-        if not (separator and reason.strip()):
+        match = _SUPPRESSION.search(token.string)
+        if _MODE_LOWERING.search(token.string):
             lines.append(token.start[0])
+        elif match:
+            _, separator, reason = token.string[match.end() :].partition(_REASON_SEPARATOR)
+            if not (separator and reason.strip()):
+                lines.append(token.start[0])
     return lines
 
 
