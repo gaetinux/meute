@@ -1,0 +1,109 @@
+[project]
+name = "meute"
+version = "0.1.0"
+description = "Claude Code session manager (CLI/TUI)"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
+requires-python = ">=3.13"
+dependencies = [
+    "typer>=0.27.3",
+]
+
+[project.scripts]
+meute = "meute._entry:console"
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.40.2",
+    "deptry>=0.25.1",
+    "import-linter>=2.15",
+    "pip-audit>=2.10.1",
+    "pytest>=9.1.1",
+    "pytest-xdist>=3.8.0",
+    "ruff>=0.17.1",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+# COM812 and ISC001 conflict with the formatter; CPY demands a copyright header.
+ignore = ["COM812", "ISC001", "CPY"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.cast".msg = "use isinstance or a TypeGuard"
+
+[tool.ruff.lint.per-file-ignores]
+# assert, docstrings, magic values, no __init__.py, test subprocesses
+"tests/**" = ["S101", "D", "PLR2004", "INP001", "S603"]
+# docstrings are required in meute.core only
+"src/meute/{tmux,git,claude,tui,mcp,cli,ingest}/**" = ["D"]
+"src/meute/{_entry,__main__}.py" = ["D"]
+"src/meute/{cli,ingest}/**" = ["T20"]
+
+[tool.basedpyright]
+pythonVersion = "3.13"
+include = ["src", "tests"]
+typeCheckingMode = "strict"
+enableTypeIgnoreComments = false
+reportAny = "error"
+reportExplicitAny = "error"
+reportIgnoreCommentWithoutRule = "error"
+reportUnnecessaryTypeIgnoreComment = "error"
+reportMatchNotExhaustive = "error"
+
+[tool.importlinter]
+root_package = "meute"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "core, tmux and git are independent"
+type = "independence"
+modules = ["meute.core", "meute.tmux", "meute.git"]
+
+[[tool.importlinter.contracts]]
+name = "tui, mcp and claude are independent"
+type = "independence"
+modules = ["meute.tui", "meute.mcp", "meute.claude"]
+
+[[tool.importlinter.contracts]]
+name = "lower layers import no UI or heavy dependency"
+type = "forbidden"
+source_modules = ["meute.core", "meute.tmux", "meute.git", "meute.ingest", "meute.claude"]
+forbidden_modules = [
+    "typer",
+    "textual",
+    "mcp",
+    "tomlkit",
+    "meute.cli",
+    "meute.tui",
+    "meute.mcp",
+]
+
+[[tool.importlinter.contracts]]
+name = "ingest only imports the stdlib and meute.core"
+type = "forbidden"
+source_modules = ["meute.ingest"]
+forbidden_modules = ["meute.tmux", "meute.git", "meute.claude"]
+
+[[tool.importlinter.contracts]]
+name = "only meute.cli imports typer"
+type = "forbidden"
+source_modules = ["meute.tui", "meute.mcp"]
+forbidden_modules = ["typer"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --tb=short -n auto --strict-markers -p no:cacheprovider"
+xfail_strict = true
