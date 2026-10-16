@@ -23,7 +23,7 @@ Voir [docs/dev/developpement-assiste-par-ia.md](docs/dev/developpement-assiste-p
 - § 1 TDD : test d'abord, `syrupy` relu ligne par ligne, jamais `--snapshot-update` à l'aveugle.
 - § 2 Typage : union de dataclasses gelées, pas de `case _:` sur nos types, `NewType` pour les identifiants, docstrings sur tout le public de `meute.core`.
 - § 3 Lints : pas d'`assert` hors tests, pas de `cast`, pas d'`Any`, pas de `print` dans les bibliothèques ; exception par règle précise avec ` — raison`, modes pyright abaissés interdits.
-- § 4 Tests : `hypothesis` pour les analyseurs, `syrupy` pour les sorties, `mutmut` en fin de plan.
+- § 4 Tests : `hypothesis` pour les analyseurs, `syrupy` pour les sorties, `mutmut` en fin de plan. Pas encore installés : chaque plan les ajoute avec `uv add --dev` quand il en a besoin le premier.
 - § 5 Boucle rapide : hooks `.claude/` (`py-check.sh`, `verify.sh`), sorties concises.
 - § 6 Organisation : fichiers de moins de 300 lignes, données immuables, code synchrone, packages et règles d'imports (`meute.core` limité à la stdlib, `meute/core/__init__.py` vide d'imports).
 - § 7 Dépendances : `uv add` uniquement, docs à jour, `uv.lock` commité.

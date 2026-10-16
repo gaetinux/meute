@@ -23,7 +23,7 @@ Règles associées :
 
 ## 2. Le typage comme spécification
 
-- **États impossibles irreprésentables.** Une union de dataclasses gelées porte les données de chaque état : `TaskStatus = Todo | InProgress | Blocked | Review | Done`, avec `Blocked(reason: str)`, plutôt qu'un statut et une raison séparés. `enum.Enum` reste réservé aux énumérations simples (`Priority`).
+- **États impossibles irreprésentables.** Une union de dataclasses gelées porte les données de chaque état : à venir avec le modèle du cœur, par exemple `TaskStatus = Todo | InProgress | Blocked | Review | Done` avec `Blocked(reason: str)`, plutôt qu'un statut et une raison séparés. `enum.Enum` reste réservé aux énumérations simples (par exemple `Priority`, à venir).
 - **Des types dédiés pour les identifiants** : `TaskId = NewType("TaskId", int)` plutôt qu'un `int` nu.
 - **Pas de `case _:` sur nos propres types.** `reportMatchNotExhaustive = "error"` liste tous les `match` à compléter quand on ajoute une variante. Seule exception : `case _: assert_never(x)`. Un test de garde parcourt l'AST de `src/` et refuse tout autre `case _:`.
 - **Données immuables** : `@dataclass(frozen=True, slots=True, kw_only=True)`.
@@ -42,7 +42,8 @@ La configuration est dans `pyproject.toml` (`[tool.ruff]`, `[tool.basedpyright]`
 | `S101` | ruff | l'`assert` hors des tests |
 | `E722`, `BLE001`, `S110` | ruff | le `except:` nu et le `except Exception` qui avale tout |
 | `S` (bandit) | ruff | `eval`/`exec`, `pickle`, `subprocess(shell=True)` |
-| `FIX`, `T100`, `ERA` | ruff | le code laissé à moitié écrit, le code commenté |
+| `FIX`, `ERA` | ruff | les `TODO`/`FIXME` laissés dans le code, le code commenté |
+| `T100` | ruff | `breakpoint()` et `pdb` oubliés (débogueur) |
 | `T20` | ruff | `print` dans `meute.core`, `meute.tmux`, `meute.git`, `meute.claude`, `meute.tui` et `meute.mcp` (autorisé dans `meute.cli` et `meute.ingest`) |
 | `D` (Google) | ruff | les éléments publics non documentés, dans `meute.core` seulement |
 | `PGH003`, `PGH004`, `reportIgnoreCommentWithoutRule` | ruff, basedpyright | une suppression sans règle précise |
@@ -50,21 +51,27 @@ La configuration est dans `pyproject.toml` (`[tool.ruff]`, `[tool.basedpyright]`
 | `enableTypeIgnoreComments = false` | basedpyright | `# type: ignore` (désactivé) |
 | `ruff format` | ruff | les débats de style |
 
-**Règle des exceptions.** Toute directive `noqa`, `ruff: noqa` ou `pyright:` doit viser une règle précise et donner une raison après ` — ` (par exemple `# noqa: S603 — arguments built from a fixed list`). Les directives qui abaissent le mode (`# pyright: basic`, `standard`, `off`) sont interdites, même avec une raison. `# type: ignore` est désactivé. Le test de garde `test_every_suppression_has_a_reason` (`tests/test_guards.py`, logique dans `tests/guards.py`) fait respecter tout cela. Chaque exception est mentionnée dans la PR.
+**Règle des exceptions.** Toute directive `noqa`, `ruff: noqa` ou `pyright:` doit viser une règle précise et donner une raison après ` — ` (par exemple `# noqa: S603 — arguments built from a fixed list`). La répartition est la suivante :
+
+- la **règle précise** est imposée par ruff (`PGH004` pour `noqa`) et par basedpyright (`reportIgnoreCommentWithoutRule`) ;
+- `# type: ignore` est désactivé par `enableTypeIgnoreComments = false` ;
+- le **test de garde** `test_every_suppression_has_a_reason` (`tests/test_guards.py`, logique dans `tests/guards.py`) impose la raison après ` — ` et interdit les directives qui abaissent le mode (`# pyright: basic`, `standard`, `off`), même avec une raison.
+
+Chaque exception est mentionnée dans la PR.
 
 **basedpyright plutôt que pyright** : fork de pyright qui suit chaque version du moteur officiel, s'installe par PyPI sans Node et ajoute `reportAny`. Il repose sur une petite équipe. Décision réversible : en cas d'abandon, on passe à `pyright` et un test de garde interdira les annotations `Any` dans `src/`.
 
 ## 4. Des tests qui testent vraiment
 
-Le risque principal du TDD avec une IA, ce sont des tests qui passent sans rien vérifier. Les tests unitaires et d'intégration (`pytest`, `pytest-xdist` avec `-n auto`, sortie `-q --tb=short`) sont complétés par :
+Le risque principal du TDD avec une IA, ce sont des tests qui passent sans rien vérifier. Les tests unitaires et d'intégration (`pytest`, `pytest-xdist` avec `-n auto`, sortie `-q --tb=short`) sont complétés par les outils ci-dessous. **Seuls `pytest` et `pytest-xdist` sont installés pour l'instant** : `hypothesis`, `syrupy`, `mutmut` et `pytest-textual-snapshot` sont ajoutés avec `uv add --dev` par le plan qui en a besoin le premier.
 
 - **`hypothesis`** : tests de propriétés sur les analyseurs, par exemple la saisie rapide ou l'analyse des hooks. Des entrées aléatoires, des invariants (« ne lève jamais », « le titre n'est jamais vide quand le résultat est valide »).
 - **`syrupy`** : instantanés (`.ambr`) pour les sorties textuelles de la CLI. La relecture se fait sur un diff lisible.
 - **`mutmut`** : il introduit des mutations dans le code (condition inversée, valeur par défaut renvoyée…) et vérifie qu'un test échoue. Une mutation « manquée » révèle un test trop faible. Il est lancé **à la fin de chaque plan**, trop lent pour chaque tâche. Chaque mutation manquée donne lieu soit à un nouveau test (en TDD), soit à une justification écrite dans la PR.
-- **Tests de garde** (`tests/test_guards.py`) pour ce qu'aucun outil ne couvre : pas de `case _:` hors `assert_never`, raison sur chaque suppression, packages `core`, `tmux`, `git` et `ingest` limités à la stdlib (et `meute` pour `ingest`), et `meute/core/__init__.py` sans aucun import (`test_core_init_has_no_imports`).
-- **Test `importtime`** (`tests/test_importtime.py`) : il lance `python -X importtime -m meute ingest …` dans un sous-processus et échoue si un module importé n'est ni de la stdlib ni de `meute`, ou si `ingest` charge la CLI. C'est un garde strict et obligatoire : il protège le budget de 50 ms de `meute ingest` (spécification § 7.3 ; le spike S6 mesure une médiane d'environ 47 ms).
-- **tmux** : serveurs jetables `tmux -L meute-test-<uuid>`, avec une fixture qui fait toujours `kill-server`. Jamais les serveurs réels.
-- **TUI** en trois niveaux : modèle de vue pur (`meute.core.views`, testé en texte avec `syrupy`), comportement via `App.run_test` et `Pilot`, rendu via `pytest-textual-snapshot` (mise en page seulement).
+- **Tests de garde** (`tests/test_guards.py`) pour ce qu'aucun outil ne couvre : pas de `case _:` hors `assert_never`, raison sur chaque suppression, imports de `core`, `tmux`, `git`, `ingest` et de `_entry.py` limités à la stdlib et à `meute`, et `meute/core/__init__.py` sans aucun import (`test_core_init_has_no_imports`).
+- **Test `importtime`** (`tests/test_importtime.py`) : il lance `python -X importtime -m meute ingest …` dans un sous-processus et échoue si un module importé n'est ni de la stdlib ni de `meute` (hors modules de démarrage de l'interpréteur : `_virtualenv`, `sitecustomize`, `apport_python_hook`), ou si `ingest` charge la CLI. C'est un garde strict et obligatoire : il protège le budget de 50 ms de `meute ingest` (spécification § 7.3 ; le spike S6 mesure une médiane d'environ 47 ms).
+- **tmux** (à venir avec `meute.tmux`) : serveurs jetables `tmux -L meute-test-<uuid>`, avec une fixture qui fait toujours `kill-server`. Jamais les serveurs réels.
+- **TUI** (à venir) en trois niveaux : modèle de vue pur (`meute.core.views`, à créer, testé en texte avec `syrupy`), comportement via `App.run_test` et `Pilot`, rendu via `pytest-textual-snapshot` (mise en page seulement).
 
 ## 5. Une boucle de rétroaction rapide et automatique
 
