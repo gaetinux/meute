@@ -29,6 +29,12 @@ fn classify_version(output: &str) -> Result<Option<TmuxVersion>, TmuxError> {
     }
 }
 
+/// Whether the error means that no tmux server is listening on the socket.
+pub(crate) fn is_no_server(err: &TmuxError) -> bool {
+    matches!(err, TmuxError::Command { stderr, .. }
+        if stderr.contains("no server running") || stderr.contains("error connecting to"))
+}
+
 impl Tmux {
     /// Creates a handle; nothing is spawned.
     pub fn new(socket: impl Into<String>, config_file: Option<PathBuf>) -> Tmux {
@@ -76,12 +82,7 @@ impl Tmux {
     pub fn is_running(&self) -> Result<bool, TmuxError> {
         match self.run(&["list-sessions"]) {
             Ok(_) => Ok(true),
-            Err(TmuxError::Command { stderr, .. })
-                if stderr.contains("no server running")
-                    || stderr.contains("error connecting to") =>
-            {
-                Ok(false)
-            }
+            Err(err) if is_no_server(&err) => Ok(false),
             Err(err) => Err(err),
         }
     }

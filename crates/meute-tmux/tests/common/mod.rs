@@ -6,17 +6,27 @@ use std::time::{Duration, Instant};
 /// Throwaway tmux server on its own socket, killed on drop.
 pub struct TestServer {
     tmux: Tmux,
+    socket_path: Option<PathBuf>,
 }
 
 impl TestServer {
     pub fn start() -> TestServer {
         let socket = format!("meute-test-{}", uuid::Uuid::new_v4());
         let tmux = Tmux::new(socket, Some(PathBuf::from("/dev/null")));
-        let server = TestServer { tmux };
+        let mut server = TestServer {
+            tmux,
+            socket_path: None,
+        };
         server
             .tmux
             .run(&["new-session", "-d", "-s", "test", "-x", "200", "-y", "50"])
             .unwrap_or_else(|err| panic!("cannot start test tmux server: {err}"));
+        // tmux leaves the socket file behind after kill-server; remember it.
+        server.socket_path = server
+            .tmux
+            .run(&["display-message", "-p", "#{socket_path}"])
+            .ok()
+            .map(PathBuf::from);
         server
     }
 
@@ -28,6 +38,9 @@ impl TestServer {
 impl Drop for TestServer {
     fn drop(&mut self) {
         let _ = self.tmux.kill_server();
+        if let Some(path) = &self.socket_path {
+            let _ = std::fs::remove_file(path);
+        }
     }
 }
 

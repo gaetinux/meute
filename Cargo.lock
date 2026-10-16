@@ -588,6 +588,7 @@ name = "meute-tmux"
 version = "0.1.0"
 dependencies = [
  "proptest",
+ "tempfile",
  "thiserror",
  "uuid",
 ]

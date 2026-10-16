@@ -4,8 +4,10 @@
 
 mod client;
 mod error;
+mod pane;
 mod version;
 
 pub use client::Tmux;
 pub use error::TmuxError;
+pub use pane::{PaneId, PaneInfo, Spawn, parse_pane_line};
 pub use version::{MIN_VERSION, TmuxVersion, parse_version};
