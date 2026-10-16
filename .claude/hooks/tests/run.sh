@@ -90,13 +90,19 @@ case_python_type_error_blocks() {
         && [[ "$err" == *"is not assignable"* ]]
 }
 
+# File names carrying shell payloads that leave a trace if they are ever interpreted.
 case_odd_file_name_is_safe() {
-    reset_tree
-    local odd="$proj/src/fixture/a b \$x.py"
-    printf 'def f() -> int:\n    return "a"\n' > "$odd"
-    run_hook py-check.sh "$(edit_json "$odd")"
-    [ "$code" = 2 ] && [ ! -e "$proj/\$x" ] && [ ! -e "$proj/src/fixture/\$x" ] \
-        && [ ! -e "$work/\$x" ]
+    local name odd
+    for name in 'a b $x.py' 'a b $(touch pwned).py' 'a b `touch pwned`.py'; do
+        reset_tree
+        odd="$proj/src/fixture/$name"
+        printf 'def f() -> int:\n    return "a"\n' > "$odd"
+        run_hook py-check.sh "$(edit_json "$odd")"
+        [ "$code" = 2 ] && [[ "$err" == *"is not assignable"* ]] || return 1
+        [ ! -e "$proj/pwned" ] && [ ! -e "$proj/src/fixture/pwned" ] && [ ! -e "$work/pwned" ] \
+            && [ ! -e "$proj/\$x" ] && [ ! -e "$proj/src/fixture/\$x" ] && [ ! -e "$work/\$x" ] \
+            || return 1
+    done
 }
 
 case_outside_project_ignored() {
@@ -128,15 +134,28 @@ case_verify_clean_tree() {
     [ "$code" = 0 ] && [ ! -e "$work/witness" ]
 }
 
+# Lint- and type-clean, so only pytest can make verify.sh fail.
 add_failing_test() {
-    printf 'def test_fail():\n    assert 1 == 2\n' > "$proj/tests/test_fail.py"
+    printf 'from fixture import ONE\n\n\ndef test_fail() -> None:\n    assert ONE == 2\n' \
+        > "$proj/tests/test_fail.py"
 }
 
 case_verify_failing_blocks() {
     reset_tree
     add_failing_test
     run_hook verify.sh '{"stop_hook_active":false}'
-    [ "$code" = 2 ] && [[ "$err" == *"corrige avant de terminer"* ]]
+    [ "$code" = 2 ] && [[ "$err" == *"corrige avant de terminer"* ]] \
+        && [[ "$err" == *"assert 1 == 2"* ]]
+}
+
+# Lint- and type-clean, so only lint-imports can make verify.sh fail.
+case_verify_import_contract_blocks() {
+    reset_tree
+    printf '"""Breaks the import contract."""\n\nimport typer\n\napp = typer.Typer()\n' \
+        > "$proj/src/fixture/bad.py"
+    run_hook verify.sh '{"stop_hook_active":false}'
+    [ "$code" = 2 ] && [[ "$err" == *"corrige avant de terminer"* ]] \
+        && [[ "$err" == *"fixture does not import typer BROKEN"* ]]
 }
 
 case_verify_loop_guard() {
@@ -148,7 +167,7 @@ case_verify_loop_guard() {
 
 for c in non_python_ignored python_ok python_is_formatted python_type_error_blocks \
     odd_file_name_is_safe outside_project_ignored missing_uv_does_not_block_edit \
-    missing_uv_blocks_stop verify_clean_tree verify_failing_blocks verify_loop_guard; do
+    missing_uv_blocks_stop verify_clean_tree verify_failing_blocks verify_import_contract_blocks verify_loop_guard; do
     if "case_$c"; then report "$c" 1; else report "$c" 0; fi
 done
 
