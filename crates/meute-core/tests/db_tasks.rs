@@ -2,39 +2,14 @@
 
 use std::time::Duration;
 
+mod common;
+
+use common::*;
 use meute_core::CoreError;
-use meute_core::actor::{Actor, Author, Channel};
+use meute_core::actor::{Author, Channel};
 use meute_core::db::{Db, ProjectFilter, TaskFilter};
 use meute_core::project::ProjectId;
 use meute_core::task::{NewTask, Priority, TaskId, TaskStatus};
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "shared test helper, not itself a #[test] function"
-)]
-fn test_db() -> Db {
-    Db::open_in_memory()
-        .unwrap()
-        .with_clock(|| "2026-10-14T08:30:00Z".parse().unwrap())
-}
-
-fn user() -> Actor {
-    Actor {
-        author: Author::User,
-        channel: Channel::Cli,
-        session_id: None,
-    }
-}
-
-fn new_task(title: &str, project_id: Option<ProjectId>) -> NewTask {
-    NewTask {
-        title: title.into(),
-        description: String::new(),
-        priority: Priority::Normal,
-        due: None,
-        project_id,
-    }
-}
 
 #[test]
 fn create_and_get_task_with_project() {

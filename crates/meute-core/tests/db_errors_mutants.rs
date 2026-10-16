@@ -3,28 +3,11 @@
 
 use std::time::Duration;
 
+mod common;
+
+use common::*;
 use meute_core::CoreError;
-use meute_core::actor::{Actor, Author, Channel};
 use meute_core::db::Db;
-use meute_core::task::{NewTask, Priority};
-
-fn user() -> Actor {
-    Actor {
-        author: Author::User,
-        channel: Channel::Cli,
-        session_id: None,
-    }
-}
-
-fn new_task(project_id: Option<meute_core::project::ProjectId>) -> NewTask {
-    NewTask {
-        title: "t".into(),
-        description: String::new(),
-        priority: Priority::Normal,
-        due: None,
-        project_id,
-    }
-}
 
 /// A file database plus a second raw connection used to sabotage its schema.
 #[expect(
@@ -67,7 +50,7 @@ fn create_task_only_maps_foreign_key_violations_to_unknown_project() {
     )
     .unwrap();
     let err = db
-        .create_task(new_task(Some(project.id)), &user())
+        .create_task(new_task("t", Some(project.id)), &user())
         .unwrap_err();
     assert!(matches!(err, CoreError::Db(_)), "{err:?}");
 }

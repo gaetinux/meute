@@ -2,8 +2,11 @@
 
 use std::time::Duration;
 
+mod common;
+
+use common::*;
 use meute_core::CoreError;
-use meute_core::actor::{Actor, Author, Channel};
+use meute_core::actor::{Author, Channel};
 use meute_core::db::Db;
 use meute_core::project::ProjectId;
 use meute_core::task::{Due, NewTask, Priority, Task, TaskPatch, TaskStatus};
@@ -12,51 +15,11 @@ use meute_core::task::{Due, NewTask, Priority, Task, TaskPatch, TaskStatus};
     clippy::unwrap_used,
     reason = "shared test helper, not itself a #[test] function"
 )]
-fn clocked(db: Db) -> Db {
-    db.with_clock(|| "2026-10-14T08:30:00Z".parse().unwrap())
-}
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "shared test helper, not itself a #[test] function"
-)]
-fn test_db() -> Db {
-    clocked(Db::open_in_memory().unwrap())
-}
-
-fn user() -> Actor {
-    Actor {
-        author: Author::User,
-        channel: Channel::Cli,
-        session_id: None,
-    }
-}
-
-fn claude() -> Actor {
-    Actor {
-        author: Author::Claude,
-        channel: Channel::Mcp,
-        session_id: Some("s-1".into()),
-    }
-}
-
-fn new_task(title: &str) -> NewTask {
-    NewTask {
-        title: title.into(),
-        description: String::new(),
-        priority: Priority::Normal,
-        due: None,
-        project_id: None,
-    }
-}
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "shared test helper, not itself a #[test] function"
-)]
 fn db_with_task() -> (Db, Task) {
     let mut db = test_db();
-    let t = db.create_task(new_task("Relire la PR"), &user()).unwrap();
+    let t = db
+        .create_task(new_task("Relire la PR", None), &user())
+        .unwrap();
     (db, t)
 }
 
@@ -260,7 +223,7 @@ fn two_connections_same_version_second_conflicts() {
     let path = dir.path().join("meute.db");
     let mut a = clocked(Db::open(&path, Duration::from_secs(5)).unwrap());
     let mut b = clocked(Db::open(&path, Duration::from_secs(5)).unwrap());
-    let t = a.create_task(new_task("Partagée"), &user()).unwrap();
+    let t = a.create_task(new_task("Partagée", None), &user()).unwrap();
     let first = a
         .update_task(t.id, 1, title_patch("De A"), &user())
         .unwrap();
@@ -318,10 +281,10 @@ fn delete_checks_version_and_keeps_history() {
 #[test]
 fn task_ids_are_never_reused_after_delete() {
     let mut db = test_db();
-    db.create_task(new_task("un"), &user()).unwrap();
-    let second = db.create_task(new_task("deux"), &user()).unwrap();
+    db.create_task(new_task("un", None), &user()).unwrap();
+    let second = db.create_task(new_task("deux", None), &user()).unwrap();
     db.delete_task(second.id, 1, &user()).unwrap();
-    let third = db.create_task(new_task("trois"), &user()).unwrap();
+    let third = db.create_task(new_task("trois", None), &user()).unwrap();
     assert_eq!(third.id.0, 3);
     let fields: Vec<String> = db
         .history(second.id)
@@ -344,7 +307,7 @@ fn stored_timestamps_are_fixed_width_utc() {
         .create_task(
             NewTask {
                 due: Some(Due::At("2026-10-15T09:00:00Z".parse().unwrap())),
-                ..new_task("Relire la PR")
+                ..new_task("Relire la PR", None)
             },
             &user(),
         )
