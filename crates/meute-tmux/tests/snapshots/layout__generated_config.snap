@@ -1,0 +1,12 @@
+---
+source: crates/meute-tmux/tests/layout.rs
+expression: render_config(&layout_spec())
+---
+# Généré par meute : ce fichier est réécrit à chaque lancement, ne pas le modifier.
+set -g status-left "[meute] "
+set -g status-right "#{@meute_status}"
+set -g status-right-length 80
+bind -n M-p switch-client -t =meute:main \; select-pane -t '=meute:main.{right}'
+bind -n M-o select-pane -t '=meute:main.{left}'
+set-hook -g client-attached "run-shell -b \"'/opt/meute/bin/meute' 'layout' 'sync'\""
+set-hook -g client-resized "run-shell -b \"'/opt/meute/bin/meute' 'layout' 'sync'\""

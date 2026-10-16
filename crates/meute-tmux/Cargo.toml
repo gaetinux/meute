@@ -13,6 +13,7 @@ thiserror = "2.0.21"
 workspace = true
 
 [dev-dependencies]
+insta = "1.49.0"
 proptest = "1.11.0"
 tempfile = "3.27.0"
 uuid = { version = "1.26.1", features = ["v4"] }

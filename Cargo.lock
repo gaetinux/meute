@@ -587,6 +587,7 @@ dependencies = [
 name = "meute-tmux"
 version = "0.1.0"
 dependencies = [
+ "insta",
  "proptest",
  "tempfile",
  "thiserror",
