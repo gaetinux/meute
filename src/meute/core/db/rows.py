@@ -1,7 +1,8 @@
 """Typed access to SQLite rows: the only place where untyped rows are read."""
 
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Generator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
 
@@ -191,3 +192,15 @@ def due_columns(due: Due | None) -> tuple[str | None, str | None]:
             return due.day.isoformat(), None
         case DueAt():
             return None, to_db(due.at)
+
+
+@contextmanager
+def project_must_exist(project_id: ProjectId | None) -> Generator[None]:
+    """Turn a foreign-key violation raised in the block into `NotFound` for the project."""
+    try:
+        yield
+    except sqlite3.IntegrityError as error:
+        if error.sqlite_errorname == "SQLITE_CONSTRAINT_FOREIGNKEY":
+            entity = "project"
+            raise NotFound(entity, str(project_id)) from error
+        raise

@@ -1,6 +1,5 @@
 """Creating and reading tasks."""
 
-import sqlite3
 from dataclasses import dataclass, field
 
 from meute.core.actor import Actor
@@ -12,10 +11,11 @@ from meute.core.db.rows import (
     fetch_all,
     fetch_task,
     insert_event,
+    project_must_exist,
     row_to_event,
     row_to_task,
 )
-from meute.core.errors import InvalidInput, NotFound
+from meute.core.errors import InvalidInput
 from meute.core.instants import to_db
 from meute.core.project import ProjectId
 from meute.core.status import StatusKind
@@ -64,41 +64,35 @@ def create_task(db: Database, new: NewTask, actor: Actor) -> Task:
         raise InvalidInput(message)
     now = db.now()
     due_date, due_at = due_columns(new.due)
-    try:
-        with db.transaction() as conn:
-            cursor = conn.execute(
-                "INSERT INTO tasks (title, description, status, priority, due_date, due_at,"
-                " project_id, version, created_at, updated_at)"
-                " VALUES (?, ?, 'todo', ?, ?, ?, ?, 1, ?, ?)",
-                (
-                    title,
-                    new.description,
-                    new.priority.value,
-                    due_date,
-                    due_at,
-                    new.project_id,
-                    to_db(now),
-                    to_db(now),
-                ),
-            )
-            task_id = TaskId(cursor.lastrowid or 0)
-            insert_event(
-                conn,
-                EventRecord(
-                    task_id=task_id,
-                    field="created",
-                    old_value=None,
-                    new_value=title,
-                    actor=actor,
-                    at=now,
-                ),
-            )
-            return fetch_task(conn, task_id)
-    except sqlite3.IntegrityError as error:
-        if error.sqlite_errorname == "SQLITE_CONSTRAINT_FOREIGNKEY":
-            entity = "project"
-            raise NotFound(entity, str(new.project_id)) from error
-        raise
+    with project_must_exist(new.project_id), db.transaction() as conn:
+        cursor = conn.execute(
+            "INSERT INTO tasks (title, description, status, priority, due_date, due_at,"
+            " project_id, version, created_at, updated_at)"
+            " VALUES (?, ?, 'todo', ?, ?, ?, ?, 1, ?, ?)",
+            (
+                title,
+                new.description,
+                new.priority.value,
+                due_date,
+                due_at,
+                new.project_id,
+                to_db(now),
+                to_db(now),
+            ),
+        )
+        task_id = TaskId(cursor.lastrowid or 0)
+        insert_event(
+            conn,
+            EventRecord(
+                task_id=task_id,
+                field="created",
+                old_value=None,
+                new_value=title,
+                actor=actor,
+                at=now,
+            ),
+        )
+        return fetch_task(conn, task_id)
 
 
 def get_task(db: Database, task_id: TaskId) -> Task:

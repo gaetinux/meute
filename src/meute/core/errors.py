@@ -1,6 +1,10 @@
 """Errors raised by meute.core."""
 
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from meute.core.task import Task
 
 
 class MeuteError(Exception):
@@ -33,3 +37,12 @@ class NotFound(MeuteError):  # noqa: N818 — name fixed by the specification
         super().__init__(f"{entity} not found: {ident}")
         self.entity = entity
         self.ident = ident
+
+
+class VersionConflict(MeuteError):  # noqa: N818 — name fixed by the specification
+    """The task was modified since the version the caller read."""
+
+    def __init__(self, current: "Task") -> None:
+        """Build the error carrying the `current` state of the task."""
+        super().__init__(f"modified in the meantime (current version: {current.version})")
+        self.current = current
