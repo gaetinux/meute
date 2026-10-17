@@ -60,7 +60,7 @@ def edit(  # noqa: PLR0913 — each Typer option is a parameter
     *,
     title: Annotated[str | None, typer.Option(help="New title.")] = None,
     description: Annotated[str | None, typer.Option(help="New description.")] = None,
-    priority: Annotated[str | None, typer.Option(help="normal, high or urgent.")] = None,
+    priority: Annotated[str | None, typer.Option(help="urgent, high, normal or low.")] = None,
     due: Annotated[str | None, typer.Option(help="A due date such as tomorrow, or none.")] = None,
     project: Annotated[str | None, typer.Option(help="A project name, or none.")] = None,
     expected_version: _ExpectedVersion = None,

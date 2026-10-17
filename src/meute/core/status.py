@@ -112,14 +112,20 @@ def status_kind(status: TaskStatus) -> StatusKind:
 
 def status_text(status: TaskStatus) -> str:
     """Return the kind value, or `blocked: <reason>` for a blocked status."""
-    if isinstance(status, Blocked):
-        return f"blocked: {status.reason}"
-    return status_kind(status).value
+    match status:
+        case Blocked(reason=reason):
+            return f"blocked: {reason}"
+        case Todo() | InProgress() | Review() | Done():
+            return status_kind(status).value
 
 
 def is_open(status: TaskStatus) -> bool:
     """Return whether the task is still open, that is not done."""
-    return not isinstance(status, Done)
+    match status:
+        case Done():
+            return False
+        case Todo() | InProgress() | Blocked() | Review():
+            return True
 
 
 def status_from_kind(kind: StatusKind, reason: str | None = None) -> TaskStatus:

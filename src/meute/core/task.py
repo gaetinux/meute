@@ -60,8 +60,11 @@ def due_text(due: Due) -> str:
 
 def due_to_json(due: Due) -> JsonObject:
     """Return the tagged JSON form of `due`."""
-    kind = "date" if isinstance(due, DueDate) else "at"
-    return {"kind": kind, "value": due_text(due)}
+    match due:
+        case DueDate():
+            return {"kind": "date", "value": due_text(due)}
+        case DueAt():
+            return {"kind": "at", "value": due_text(due)}
 
 
 def due_from_json(data: Mapping[str, object]) -> Due:
