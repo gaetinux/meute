@@ -79,3 +79,34 @@ def test_set_keeps_a_symlinked_config_a_symlink(tmp_path: Path) -> None:
     config_set(link, "ui.board_width", "72")
     assert link.is_symlink()
     assert config_get(target, "ui.board_width") == "72"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "ui = { board_width = 60, narrow_threshold = 100 } # mine\n",
+        "ui.board_width = 60\nui.narrow_threshold = 100\n",
+    ],
+)
+def test_set_keeps_siblings_of_inline_and_dotted_sections(tmp_path: Path, text: str) -> None:
+    path = tmp_path / "config.toml"
+    path.write_text(text, encoding="utf-8")
+    config_set(path, "ui.board_width", "72")
+    assert "narrow_threshold = 100" in path.read_text(encoding="utf-8")
+    assert config_get(path, "ui.board_width") == "72"
+    assert config_get(path, "ui.narrow_threshold") == "100"
+
+
+def test_set_keeps_the_comment_of_an_inline_section(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    path.write_text("ui = { board_width = 60 } # mine\n", encoding="utf-8")
+    config_set(path, "ui.board_width", "72")
+    assert "# mine" in path.read_text(encoding="utf-8")
+
+
+def test_set_refuses_a_section_that_is_not_a_table(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    path.write_text("ui = 5\n", encoding="utf-8")
+    with pytest.raises(InvalidInput, match="ui: expected a table"):
+        config_set(path, "ui.board_width", "72")
+    assert path.read_text(encoding="utf-8") == "ui = 5\n"

@@ -3,11 +3,12 @@
 from pathlib import Path
 
 import tomlkit
+from tomlkit.container import OutOfOrderTableProxy
 from tomlkit.exceptions import ParseError
-from tomlkit.items import Item, Table
+from tomlkit.items import AbstractTable, Item
 
 from meute.core.config import config_key, validate_config, write_atomic
-from meute.core.errors import ConfigError
+from meute.core.errors import ConfigError, InvalidInput
 
 
 def _parse_value(text: str) -> Item:
@@ -50,12 +51,12 @@ def config_set(path: Path, key: str, value: str) -> None:
     section_name, name = config_key(key)
     target = path.resolve()
     document = _read_document(target)
-    existing = document.item(section_name) if section_name in document else None
-    if isinstance(existing, Table):
-        section = existing
-    else:
-        section = tomlkit.table()
-        document[section_name] = section
+    if section_name not in document:
+        document[section_name] = tomlkit.table()
+    section = document.item(section_name)
+    if not isinstance(section, (AbstractTable, OutOfOrderTableProxy)):
+        message = f"{section_name}: expected a table"
+        raise InvalidInput(message)
     section[name] = _parse_value(value)
     validate_config(document.unwrap())
     write_atomic(target, tomlkit.dumps(document))
