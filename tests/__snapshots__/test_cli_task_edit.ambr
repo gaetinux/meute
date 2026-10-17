@@ -1,0 +1,8 @@
+# serializer version: 1
+# name: test_stale_expected_version_exits_3_with_current_state
+  '''
+  meute: modified in the meantime (current version: 2)
+  #1 · A
+  
+  '''
+# ---

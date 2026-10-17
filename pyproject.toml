@@ -7,6 +7,7 @@ license = "MIT OR Apache-2.0"
 license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
 requires-python = ">=3.13"
 dependencies = [
+    "tomlkit>=0.15.2",
     "typer>=0.27.3",
 ]
 
@@ -21,12 +22,15 @@ build-backend = "uv_build"
 dev = [
     "basedpyright>=1.40.2",
     "deptry>=0.25.1",
+    "hypothesis>=6.170.1",
     "import-linter>=2.15",
+    "mutmut>=3.8.0",
     "pip-audit>=2.10.1",
     "pip-licenses>=5.5.5",
     "pytest>=9.1.1",
     "pytest-xdist>=3.8.0",
     "ruff>=0.17.1",
+    "syrupy>=6.1.1",
 ]
 
 [tool.ruff]
@@ -153,3 +157,18 @@ forbidden_modules = ["typer", "tomlkit"]
 testpaths = ["tests"]
 addopts = "-q --tb=short -n auto --strict-markers -p no:cacheprovider"
 xfail_strict = true
+
+[tool.mutmut]
+source_paths = ["src/meute/core/"]
+also_copy = ["tests/", "src/meute/"]
+# In-process core tests only: CLI, guard and import-time tests spawn subprocesses that cannot see mutants.
+pytest_add_cli_args = ["-n", "0"]
+pytest_add_cli_args_test_selection = [
+    "tests/test_config.py", "tests/test_config_edit.py", "tests/test_db_open.py",
+    "tests/test_db_projects.py", "tests/test_db_task_notes.py", "tests/test_db_tasks.py",
+    "tests/test_db_task_update.py", "tests/test_due_parse.py", "tests/test_instants.py",
+    "tests/test_migrations.py", "tests/test_paths.py", "tests/test_quick_add.py",
+    "tests/test_render.py", "tests/test_status.py", "tests/test_task_model.py",
+    "tests/test_views.py", "tests/test_mutants_db.py", "tests/test_mutants_config.py",
+    "tests/test_mutants_model.py",
+]
