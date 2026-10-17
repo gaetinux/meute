@@ -9,6 +9,8 @@ from collections.abc import Sequence
 import typer
 
 from meute.cli import task_commands as task_commands
+from meute.cli import task_edit_commands as task_edit_commands
+from meute.cli.config_commands import config_app
 from meute.cli.context import current_time
 from meute.cli.project_commands import project_app
 from meute.cli.render import task_line
@@ -18,6 +20,7 @@ from meute.core.errors import MeuteError, NotFound, VersionConflict
 app = typer.Typer(name="meute", add_completion=False, pretty_exceptions_enable=False)
 app.add_typer(task_app, name="task")
 app.add_typer(project_app, name="project")
+app.add_typer(config_app, name="config")
 
 _FAILURE = 1
 _CONFLICT = 3
