@@ -23,3 +23,13 @@ class ConfigError(MeuteError):
 
 class MigrationError(MeuteError):
     """A database migration failed, or the database is newer than this meute."""
+
+
+class NotFound(MeuteError):  # noqa: N818 — name fixed by the specification
+    """A task or a project does not exist."""
+
+    def __init__(self, entity: str, ident: str) -> None:
+        """Build the error for the `entity` (`task` or `project`) identified by `ident`."""
+        super().__init__(f"{entity} not found: {ident}")
+        self.entity = entity
+        self.ident = ident
