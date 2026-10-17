@@ -19,3 +19,7 @@ class ConfigError(MeuteError):
         super().__init__(f"invalid configuration ({path}): {message}")
         self.path = path
         self.message = message
+
+
+class MigrationError(MeuteError):
+    """A database migration failed, or the database is newer than this meute."""
