@@ -1,0 +1,30 @@
+# serializer version: 1
+# name: test_snapshot_task_list_mixed
+  '''
+  #8 · Pay the invoice · Sat Oct 10 (overdue)
+  #4 ◎ Review the PR · in review
+  #7 · ! Call Marie · today 3pm
+  #3 ✕ !! Deploy @meute · blocked: waiting for CI
+  #2 » ! Write the guide @meute · tomorrow
+  #6 · Prepare the demo @meute · Wed Oct 21
+  #1 · Tidy the desk
+  #5 ✓ Close the ticket @meute
+  
+  '''
+# ---
+# name: test_snapshot_task_show_with_notes
+  '''
+  #1 Tidy the desk
+  Status: to do
+  Priority: normal
+  Due: —
+  Project: —
+  Version: 1
+  Created: 2026-10-14 10:30
+  Updated: 2026-10-14 10:30
+  Notes:
+  [2026-10-14 10:30] user: First item done.
+  [2026-10-14 10:30] claude: Review still to do.
+  
+  '''
+# ---

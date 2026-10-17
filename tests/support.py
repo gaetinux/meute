@@ -1,12 +1,19 @@
 """Helpers shared by the tests: plain functions, not fixtures."""
 
+import json
 from datetime import UTC, date, datetime
 
 from meute.core.actor import Actor, Author, Channel
+from meute.core.db.connection import Database
+from meute.core.db.projects import create_project
+from meute.core.db.task_update import update_task
+from meute.core.db.tasks import create_task
 from meute.core.instants import parse_zoned
+from meute.core.json_types import JsonValue
 from meute.core.project import ProjectId
-from meute.core.status import Priority, TaskStatus, Todo
-from meute.core.task import Due, DueAt, DueDate, NewTask, Task, TaskId
+from meute.core.status import Blocked, InProgress, Priority, Review, TaskStatus, Todo
+from meute.core.status import Done as DoneStatus
+from meute.core.task import Due, DueAt, DueDate, NewTask, Task, TaskId, TaskPatch
 
 NOW = parse_zoned("2026-10-14T10:30[Europe/Paris]")  # a Wednesday
 
@@ -54,3 +61,37 @@ def make_task(
         updated_at=FIXED,
         completed_at=completed_at,
     )
+
+
+def load_json(text: str) -> JsonValue:
+    """Parse JSON text into plain objects."""
+    return json.loads(text)  # pyright: ignore[reportAny] — json.loads is typed as returning Any
+
+
+def seed_mixed(db: Database) -> None:
+    """Create project `meute` and eight tasks covering every status, priority and due kind."""
+    project = create_project(db, "meute")
+    rows: list[tuple[str, Priority, Due | None, ProjectId | None, TaskStatus]] = [
+        ("Tidy the desk", Priority.NORMAL, None, None, Todo()),
+        ("Write the guide", Priority.HIGH, date_due("2026-10-15"), project.id, InProgress()),
+        (
+            "Deploy",
+            Priority.URGENT,
+            date_due("2026-10-14"),
+            project.id,
+            Blocked(reason="waiting for CI"),
+        ),
+        ("Review the PR", Priority.NORMAL, date_due("2026-10-12"), None, Review()),
+        ("Close the ticket", Priority.LOW, None, project.id, DoneStatus()),
+        ("Prepare the demo", Priority.NORMAL, date_due("2026-10-21"), project.id, Todo()),
+        ("Call Marie", Priority.HIGH, at_due("2026-10-14T15:00[Europe/Paris]"), None, Todo()),
+        ("Pay the invoice", Priority.NORMAL, date_due("2026-10-10"), None, Todo()),
+    ]
+    for title, priority, due, project_id, status in rows:
+        task = create_task(
+            db,
+            NewTask(title=title, priority=priority, due=due, project_id=project_id),
+            USER,
+        )
+        if not isinstance(status, Todo):
+            update_task(db, task.id, 1, TaskPatch(status=status), USER)
