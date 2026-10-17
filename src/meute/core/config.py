@@ -234,12 +234,12 @@ def load_config(path: Path) -> Config:
         ConfigError: the file is not valid TOML or holds an invalid value.
     """
     try:
-        text = path.read_text(encoding="utf-8")
+        raw = path.read_bytes()
     except FileNotFoundError:
         return Config()
     try:
-        return validate_config(tomllib.loads(text))
-    except (tomllib.TOMLDecodeError, InvalidInput) as error:
+        return validate_config(tomllib.loads(raw.decode("utf-8")))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError, InvalidInput) as error:
         raise ConfigError(path, str(error)) from error
 
 

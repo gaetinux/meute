@@ -133,3 +133,12 @@ def test_write_atomic_cleans_up_on_failure(tmp_path: Path) -> None:
 def test_errors_share_a_base() -> None:
     assert issubclass(InvalidInput, MeuteError)
     assert issubclass(ConfigError, MeuteError)
+
+
+def test_non_utf8_file_is_a_config_error(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    path.write_bytes(b"# caf\xe9\n")
+    with pytest.raises(ConfigError, match=r"config\.toml"):
+        load_config(path)
+    with pytest.raises(ConfigError, match=r"config\.toml"):
+        config_get(path, "ui.board_width")
