@@ -21,6 +21,7 @@ build-backend = "uv_build"
 dev = [
     "basedpyright>=1.40.2",
     "deptry>=0.25.1",
+    "hypothesis>=6.170.1",
     "import-linter>=2.15",
     "pip-audit>=2.10.1",
     "pip-licenses>=5.5.5",
