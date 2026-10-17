@@ -4,7 +4,16 @@ from collections.abc import Sequence
 from datetime import datetime
 
 from meute.core.quick_add import QuickAdd
-from meute.core.status import Blocked, Done, InProgress, Review, StatusKind, Todo, status_kind
+from meute.core.status import (
+    Blocked,
+    Done,
+    InProgress,
+    Review,
+    StatusKind,
+    Todo,
+    status_kind,
+    status_text,
+)
 from meute.core.task import Due, Note, Task, task_label
 from meute.core.views import format_due, is_overdue
 
@@ -21,8 +30,8 @@ def task_line(task: Task, now: datetime) -> str:
     """Render `#12 » ! Title @project · tail`."""
     tail: str | None
     match task.status:
-        case Blocked(reason=reason):
-            tail = f"blocked: {reason}"
+        case Blocked():
+            tail = status_text(task.status)
         case Review():
             tail = "in review"
         case Todo() | InProgress() | Done():

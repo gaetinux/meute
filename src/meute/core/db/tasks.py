@@ -11,6 +11,7 @@ from meute.core.db.rows import (
     fetch_all,
     fetch_task,
     insert_event,
+    inserted_id,
     project_must_exist,
     row_to_event,
     row_to_task,
@@ -80,7 +81,7 @@ def create_task(db: Database, new: NewTask, actor: Actor) -> Task:
                 to_db(now),
             ),
         )
-        task_id = TaskId(cursor.lastrowid or 0)
+        task_id = TaskId(inserted_id(cursor))
         insert_event(
             conn,
             EventRecord(

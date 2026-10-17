@@ -95,7 +95,10 @@ def _is_string_list(value: object) -> TypeGuard[list[str]]:
 
 
 def _is_string_tuple(value: object) -> TypeGuard[tuple[str, ...]]:
-    return isinstance(value, tuple)
+    if not isinstance(value, tuple):
+        return False
+    items: tuple[object, ...] = value  # pyright: ignore[reportUnknownVariableType] — isinstance narrows an object to tuple[Unknown, ...]
+    return all(isinstance(item, str) for item in items)
 
 
 def _section(data: Mapping[str, object], name: str) -> Mapping[str, object]:
@@ -144,14 +147,14 @@ def _permission_mode(section: Mapping[str, object]) -> str:
 
 def _timezone(section: Mapping[str, object]) -> str:
     value = section.get("peak_timezone", "America/New_York")
-    try:
-        if isinstance(value, str):
-            ZoneInfo(value)
-            return value
-    except (ZoneInfoNotFoundError, ValueError, OSError):
-        pass
     message = "quotas.peak_timezone: expected an IANA time zone name"
-    raise InvalidInput(message)
+    if not isinstance(value, str):
+        raise InvalidInput(message)
+    try:
+        ZoneInfo(value)
+    except (ZoneInfoNotFoundError, ValueError, OSError):
+        raise InvalidInput(message) from None
+    return value
 
 
 def validate_config(data: Mapping[str, object]) -> Config:
@@ -189,13 +192,16 @@ def _flatten(config: Config) -> dict[str, object]:
     }
 
 
+_KEYS = frozenset(_flatten(Config()))
+
+
 def config_key(key: str) -> tuple[str, str]:
     """Split a key such as `ui.board_width` into its section and field names.
 
     Raises:
         InvalidInput: the key is not a field of Config.
     """
-    if key not in _flatten(Config()):
+    if key not in _KEYS:
         message = f"unknown key: {key}"
         raise InvalidInput(message)
     section, _, name = key.partition(".")

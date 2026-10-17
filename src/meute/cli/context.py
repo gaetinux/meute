@@ -1,7 +1,7 @@
 """What every command needs: the clock, the actor, the configuration and the database."""
 
 from collections.abc import Generator, Mapping
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
@@ -66,7 +66,8 @@ class CliContext:
 
 
 @contextmanager
-def _open_context(environ: Mapping[str, str]) -> Generator[CliContext]:
+def open_context(environ: Mapping[str, str]) -> Generator[CliContext]:
+    """Prepare the folders and configuration, open the database and close it on exit."""
     now = current_time(environ)
     paths = Paths.from_env(environ, home=Path.home())
     paths.ensure_dirs()
@@ -82,11 +83,6 @@ def _open_context(environ: Mapping[str, str]) -> Generator[CliContext]:
             author=Author.USER, channel=Channel.CLI, session_id=environ.get("MEUTE_SESSION")
         )
         yield CliContext(db=db, now=now, actor=actor, config=config, paths=paths)
-
-
-def open_context(environ: Mapping[str, str]) -> AbstractContextManager[CliContext]:
-    """Prepare the folders and configuration, open the database and close it on exit."""
-    return _open_context(environ)
 
 
 def require_project(ctx: CliContext, name: str) -> Project:

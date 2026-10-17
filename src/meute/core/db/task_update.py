@@ -1,6 +1,6 @@
 """Versioned task updates and deletion (optimistic concurrency)."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from meute.core.actor import Actor
 from meute.core.db.connection import Database
@@ -14,15 +14,14 @@ from meute.core.db.rows import (
 from meute.core.errors import InvalidInput, VersionConflict
 from meute.core.instants import to_db
 from meute.core.project import ProjectId
-from meute.core.status import Blocked, Done, Priority, TaskStatus, status_kind
+from meute.core.status import Blocked, Done, Priority, TaskStatus, status_kind, status_text
 from meute.core.task import (
-    KEEP,
     Due,
     Keep,
     Task,
     TaskId,
     TaskPatch,
-    due_to_json,
+    due_text,
 )
 
 
@@ -53,11 +52,11 @@ def _kept[T](patched: T | Keep, current: T) -> T:
     return current if isinstance(patched, Keep) else patched
 
 
-def apply_patch(task: Task, patch: TaskPatch, title: str) -> _Fields:
-    """Return the fields of `task` after `patch`, whose title is already cleaned as `title`."""
+def _apply_patch(task: Task, patch: TaskPatch) -> _Fields:
+    """Return the fields of `task` after `patch`, whose title is already cleaned."""
     current = _fields_of(task)
     return _Fields(
-        title=title if patch.title is not KEEP else current.title,
+        title=_kept(patch.title, current.title),
         description=_kept(patch.description, current.description),
         status=_kept(patch.status, current.status),
         priority=_kept(patch.priority, current.priority),
@@ -66,24 +65,14 @@ def apply_patch(task: Task, patch: TaskPatch, title: str) -> _Fields:
     )
 
 
-def _status_text(status: TaskStatus) -> str:
-    if isinstance(status, Blocked):
-        return f"blocked: {status.reason}"
-    return status_kind(status).value
-
-
-def _due_text(due: Due | None) -> str | None:
-    return None if due is None else str(due_to_json(due)["value"])
-
-
 def _event_values(task: Task) -> list[tuple[str, str | None]]:
     """Return `(field, text)` for each field in event order."""
     return [
         ("title", task.title),
         ("description", task.description),
-        ("status", _status_text(task.status)),
+        ("status", status_text(task.status)),
         ("priority", task.priority.value),
-        ("due", _due_text(task.due)),
+        ("due", None if task.due is None else due_text(task.due)),
         ("project", None if task.project is None else task.project.name),
     ]
 
@@ -117,17 +106,19 @@ def update_task(
         NotFound: no such task, or the patch names an unknown project.
         VersionConflict: the task is no longer at `expected_version`.
     """
-    title = patch.title.strip() if isinstance(patch.title, str) else None
-    if title == "":
-        message = "title cannot be empty"
-        raise InvalidInput(message)
+    if isinstance(patch.title, str):
+        cleaned = patch.title.strip()
+        if not cleaned:
+            message = "title cannot be empty"
+            raise InvalidInput(message)
+        patch = replace(patch, title=cleaned)
     now = db.now()
     now_text = to_db(now)
     with db.transaction() as conn:
         current = fetch_task(conn, task_id)
         if current.version != expected_version:
             raise VersionConflict(current)
-        wanted = apply_patch(current, patch, title or current.title)
+        wanted = _apply_patch(current, patch)
         if wanted == _fields_of(current):
             return current
         due_date, due_at = due_columns(wanted.due)
@@ -151,8 +142,8 @@ def update_task(
                     expected_version,
                 ),
             )
-        if cursor.rowcount == 0:
-            raise VersionConflict(current)
+        if cursor.rowcount == 0:  # defensive: BEGIN IMMEDIATE already excludes concurrent writers
+            raise VersionConflict(fetch_task(conn, task_id))
         updated = fetch_task(conn, task_id)
         for name, before, after in diff_tasks(current, updated):
             insert_event(

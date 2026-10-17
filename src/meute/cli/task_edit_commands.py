@@ -49,6 +49,11 @@ def _project_id(name: str, ctx: CliContext) -> ProjectId | None:
     return None if name == _CLEAR else require_project(ctx, name).id
 
 
+def _update(ctx: CliContext, task_id: TaskId, expected: int | None, patch: TaskPatch) -> None:
+    task = update_task(ctx.db, task_id, _version(ctx, task_id, expected), patch, ctx.actor)
+    typer.echo(task_line(task, ctx.now))
+
+
 @task_app.command("edit")
 def edit(  # noqa: PLR0913 — each Typer option is a parameter
     task_id: _TaskNumber,
@@ -70,11 +75,6 @@ def edit(  # noqa: PLR0913 — each Typer option is a parameter
             project_id=KEEP if project is None else _project_id(project, ctx),
         )
         _update(ctx, TaskId(task_id), expected_version, patch)
-
-
-def _update(ctx: CliContext, task_id: TaskId, expected: int | None, patch: TaskPatch) -> None:
-    task = update_task(ctx.db, task_id, _version(ctx, task_id, expected), patch, ctx.actor)
-    typer.echo(task_line(task, ctx.now))
 
 
 @task_app.command("status")

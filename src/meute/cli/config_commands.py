@@ -6,7 +6,6 @@ from typing import Annotated
 
 import typer
 
-from meute.cli.config_edit import config_set
 from meute.core.config import config_get, ensure_config
 from meute.core.paths import Paths
 
@@ -37,6 +36,8 @@ def set_(
     value: Annotated[str, typer.Argument(help='A TOML value (72, ["a"]) or plain text.')],
 ) -> None:
     """Change a key, keeping the file's comments."""
+    from meute.cli.config_edit import config_set  # noqa: PLC0415 — tomlkit only needed by config set
+
     path = _config_file()
     ensure_config(path)
     config_set(path, key, value)

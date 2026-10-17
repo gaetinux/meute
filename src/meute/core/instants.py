@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from meute.core.errors import InvalidInput
 
+_DB_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 _ZONED = re.compile(r"(?P<local>\d{4}-\d{2}-\d{2}T\d{2}:\d{2})\[(?P<zone>[^\]]+)\]")
 
 
@@ -23,12 +24,12 @@ def to_db(at: datetime) -> str:
     if at.tzinfo is None:
         message = "cannot store a naive datetime"
         raise ValueError(message)
-    return at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    return at.astimezone(UTC).strftime(_DB_FORMAT)
 
 
 def from_db(text: str) -> datetime:
     """Parse the text produced by `to_db` into an aware UTC datetime."""
-    return datetime.strptime(text, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=UTC)
+    return datetime.strptime(text, _DB_FORMAT).replace(tzinfo=UTC)
 
 
 def format_instant(at: datetime) -> str:

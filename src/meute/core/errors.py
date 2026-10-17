@@ -10,6 +10,8 @@ if TYPE_CHECKING:
 class MeuteError(Exception):
     """Base class of every error meute raises on purpose."""
 
+    exit_code = 1
+
 
 class InvalidInput(MeuteError):  # noqa: N818 — name fixed by the specification
     """The caller supplied a value that meute rejects."""
@@ -32,6 +34,8 @@ class MigrationError(MeuteError):
 class NotFound(MeuteError):  # noqa: N818 — name fixed by the specification
     """A task or a project does not exist."""
 
+    exit_code = 4
+
     def __init__(self, entity: str, ident: str) -> None:
         """Build the error for the `entity` (`task` or `project`) identified by `ident`."""
         super().__init__(f"{entity} not found: {ident}")
@@ -41,6 +45,8 @@ class NotFound(MeuteError):  # noqa: N818 — name fixed by the specification
 
 class VersionConflict(MeuteError):  # noqa: N818 — name fixed by the specification
     """The task was modified since the version the caller read."""
+
+    exit_code = 3
 
     def __init__(self, current: "Task") -> None:
         """Build the error carrying the `current` state of the task."""

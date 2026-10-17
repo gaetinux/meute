@@ -2,7 +2,7 @@
 
 from meute.core.actor import Actor
 from meute.core.db.connection import Database
-from meute.core.db.rows import fetch_all, fetch_task, row_to_note
+from meute.core.db.rows import fetch_all, fetch_task, inserted_id, row_to_note
 from meute.core.errors import InvalidInput
 from meute.core.instants import to_db
 from meute.core.task import Note, TaskId
@@ -37,7 +37,7 @@ def add_note(db: Database, task_id: TaskId, body: str, actor: Actor) -> Note:
             ),
         )
     return Note(
-        id=cursor.lastrowid or 0,
+        id=inserted_id(cursor),
         task_id=task_id,
         body=cleaned,
         author=actor.author,

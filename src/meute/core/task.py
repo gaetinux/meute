@@ -49,13 +49,19 @@ class DueAt:
 Due = DueDate | DueAt
 
 
-def due_to_json(due: Due) -> JsonObject:
-    """Return the tagged JSON form of `due`."""
+def due_text(due: Due) -> str:
+    """Return the text of `due`: an ISO date or a UTC instant."""
     match due:
         case DueDate():
-            return {"kind": "date", "value": due.day.isoformat()}
+            return due.day.isoformat()
         case DueAt():
-            return {"kind": "at", "value": format_instant(due.at)}
+            return format_instant(due.at)
+
+
+def due_to_json(due: Due) -> JsonObject:
+    """Return the tagged JSON form of `due`."""
+    kind = "date" if isinstance(due, DueDate) else "at"
+    return {"kind": kind, "value": due_text(due)}
 
 
 def due_from_json(data: Mapping[str, object]) -> Due:

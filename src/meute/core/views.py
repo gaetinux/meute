@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta
 from enum import Enum
 
-from meute.core.status import Done, is_open
+from meute.core.status import Done
 from meute.core.task import Due, DueAt, DueDate, Task
 
 _DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
@@ -67,7 +67,7 @@ def bucket_of(task: Task, now: datetime) -> Bucket | None:
 
 def is_overdue(task: Task, now: datetime) -> bool:
     """Return whether `task` is open and past its due date or instant."""
-    return is_open(task.status) and bucket_of(task, now) is Bucket.OVERDUE
+    return bucket_of(task, now) is Bucket.OVERDUE
 
 
 def _due_instant(due: Due, now: datetime) -> datetime:

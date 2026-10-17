@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from importlib import resources
 from pathlib import Path
 
-from meute.core.db.rows import fetch_one
+from meute.core.db.rows import as_integer, fetch_one
 from meute.core.errors import MigrationError
 
 
@@ -27,8 +27,7 @@ MIGRATIONS: tuple[str, ...] = _load_migrations()
 def current_version(conn: sqlite3.Connection) -> int:
     """Return the schema version stored in `PRAGMA user_version`."""
     row = fetch_one(conn, "PRAGMA user_version")
-    version = row[0] if row else 0
-    return version if isinstance(version, int) else 0
+    return as_integer(row[0]) if row else 0
 
 
 def backup_path(db_path: Path, version: int) -> Path:

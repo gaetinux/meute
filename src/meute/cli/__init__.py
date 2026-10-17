@@ -15,7 +15,7 @@ from meute.cli.context import current_time
 from meute.cli.project_commands import project_app
 from meute.cli.render import task_line
 from meute.cli.task_app import task_app
-from meute.core.errors import MeuteError, NotFound, VersionConflict
+from meute.core.errors import MeuteError, VersionConflict
 
 app = typer.Typer(name="meute", add_completion=False, pretty_exceptions_enable=False)
 app.add_typer(task_app, name="task")
@@ -23,8 +23,6 @@ app.add_typer(project_app, name="project")
 app.add_typer(config_app, name="config")
 
 _FAILURE = 1
-_CONFLICT = 3
-_NOT_FOUND = 4
 
 
 def _print_version(value: bool) -> None:  # noqa: FBT001 — Typer callback signature
@@ -46,9 +44,8 @@ def _root(
     """Claude Code session manager."""
 
 
-def _fail(message: str, code: int) -> int:
+def _fail(message: str) -> None:
     print(f"meute: {message}", file=sys.stderr)
-    return code
 
 
 def _exit_code(code: object) -> int:
@@ -66,12 +63,12 @@ def run(argv: Sequence[str]) -> int:
         app(args=list(argv), prog_name="meute")
     except SystemExit as exit_:
         return _exit_code(exit_.code)
-    except VersionConflict as conflict:
-        _fail(str(conflict), _CONFLICT)
-        print(task_line(conflict.current, current_time(os.environ)), file=sys.stderr)
-        return _CONFLICT
-    except NotFound as missing:
-        return _fail(str(missing), _NOT_FOUND)
-    except (MeuteError, OSError, sqlite3.Error) as error:
-        return _fail(str(error), _FAILURE)
+    except MeuteError as error:
+        _fail(str(error))
+        if isinstance(error, VersionConflict):
+            print(task_line(error.current, current_time(os.environ)), file=sys.stderr)
+        return error.exit_code
+    except (OSError, sqlite3.Error) as error:
+        _fail(str(error))
+        return _FAILURE
     return 0
