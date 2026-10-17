@@ -16,7 +16,7 @@ from meute.core.errors import ConfigError, InvalidInput
 from meute.core.instants import parse_zoned, to_db, utc_now
 from meute.core.paths import Paths
 from meute.core.project import Project, ProjectId, ProjectRef, RepoId, project_to_json
-from meute.core.status import Blocked, Done
+from meute.core.status import Blocked, Done, StatusKind, status_from_kind
 from meute.core.task import (
     DueAt,
     Note,
@@ -201,3 +201,7 @@ def test_a_date_due_sorts_at_the_last_second_of_the_day() -> None:
     half_a_minute_early = datetime(2026, 10, 20, 23, 59, 30, tzinfo=ZoneInfo("Europe/Paris"))
     timed = make_task(2, due=DueAt(at=half_a_minute_early))
     assert [t.id for t in sort_for_display([dated, timed], NOW)] == [timed.id, dated.id]
+
+
+def test_done_status_is_built_from_its_kind() -> None:
+    assert status_from_kind(StatusKind.DONE) == Done()

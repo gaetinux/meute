@@ -149,3 +149,10 @@ def test_failed_atomic_write_cleans_up_even_if_the_temporary_file_is_gone(
     with pytest.raises(OSError, match=r"^boom$"):
         write_atomic(target, "x")
     assert list(tmp_path.iterdir()) == []
+
+
+def test_non_string_timezone_gets_the_same_message() -> None:
+    with pytest.raises(
+        InvalidInput, match=r"^quotas\.peak_timezone: expected an IANA time zone name$"
+    ):
+        validate_config({"quotas": {"peak_timezone": 5}})
