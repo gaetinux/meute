@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from meute.core.actor import Actor, Author, Channel
 from meute.core.config import Config, ensure_config, load_config
@@ -25,11 +25,11 @@ def local_zone(environ: Mapping[str, str]) -> tzinfo:
 
     The zone is never a fixed offset, so `>+1d` and `>tonight` follow daylight saving time.
     """
-    name = environ.get("TZ", "")
+    name = environ.get("TZ", "").removeprefix(":")
     if name:
         try:
             return ZoneInfo(name)
-        except (ValueError, OSError):  # ZoneInfoNotFoundError is an OSError
+        except (ZoneInfoNotFoundError, ValueError, OSError):  # ZoneInfoNotFoundError is a KeyError
             pass
     try:
         with _LOCALTIME.open("rb") as handle:
