@@ -42,3 +42,16 @@ def test_create_project_only_maps_unique_violations(file_db: tuple[Database, Pat
         raw.execute("ALTER TABLE projects RENAME TO projects_gone")
     with pytest.raises(sqlite3.OperationalError):
         create_project(db, "x")
+
+
+def test_create_project_reraises_non_unique_integrity_errors(
+    file_db: tuple[Database, Path],
+) -> None:
+    db, path = file_db
+    with closing(sqlite3.connect(path, autocommit=True)) as raw:
+        raw.execute(
+            "CREATE TRIGGER refuse BEFORE INSERT ON projects"
+            " BEGIN SELECT RAISE(ABORT, 'refused'); END"
+        )
+    with pytest.raises(sqlite3.IntegrityError):
+        create_project(db, "x")
