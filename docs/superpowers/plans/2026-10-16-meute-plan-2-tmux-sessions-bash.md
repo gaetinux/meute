@@ -1,3 +1,5 @@
+> **Plan Rust obsolète, conservé pour l'historique. Ne pas l'exécuter.** L'implémentation de référence se trouve sous le tag `rust-plan-2-wip` ; ce plan est à réécrire pour Python après le plan 1 Python ([plan 1 Python](2026-10-16-meute-plan-1-python-socle-taches.md)).
+
 # meute — Plan 2 : tmux, dépôts et sessions Bash — Plan d'implémentation
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

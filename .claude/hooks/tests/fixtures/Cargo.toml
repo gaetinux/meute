@@ -1,8 +1,0 @@
-[package]
-name = "fixture"
-version = "0.0.0"
-edition = "2024"
-publish = false
-
-# Own empty workspace: never part of the meute workspace.
-[workspace]

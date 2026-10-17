@@ -1,3 +1,8 @@
-/target
 /concept.md
+# Rust leftovers kept locally by the author
 mutants.out*/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+/mutants/

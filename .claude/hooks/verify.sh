@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Stop / SubagentStop hook: when Rust or Cargo files changed, require clippy and tests to pass.
-# Exit 2 prevents the agent from declaring itself done.
+# Stop / SubagentStop hook: when Python, SQL, snapshot or uv files changed, require lint, types, import contracts
+# and tests to pass. Exit 2 prevents the agent from declaring itself done.
 set -uo pipefail
 
 input="$(cat)"
@@ -12,13 +12,17 @@ except Exception:
 
 cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
 
-if [ -z "$(git status --porcelain -- '*.rs' 'Cargo.toml' '*/Cargo.toml' 'Cargo.lock')" ]; then
+if [ -z "$(git status --porcelain -- '*.py' '*.sql' '*.ambr' 'pyproject.toml' 'uv.lock')" ]; then
     exit 0
 fi
 
-if output="$(
-    { cargo clippy --workspace --all-targets -- -D warnings \
-        && cargo nextest run --workspace --failure-output final --hide-progress-bar; } 2>&1
+if ! command -v uv >/dev/null 2>&1; then
+    output="uv introuvable"
+elif output="$(
+    { uv run --frozen ruff check \
+        && uv run --frozen basedpyright \
+        && uv run --frozen lint-imports \
+        && uv run --frozen pytest; } 2>&1
 )"; then
     exit 0
 fi
