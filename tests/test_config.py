@@ -142,3 +142,12 @@ def test_non_utf8_file_is_a_config_error(tmp_path: Path) -> None:
         load_config(path)
     with pytest.raises(ConfigError, match=r"config\.toml"):
         config_get(path, "ui.board_width")
+
+
+def test_ensure_config_on_a_dangling_symlink_creates_its_target(tmp_path: Path) -> None:
+    link = tmp_path / "config.toml"
+    target = tmp_path / "real/config.toml"
+    link.symlink_to(target)
+    assert ensure_config(link)
+    assert link.is_symlink()
+    assert target.read_text(encoding="utf-8") == DEFAULT_CONFIG

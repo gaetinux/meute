@@ -49,8 +49,7 @@ def config_set(path: Path, key: str, value: str) -> None:
         ConfigError: the existing file cannot be parsed.
     """
     section_name, name = config_key(key)
-    target = path.resolve()
-    document = _read_document(target)
+    document = _read_document(path)
     if section_name not in document:
         document[section_name] = tomlkit.table()
     section = document.item(section_name)
@@ -59,4 +58,4 @@ def config_set(path: Path, key: str, value: str) -> None:
         raise InvalidInput(message)
     section[name] = _parse_value(value)
     validate_config(document.unwrap())
-    write_atomic(target, tomlkit.dumps(document))
+    write_atomic(path, tomlkit.dumps(document))

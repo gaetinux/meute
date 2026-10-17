@@ -203,7 +203,11 @@ def config_key(key: str) -> tuple[str, str]:
 
 
 def write_atomic(path: Path, text: str) -> None:
-    """Write `text` to `path` through a temporary file in the same folder, creating parents."""
+    """Write `text` to `path` through a temporary file in the same folder, creating parents.
+
+    A symbolic link is followed (even a dangling one), so the link itself survives.
+    """
+    path = path.resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
         "w", encoding="utf-8", dir=path.parent, delete=False
