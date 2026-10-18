@@ -14,6 +14,7 @@ class PaneObservation:
     meute_id: str
     dead: bool
     exit_code: int | None
+    settled: bool = True  # False: dead, but tmux may still report how it exited
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -42,7 +43,7 @@ def _new_state(session: Session, pane: PaneObservation | None) -> SessionState |
     if pane is None:
         return Unreachable()
     if pane.dead:
-        return Exited(code=pane.exit_code)
+        return Exited(code=pane.exit_code) if pane.settled else None
     if session.agent is AgentKind.BASH and session.state != Running():
         return Running()
     return None

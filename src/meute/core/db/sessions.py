@@ -1,6 +1,7 @@
 """Creating, finding and updating sessions."""
 
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 from meute.core.db.connection import Database
@@ -161,19 +162,27 @@ def set_session_state(db: Database, session_id: SessionId, state: SessionState) 
     Raises:
         NotFound: no such session.
     """
-    now = db.now()
     with db.transaction() as conn:
-        before = _require(conn, session_id)
-        ended_at = now if is_live(before.state) and not is_live(state) else before.ended_at
-        conn.execute(
-            "UPDATE sessions SET state = ?, exit_code = ?, last_activity_at = ?, ended_at = ?"
-            " WHERE id = ?",
-            (
-                state_id(state),
-                _exit_code(state),
-                to_db(now),
-                None if ended_at is None else to_db(ended_at),
-                session_id,
-            ),
-        )
+        write_state(conn, _require(conn, session_id), state, db.now())
         return _require(conn, session_id)
+
+
+def write_state(
+    conn: sqlite3.Connection, before: Session, state: SessionState, now: datetime
+) -> None:
+    """Write `state` for the session `before` inside the caller's transaction.
+
+    Sets the last activity to `now`, and `ended_at` when the session leaves the live states.
+    """
+    ended_at = now if is_live(before.state) and not is_live(state) else before.ended_at
+    conn.execute(
+        "UPDATE sessions SET state = ?, exit_code = ?, last_activity_at = ?, ended_at = ?"
+        " WHERE id = ?",
+        (
+            state_id(state),
+            _exit_code(state),
+            to_db(now),
+            None if ended_at is None else to_db(ended_at),
+            before.id,
+        ),
+    )

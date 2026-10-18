@@ -13,7 +13,7 @@ from meute.core.db.projects import create_project
 from meute.core.db.task_update import update_task
 from meute.core.db.tasks import create_task
 from meute.core.instants import parse_zoned
-from meute.core.json_types import JsonValue
+from meute.core.json_types import JsonObject, JsonValue
 from meute.core.project import ProjectId, RepoId
 from meute.core.repo import Repo
 from meute.core.session import AgentKind, Session, SessionId
@@ -73,6 +73,14 @@ def make_task(
 def load_json(text: str) -> JsonValue:
     """Parse JSON text into plain objects."""
     return json.loads(text)  # pyright: ignore[reportAny] — json.loads is typed as returning Any
+
+
+def claude_fixture(name: str) -> JsonObject:
+    """Load the captured Claude 2.1.302 hook payload `hooks/<name>.json`, e.g. `Stop-1`."""
+    path = Path(__file__).parent / "fixtures/claude/2.1.302/hooks" / f"{name}.json"
+    loaded = load_json(path.read_text(encoding="utf-8"))
+    assert isinstance(loaded, dict)
+    return loaded
 
 
 def seed_mixed(db: Database) -> None:
