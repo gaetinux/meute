@@ -7,7 +7,7 @@ from meute.cli.session_refresh import refresh
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.db.sessions import get_session, set_session_state
 from meute.core.session import AgentKind, Session, SessionId
-from meute.core.session_state import Exited, is_live
+from meute.core.session_state import Exited, Unreachable, is_live
 from meute.tmux.errors import CommandFailed
 from meute.tmux.layout import ensure_layout, find_layout
 from meute.tmux.panes import kill_pane, list_panes, send_keys
@@ -73,7 +73,9 @@ def stop_session(
         code = pane.dead_status if pane.dead else None
         _kill(env, pane, session_id)
     session = get_session(ctx.db, session_id)
-    if is_live(session.state):
+    # A reread by the board (another thread) between the kill and here sees the pane gone.
+    killed = pane is not None and isinstance(session.state, Unreachable)
+    if is_live(session.state) or killed:
         session = set_session_state(ctx.db, session_id, Exited(code=code))
     if find_layout(env.tmux) is not None:
         ensure_layout(env.tmux, env.spec)
