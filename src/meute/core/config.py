@@ -55,6 +55,10 @@ focus_main = "M-o"
 peak_timezone = "America/New_York"
 peak_start_hour = 8
 peak_end_hour = 14
+
+[statusline]
+# Optional command that receives the same JSON and replaces meute's status line.
+chain = ""
 """
 
 
@@ -76,6 +80,7 @@ def _flatten(config: Config) -> dict[str, object]:
         "quotas.peak_timezone": config.quotas.peak_timezone,
         "quotas.peak_start_hour": config.quotas.peak_start_hour,
         "quotas.peak_end_hour": config.quotas.peak_end_hour,
+        "statusline.chain": config.statusline.chain,
     }
 
 

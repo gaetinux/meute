@@ -53,6 +53,13 @@ class QuotasConfig:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class StatuslineConfig:
+    """The status line meute prints for Claude Code."""
+
+    chain: str = ""
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class Config:
     """The whole configuration; every field has a default."""
 
@@ -61,6 +68,7 @@ class Config:
     ui: UiConfig = field(default_factory=UiConfig)
     keys: KeysConfig = field(default_factory=KeysConfig)
     quotas: QuotasConfig = field(default_factory=QuotasConfig)
+    statusline: StatuslineConfig = field(default_factory=StatuslineConfig)
 
 
 def _is_table(value: object) -> TypeGuard[dict[str, object]]:
@@ -142,6 +150,14 @@ def _timezone(section: Mapping[str, object]) -> str:
     return value
 
 
+def _chain(section: Mapping[str, object]) -> str:
+    value = section.get("chain", "")
+    if not isinstance(value, str):
+        message = "statusline.chain: expected a command as a string"
+        raise InvalidInput(message)
+    return value
+
+
 def validate_config(data: Mapping[str, object]) -> Config:
     """Turn parsed TOML into a Config, ignoring unknown sections and keys.
 
@@ -151,6 +167,7 @@ def validate_config(data: Mapping[str, object]) -> Config:
     ui = _section(data, "ui")
     keys = _section(data, "keys")
     quotas = _section(data, "quotas")
+    statusline = _section(data, "statusline")
     default_keys = KeysConfig()
     return Config(
         repos=ReposConfig(roots=_roots(_section(data, "repos"))),
@@ -168,4 +185,5 @@ def validate_config(data: Mapping[str, object]) -> Config:
             peak_start_hour=_int(quotas, "quotas.peak_start_hour", 8, 0, 24),
             peak_end_hour=_int(quotas, "quotas.peak_end_hour", 14, 0, 24),
         ),
+        statusline=StatuslineConfig(chain=_chain(statusline)),
     )

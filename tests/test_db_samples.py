@@ -225,3 +225,10 @@ def test_latest_quota_is_the_most_recent() -> None:
         loaded = latest_quota(db)
         assert loaded is not None
         assert loaded.five_hour_pct == 2
+
+
+def test_huge_cost_is_recorded_without_error() -> None:
+    with Database.in_memory(clock=lambda: T0) as db:
+        make(db)
+        data = parse_statusline({"cost": {"total_cost_usd": 10**30, "total_duration_ms": 10**30}})
+        assert record_metrics(db, SID, data) is True

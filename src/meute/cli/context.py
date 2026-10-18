@@ -4,11 +4,11 @@ import sqlite3
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime, tzinfo
+from datetime import UTC, datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from meute.core.actor import Actor, Author, Channel
+from meute.core.clock import local_zone
 from meute.core.config import Config, ensure_config, load_config
 from meute.core.db.connection import Database
 from meute.core.db.projects import list_projects, project_by_name
@@ -22,25 +22,6 @@ ENVIRONMENT_ERRORS = (OSError, sqlite3.Error, TmuxError)
 """Failures of the machine around meute (files, database, tmux), as opposed to bad input."""
 
 _BUSY_TIMEOUT_MS = 5000
-_LOCALTIME = Path("/etc/localtime")
-
-
-def local_zone(environ: Mapping[str, str]) -> tzinfo:
-    """Return the local IANA zone: `TZ` if valid, else `/etc/localtime`, else UTC.
-
-    The zone is never a fixed offset, so `>+1d` and `>tonight` follow daylight saving time.
-    """
-    name = environ.get("TZ", "").removeprefix(":")
-    if name:
-        try:
-            return ZoneInfo(name)
-        except (ZoneInfoNotFoundError, ValueError, OSError):  # ZoneInfoNotFoundError is a KeyError
-            pass
-    try:
-        with _LOCALTIME.open("rb") as handle:
-            return ZoneInfo.from_file(handle)
-    except (ValueError, OSError):
-        return UTC
 
 
 def current_time(environ: Mapping[str, str]) -> datetime:

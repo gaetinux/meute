@@ -5,6 +5,15 @@ import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import TextIO
+
+_DRAIN_CHUNK = 64 * 1024
+
+
+def drain(stdin: TextIO) -> None:
+    """Read `stdin` to its end, so the writer never blocks on a full pipe."""
+    while stdin.read(_DRAIN_CHUNK):
+        pass
 
 
 def _dispatch(args: Sequence[str]) -> None:
@@ -12,15 +21,20 @@ def _dispatch(args: Sequence[str]) -> None:
         from meute.ingest.hook import run_hook  # noqa: PLC0415 — only the hook path pays
 
         run_hook(args[1], sys.stdin, os.environ)
+    elif len(args) == 1 and args[0] == "statusline":
+        from meute.ingest.statusline import run_statusline  # noqa: PLC0415 — only this path pays
+
+        run_statusline(sys.stdin, sys.stdout, os.environ)
+    else:
+        drain(sys.stdin)  # the writer must never block on a pipe nobody reads
 
 
 def _log(args: Sequence[str], error: BaseException) -> None:
-    from meute.core.instants import utc_now  # noqa: PLC0415 — only a failure pays
     from meute.core.paths import Paths  # noqa: PLC0415 — only a failure pays
-    from meute.ingest.log import log_failure  # noqa: PLC0415 — only a failure pays
+    from meute.ingest.log import log_error  # noqa: PLC0415 — only a failure pays
 
     state_dir = Paths.from_env(os.environ, home=Path.home()).state_dir
-    log_failure(state_dir, " ".join(args[:2]), error, utc_now())
+    log_error(state_dir, " ".join(args[:2]), error)
 
 
 def run(args: Sequence[str]) -> int:

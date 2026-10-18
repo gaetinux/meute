@@ -163,3 +163,14 @@ def test_parse_statusline_never_raises(
 @given(payload=st.dictionaries(st.text(), weird))
 def test_parse_statusline_never_raises_on_arbitrary_keys(payload: dict[str, JsonValue]) -> None:
     parse_statusline(payload)
+
+
+def test_huge_numbers_become_floats_the_database_can_store() -> None:
+    data = parse_statusline({"cost": {"total_cost_usd": 10**30}})
+    assert data.cost_usd == float(10**30)
+    assert isinstance(data.cost_usd, float)
+
+
+def test_huge_integers_are_dropped() -> None:
+    data = parse_statusline({"cost": {"total_duration_ms": 10**30, "total_lines_added": 2**63}})
+    assert (data.duration_ms, data.lines_added) == (None, None)

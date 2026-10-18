@@ -176,3 +176,20 @@ def test_keys_accept_letters_digits_and_dashes(tmp_path: Path, value: str) -> No
     path.write_text(f'[keys]\nfocus_board = "{value}"\nfocus_main = "{value}"\n', encoding="utf-8")
     keys = load_config(path).keys
     assert (keys.focus_board, keys.focus_main) == (value, value)
+
+
+def test_default_config_has_statusline_section(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    ensure_config(path)
+    assert config_get(path, "statusline.chain") == ""
+    assert Config().statusline.chain == ""
+    assert load_config(path).statusline.chain == ""
+
+
+def test_statusline_chain_is_a_string(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    path.write_text('[statusline]\nchain = "echo hi"\n', encoding="utf-8")
+    assert load_config(path).statusline.chain == "echo hi"
+    path.write_text("[statusline]\nchain = 3\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match=r"statusline\.chain"):
+        load_config(path)

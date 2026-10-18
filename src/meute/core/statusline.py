@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TypeGuard
 
+_MAX_INTEGER = 2**63  # SQLite stores signed 64-bit integers
 _MAX_EPOCH = 253402300800  # 9999-12-31T23:59:59Z + 1 s: the last year the database text can hold
 
 
@@ -60,13 +61,16 @@ def _number(value: object) -> float | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     try:
-        return value if math.isfinite(value) else None
+        result = float(value)  # a float: SQLite cannot store an integer above 2**63
     except OverflowError:
         return None
+    return result if math.isfinite(result) else None
 
 
 def _integer(value: object) -> int | None:
-    return None if isinstance(value, bool) or not isinstance(value, int) else value
+    if isinstance(value, bool) or not isinstance(value, int) or abs(value) >= _MAX_INTEGER:
+        return None
+    return value
 
 
 def _epoch(value: object) -> datetime | None:

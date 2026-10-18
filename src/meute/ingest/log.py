@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from meute.core.instants import to_db
+from meute.core.instants import to_db, utc_now
 from meute.core.text import printable
 
 _MAX_BYTES = 1024 * 1024
@@ -36,3 +36,8 @@ def log_failure(state_dir: Path, command: str, error: BaseException, now: dateti
             handle.write(line)
     except Exception:  # noqa: BLE001 — the log must never disturb Claude Code
         return
+
+
+def log_error(state_dir: Path, command: str, error: BaseException) -> None:
+    """Log `error` now, as `log_failure` does."""
+    log_failure(state_dir, command, error, utc_now())
