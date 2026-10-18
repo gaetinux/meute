@@ -1,0 +1,55 @@
+# serializer version: 1
+# name: test_attention_filter_keeps_attention_sessions_only
+  list([
+    'Alpha  2 live',
+    '  !review  permission  5m',
+    '  !stuck one  stuck?  3h',
+    'alpha  1 live',
+    '  !docs  waiting for your reply  2d',
+  ])
+# ---
+# name: test_ended_sessions_hidden_then_shown
+  list([
+    'Alpha  2 live',
+    '  !review  permission  5m',
+    '  !stuck one  stuck?  3h',
+    'alpha  1 live',
+    '  !docs  waiting for your reply  2d',
+    'zeta  1 live · 1h05 · $1.23',
+    '   build  running  5m  42%  $1.23  [plan]',
+    '   old  exited (0)  5m',
+    'Other  1 live',
+    '   scratch  idle  5m',
+  ])
+# ---
+# name: test_groups_sorted_without_case_other_last
+  list([
+    'Alpha  2 live',
+    '  !review  permission  5m',
+    '  !stuck one  stuck?  3h',
+    'alpha  1 live',
+    '  !docs  waiting for your reply  2d',
+    'zeta  1 live · 1h05 · $1.23',
+    '   build  running  5m  42%  $1.23  [plan]',
+    '1 ended (e to show)',
+    'Other  1 live',
+    '   scratch  idle  5m',
+  ])
+# ---
+# name: test_repositories_without_live_session_and_bottom_sections
+  list([
+    'alpha  1 live',
+    '   live  idle  5m',
+    '1 ended (e to show)',
+    '',
+    'Repositories',
+    'notes  + session',
+    'x (go)  + session',
+    '',
+    'Outside meute',
+    'ext  busy  ~/w',
+    '',
+    'Orphans',
+    '%7',
+  ])
+# ---
