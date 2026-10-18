@@ -42,9 +42,12 @@ def _connect(path: Path | None, pragmas: tuple[str, ...]) -> sqlite3.Connection:
     return conn
 
 
-def _create_private(path: Path) -> None:
-    """Create `path` 0600 if missing, else make it 0600; SQLite gives its -wal and -shm its mode."""
-    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+def _make_private_file(path: Path) -> None:
+    """Create `path` 0600 if missing, else make it 0600; SQLite gives its -wal and -shm its mode.
+
+    A symlink is followed, as SQLite does: the user may keep the database elsewhere.
+    """
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
     try:
         os.fchmod(fd, 0o600)
     finally:
@@ -75,7 +78,7 @@ class Database:
             MigrationError: the schema cannot be brought up to date.
         """
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        _create_private(path)
+        _make_private_file(path)
         pragmas = (
             f"PRAGMA busy_timeout = {int(busy_timeout_ms)}",
             "PRAGMA foreign_keys = ON",

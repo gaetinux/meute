@@ -105,3 +105,14 @@ def test_ingest_log_folder_is_private(tmp_path: Path) -> None:
     log_failure(state_dir, "hook", ValueError("boom"), FIXED)
     assert _mode(state_dir) == 0o700
     assert _mode(state_dir / "ingest.log") == 0o600
+
+
+def test_a_symlinked_database_still_opens(tmp_path: Path) -> None:
+    real = tmp_path / "real.db"
+    Database.open(real, busy_timeout_ms=1000).close()
+    link = tmp_path / "data" / "meute.db"
+    link.parent.mkdir()
+    link.symlink_to(real)
+    with Database.open(link, busy_timeout_ms=1000) as db:
+        assert db.schema_version() == len(MIGRATIONS)
+    assert _mode(real) == 0o600
