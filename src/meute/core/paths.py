@@ -37,9 +37,19 @@ class Paths:
         )
 
     def ensure_dirs(self) -> None:
-        """Create the folders holding the configuration, the database and the state."""
-        for folder in (self.config_file.parent, self.db_file.parent, self.state_dir):
-            folder.mkdir(parents=True, exist_ok=True)
+        """Create the folders holding the configuration, the database and the state.
+
+        The database and state folders are made private (0700); their XDG parents are not.
+        """
+        self.config_file.parent.mkdir(parents=True, exist_ok=True)
+        for folder in (self.db_file.parent, self.state_dir):
+            make_private_dir(folder)
+
+
+def make_private_dir(folder: Path) -> None:
+    """Create `folder` (and its missing parents, with the usual mode) and make it 0700."""
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)  # the mode is for the leaf only
+    folder.chmod(0o700)
 
 
 def display_path(path: Path, home: Path | None) -> str:

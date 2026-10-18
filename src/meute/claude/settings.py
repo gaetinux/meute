@@ -7,6 +7,7 @@ from pathlib import Path
 
 from meute.core.config import write_atomic
 from meute.core.json_types import JsonObject
+from meute.core.paths import make_private_dir
 from meute.core.session import SessionId
 
 HOOK_EVENTS: tuple[str, ...] = (
@@ -49,10 +50,10 @@ def settings_document(meute_command: Sequence[str]) -> JsonObject:
 
 
 def write_settings(state_dir: Path, session_id: SessionId, meute_command: Sequence[str]) -> Path:
-    """Write `<state_dir>/sessions/<id>/settings.json` (folder 0700, file 0600) and return it."""
+    """Write `<state_dir>/sessions/<id>/settings.json` (folders 0700, file 0600) and return it."""
     folder = state_dir / "sessions" / session_id
-    folder.mkdir(parents=True, exist_ok=True, mode=0o700)
-    folder.chmod(0o700)
+    for private in (state_dir, folder.parent, folder):
+        make_private_dir(private)
     path = folder / "settings.json"
     # The temporary file is created 0600 and renamed over the target, so the mode holds.
     write_atomic(path, json.dumps(settings_document(meute_command), indent=2) + "\n")

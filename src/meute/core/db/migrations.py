@@ -99,6 +99,8 @@ def _migrate_locked(
     if version > 0 and db_path is not None:
         backup = backup_path(db_path, version)
         backup.unlink(missing_ok=True)
+        # created empty and private first: VACUUM INTO fills it and keeps its mode
+        os.close(os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600))
         conn.execute("VACUUM INTO ?", (str(backup),))
     for number in range(version + 1, target + 1):
         script = (

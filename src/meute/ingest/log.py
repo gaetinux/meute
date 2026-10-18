@@ -23,11 +23,13 @@ def log_failure(state_dir: Path, command: str, error: BaseException, now: dateti
         f"{type(error).__name__}: {one_line(str(error), _MESSAGE_MAX)}\n"
     )
     try:
-        state_dir.mkdir(parents=True, exist_ok=True)
+        state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         path = state_dir / _NAME
         if path.exists() and path.stat().st_size > _MAX_BYTES:
             path.replace(state_dir / f"{_NAME}.1")
-        descriptor = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+        descriptor = os.open(
+            path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600
+        )
         with os.fdopen(descriptor, "a", encoding="utf-8", errors="replace") as handle:
             handle.write(line)
     except Exception:  # noqa: BLE001 — the log must never disturb Claude Code

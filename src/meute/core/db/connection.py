@@ -1,5 +1,6 @@
 """The SQLite connection: opening, pragmas, transactions and typed row access."""
 
+import os
 import re
 import sqlite3
 from collections.abc import Callable, Generator
@@ -41,6 +42,15 @@ def _connect(path: Path | None, pragmas: tuple[str, ...]) -> sqlite3.Connection:
     return conn
 
 
+def _create_private(path: Path) -> None:
+    """Create `path` 0600 if missing, else make it 0600; SQLite gives its -wal and -shm its mode."""
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+    finally:
+        os.close(fd)
+
+
 def _require_current_schema(conn: sqlite3.Connection) -> None:
     version = current_version(conn)
     if version != SCHEMA_VERSION:
@@ -59,10 +69,13 @@ class Database:
     def open(cls, path: Path, *, busy_timeout_ms: int, clock: Clock = utc_now) -> Self:
         """Open (creating it and its folders) and migrate the database file at `path`.
 
+        The file is made private (0600) before SQLite opens it.
+
         Raises:
             MigrationError: the schema cannot be brought up to date.
         """
-        path.parent.mkdir(parents=True, exist_ok=True)
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        _create_private(path)
         pragmas = (
             f"PRAGMA busy_timeout = {int(busy_timeout_ms)}",
             "PRAGMA foreign_keys = ON",
