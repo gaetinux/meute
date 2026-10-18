@@ -33,7 +33,11 @@ _PATH_KEYS = {
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class HookEffect:
-    """What a hook changes; None means "unchanged". `history` goes to `session_events.detail`."""
+    """What a hook changes; None means "unchanged". `history` goes to `session_events.detail`.
+
+    `rebinds` lets `native_id` replace the one recorded (`/clear` and `/resume` start a new
+    Claude session in the same process); otherwise a different `native_id` is history only.
+    """
 
     state: SessionState | None
     native_id: str | None = None
@@ -43,6 +47,7 @@ class HookEffect:
     last_tool: str | None = None
     pending_permission: str | None = None
     last_message: str | None = None
+    rebinds: bool = False
     history: str
 
 
@@ -96,12 +101,25 @@ def _mode(payload: Mapping[str, object]) -> str | None:
     return "manual" if mode == "default" else mode  # S7: Claude reports manual as default
 
 
+_CONTINUED = frozenset({"clear", "resume"})  # per Claude Code docs: the process goes on
+
+
 def _start(payload: Mapping[str, object]) -> HookEffect:
+    source = _text(payload, "source") or ""
     return HookEffect(
-        state=Idle(),
+        state=None if source == "compact" else Idle(),  # after /compact the turn goes on
         transcript_path=_capped(payload, "transcript_path", _ID_MAX),
         model=_model(payload),
-        history=one_line(_text(payload, "source") or "", _NOTE_MAX, ellipsis=True),
+        rebinds=source in _CONTINUED,
+        history=one_line(source, _NOTE_MAX, ellipsis=True),
+    )
+
+
+def _end(payload: Mapping[str, object]) -> HookEffect:
+    reason = _text(payload, "reason") or ""
+    return HookEffect(
+        state=None if reason in _CONTINUED else Exited(code=None),
+        history=one_line(reason, _NOTE_MAX, ellipsis=True),
     )
 
 
@@ -158,7 +176,7 @@ _HANDLERS: dict[str, _Handler] = {
     "SubagentStart": lambda payload: _subagent("SubagentStart", payload),
     "SubagentStop": lambda payload: _subagent("SubagentStop", payload),
     "Stop": _stop,
-    "SessionEnd": _noted(Exited(code=None), "reason"),
+    "SessionEnd": _end,
     "Notification": _noted(None, "message"),
 }
 

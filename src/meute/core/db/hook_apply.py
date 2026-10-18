@@ -13,7 +13,8 @@ def apply_hook(db: Database, session_id: SessionId, event: str, effect: HookEffe
     """Record `effect` of the hook `event` for a session; return whether its state changed.
 
     The event is always added to the history. The rest is applied only when the session is
-    live and the hook comes from the Claude session already known (same `native_id`).
+    live and the hook comes from the Claude session already known (same `native_id`), or
+    when the effect rebinds the session to a new Claude session (`/clear`, `/resume`).
 
     Raises:
         NotFound: no such session.
@@ -28,7 +29,10 @@ def apply_hook(db: Database, session_id: SessionId, event: str, effect: HookEffe
         )
         known = get_claude_details(db, session_id).native_id
         if not is_live(session.state) or (
-            effect.native_id is not None and known is not None and effect.native_id != known
+            effect.native_id is not None
+            and known is not None
+            and effect.native_id != known
+            and not effect.rebinds
         ):
             return False
         changed: dict[str, str | None] = {
