@@ -17,6 +17,8 @@ from meute.core.session_state import (
     Idle,
     PermissionRequested,
     Running,
+    SessionState,
+    SubagentRunning,
     Unreachable,
     WaitingInput,
 )
@@ -135,3 +137,43 @@ def test_unknown_session_raises(db: Database) -> None:
     with pytest.raises(NotFound):
         apply_hook(db, SID, "Stop", HookEffect(state=None, history=""))
     assert not db.conn.in_transaction
+
+
+def test_late_subagent_stop_keeps_waiting_input(db: Database) -> None:
+    # S7: a background subagent stops after the turn's Stop.
+    make(db)
+    hook(db, "Stop", "Stop-4")
+    assert not hook(db, "SubagentStop", "SubagentStop-1")
+    assert get_session(db, SID).state == WaitingInput()
+    assert [e.event for e in session_events(db, SID)] == ["Stop", "SubagentStop"]
+
+
+def test_late_subagent_stop_keeps_idle(db: Database) -> None:
+    make(db)
+    assert not hook(db, "SubagentStop", "SubagentStop-1")
+    assert get_session(db, SID).state == Idle()
+
+
+@pytest.mark.parametrize("state", [Running(), SubagentRunning()])
+def test_subagent_stop_while_working_gives_running(db: Database, state: SessionState) -> None:
+    make(db)
+    set_session_state(db, SID, state)
+    assert hook(db, "SubagentStop", "SubagentStop-1") == (state != Running())
+    assert get_session(db, SID).state == Running()
+
+
+def test_stop_of_another_claude_session_is_history_only(db: Database) -> None:
+    make(db)
+    hook(db, "SessionStart", "SessionStart-1")  # records 7393e221...
+    set_session_state(db, SID, Running())
+    stop = interpret_hook("Stop", {**claude_fixture("Stop-1"), "session_id": "foreign"})
+    assert stop is not None
+    assert not apply_hook(db, SID, "Stop", stop)
+    assert get_session(db, SID).state == Running()
+    assert get_claude_details(db, SID).last_message is None
+
+
+def test_first_hook_records_native_id(db: Database) -> None:
+    make(db)
+    hook(db, "Stop", "Stop-1")
+    assert get_claude_details(db, SID).native_id == NATIVE

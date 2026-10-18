@@ -204,3 +204,28 @@ def test_interpret_known_events_never_raises_on_odd_types(
     event: str, payload: dict[str, JsonValue]
 ) -> None:
     interpret_hook(event, payload)
+
+
+@pytest.mark.parametrize("event", ["Stop", "PreToolUse", "SessionEnd", "Notification", "Other"])
+def test_every_effect_carries_the_native_id(event: str) -> None:
+    effect = interpret_hook(event, {"session_id": "abc"})
+    assert effect is not None
+    assert effect.native_id == "abc"
+
+
+def test_identifying_fields_are_capped() -> None:
+    effect = interpret_hook(
+        "SessionStart",
+        {"session_id": "i" * 900, "transcript_path": "t" * 900, "model": "m" * 900},
+    )
+    assert effect is not None
+    assert effect.native_id is not None
+    assert len(effect.native_id) == 300
+    assert effect.transcript_path is not None
+    assert len(effect.transcript_path) == 300
+    assert effect.model is not None
+    assert len(effect.model) == 200
+    mode = interpret_hook("UserPromptSubmit", {"permission_mode": "p" * 900})
+    assert mode is not None
+    assert mode.permission_mode is not None
+    assert len(mode.permission_mode) == 200

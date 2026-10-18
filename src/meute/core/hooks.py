@@ -1,7 +1,7 @@
 """Interpretation of Claude Code hooks into session states (spec 7.1, corrected by spike S7)."""
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TypeGuard
 
 from meute.core.session_state import (
@@ -18,6 +18,7 @@ from meute.core.text import printable
 
 type _Handler = Callable[[Mapping[str, object]], HookEffect | None]
 
+_ID_MAX = 300
 _EXCERPT_MAX = 80
 _MESSAGE_MAX = 500
 _NOTE_MAX = 200
@@ -61,6 +62,11 @@ def _text(payload: Mapping[str, object], key: str) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _capped(payload: Mapping[str, object], key: str, limit: int) -> str | None:
+    value = _text(payload, key)
+    return None if value is None else _one_line(value, limit)
+
+
 def _cut(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
@@ -89,22 +95,19 @@ def _tool(payload: Mapping[str, object]) -> str:
 
 def _model(payload: Mapping[str, object]) -> str | None:
     model = payload.get("model")
-    if isinstance(model, str):
-        return model
-    identifier = _fields(model).get("id")
-    return identifier if isinstance(identifier, str) else None
+    identifier = model if isinstance(model, str) else _fields(model).get("id")
+    return _one_line(identifier, _NOTE_MAX) if isinstance(identifier, str) else None
 
 
 def _mode(payload: Mapping[str, object]) -> str | None:
-    mode = _text(payload, "permission_mode")
+    mode = _capped(payload, "permission_mode", _NOTE_MAX)
     return "manual" if mode == "default" else mode  # S7: Claude reports manual as default
 
 
 def _start(payload: Mapping[str, object]) -> HookEffect:
     return HookEffect(
         state=Idle(),
-        native_id=_text(payload, "session_id"),
-        transcript_path=_text(payload, "transcript_path"),
+        transcript_path=_capped(payload, "transcript_path", _ID_MAX),
         model=_model(payload),
         history=_one_line(_text(payload, "source") or "", _NOTE_MAX),
     )
@@ -171,6 +174,11 @@ _HANDLERS: dict[str, _Handler] = {
 def interpret_hook(event: str, payload: Mapping[str, object]) -> HookEffect | None:
     """Interpret one hook; None means the hook is ignored. Never raises."""
     handler = _HANDLERS.get(event)
-    if handler is None:
-        return HookEffect(state=None, history=_one_line(event, _NOTE_MAX))
-    return handler(payload)
+    effect = (
+        HookEffect(state=None, history=_one_line(event, _NOTE_MAX))
+        if handler is None
+        else handler(payload)
+    )
+    if effect is None:
+        return None
+    return replace(effect, native_id=_capped(payload, "session_id", _ID_MAX))

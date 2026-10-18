@@ -6,7 +6,7 @@ from meute.core.db.sessions import get_session, write_state
 from meute.core.hooks import HookEffect
 from meute.core.instants import to_db
 from meute.core.session import SessionId
-from meute.core.session_state import PermissionRequested, is_live
+from meute.core.session_state import Idle, PermissionRequested, WaitingInput, is_live
 
 
 def apply_hook(db: Database, session_id: SessionId, event: str, effect: HookEffect) -> bool:
@@ -52,7 +52,8 @@ def apply_hook(db: Database, session_id: SessionId, event: str, effect: HookEffe
             f"UPDATE sessions SET {assignments} WHERE id = ?",  # noqa: S608 — fixed column names
             (*changed.values(), to_db(now), session_id),
         )
-        if effect.state is None:
+        late_stop = event == "SubagentStop" and isinstance(session.state, WaitingInput | Idle)
+        if effect.state is None or late_stop:  # a background subagent ending after the turn
             return False
         write_state(conn, session, effect.state, now)
         return effect.state != session.state
