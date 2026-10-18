@@ -80,3 +80,20 @@ def test_sync_hook_passes_words_literally(tmux_server: TestServer, tmp_path: Pat
     settle(tmux, tmp_path)
     assert received.read_text() == word
     assert not marker.exists()
+
+
+@pytest.mark.parametrize("folder", ["d$HOME\\q\"'x", f"p{INJECTION}", "a#Hb", "-dash"])
+def test_spawn_hands_the_folder_over_as_argv_data(
+    tmux_server: TestServer, tmp_path: Path, folder: str
+) -> None:
+    tmux = tmux_server.tmux
+    marker = arm_marker(tmux, tmp_path)
+    cwd = tmp_path / folder
+    cwd.mkdir()
+    pane = spawn_window(tmux, Spawn(session="bg", cwd=cwd, command=SLEEP))
+    start = tmux.run("display-message", "-p", "-t", pane, "#{pane_start_command}")
+    path = tmux.run("display-message", "-p", "-t", pane, "#{pane_current_path}")
+    settle(tmux, tmp_path)
+    assert "cd --" in start
+    assert path == str(cwd.resolve())
+    assert not marker.exists()

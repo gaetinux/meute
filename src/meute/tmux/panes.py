@@ -6,7 +6,6 @@ from pathlib import Path
 from meute.tmux.client import Tmux, is_no_server
 from meute.tmux.errors import CommandFailed
 from meute.tmux.parse import PANE_FORMAT, PaneId, PaneInfo, parse_pane_line
-from meute.tmux.quote import format_literal
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -36,6 +35,14 @@ def list_panes(tmux: Tmux) -> list[PaneInfo]:
     return [parse_pane_line(line) for line in output.splitlines()]
 
 
+_CD_THEN_EXEC = 'cd -- "$1" || exit; shift; exec "$@"'
+
+
+def _in_folder(spawn: Spawn) -> tuple[str, ...]:
+    """Wrap the command so the folder travels as argv data, never parsed by tmux."""
+    return ("/bin/sh", "-c", _CD_THEN_EXEC, "meute", str(spawn.cwd), *spawn.command)
+
+
 def spawn_window(tmux: Tmux, spawn: Spawn) -> PaneId:
     """Start `spawn.command` in a new window, then set the pane options in order."""
     if tmux.has_session(spawn.session):
@@ -49,11 +56,9 @@ def spawn_window(tmux: Tmux, spawn: Spawn) -> PaneId:
             "-P",
             "-F",
             "#{pane_id}",
-            "-c",
-            format_literal(str(spawn.cwd)),
             *env_args,
             "--",
-            *spawn.command,
+            *_in_folder(spawn),
         )
     )
     for name, value in spawn.pane_options:
