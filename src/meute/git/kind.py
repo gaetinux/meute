@@ -3,6 +3,8 @@
 from enum import Enum
 from pathlib import Path
 
+_TEXT_LIMIT = 1024 * 1024
+
 
 class RepoKind(Enum):
     """Kind of project found in a repository."""
@@ -16,9 +18,11 @@ class RepoKind(Enum):
 
 def _mentions_fastapi(path: Path) -> bool:
     try:
-        return "fastapi" in path.read_text(encoding="utf-8").lower()
+        with path.open("rb") as handle:
+            text = handle.read(_TEXT_LIMIT).decode("utf-8")
     except (OSError, ValueError):
         return False
+    return "fastapi" in text.lower()
 
 
 def detect_kind(folder: Path) -> RepoKind | None:

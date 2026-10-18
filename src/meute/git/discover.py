@@ -9,6 +9,7 @@ from pathlib import Path
 from meute.git.kind import RepoKind, detect_kind
 
 DEFAULT_DEPTH = 3
+_GIT_FILE_LIMIT = 4096
 _SKIPPED = frozenset({"node_modules", "target", ".venv"})
 
 
@@ -89,7 +90,8 @@ def _is_walkable(entry: os.DirEntry[str]) -> bool:
 def _main_repo_of_worktree(folder: Path, git_file: Path) -> Path | None:
     """Returns the main repository when `git_file` points to `<main>/.git/worktrees/<name>`."""
     try:
-        text = git_file.read_text(encoding="utf-8", errors="replace")
+        with git_file.open("rb") as handle:
+            text = handle.read(_GIT_FILE_LIMIT).decode("utf-8", errors="replace")
     except OSError:
         return None
     target = next(
@@ -104,7 +106,7 @@ def _main_repo_of_worktree(folder: Path, git_file: Path) -> Path | None:
         return None
     try:
         admin = (folder / target).resolve()
-    except (OSError, RuntimeError):
+    except (OSError, RuntimeError, ValueError):
         return None
     worktrees_dir = admin.parent
     git_dir = worktrees_dir.parent

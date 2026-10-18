@@ -140,3 +140,25 @@ def test_hidden_node_modules_target_and_venv_are_skipped(tmp_path: Path) -> None
 )
 def test_expand_home(root: str, home: Path | None, expected: Path) -> None:
     assert expand_home(root, home) == expected
+
+
+def test_nul_byte_in_gitdir_is_harmless(tmp_path: Path) -> None:
+    root = tmp_path / "r"
+    repo(root / "a")
+    bad = root / "bad"
+    bad.mkdir()
+    (bad / ".git").write_bytes(b"gitdir: x\0y\n")
+    assert names(discover([root])) == ["a"]
+
+
+def test_git_file_is_read_up_to_a_bound(tmp_path: Path) -> None:
+    root = tmp_path / "r"
+    main = repo(root / "meute")
+    (main / ".git" / "worktrees" / "feat").mkdir(parents=True)
+    worktree = root / "wt"
+    worktree.mkdir()
+    admin = main.resolve() / ".git" / "worktrees" / "feat"
+    (worktree / ".git").write_text(f"gitdir: {admin}\n" + "#" * 100_000)
+    assert discover([root])[0].worktrees == (worktree.resolve(),)
+    (worktree / ".git").write_text("#" * 5000 + f"\ngitdir: {admin}\n")
+    assert discover([root])[0].worktrees == ()
