@@ -24,7 +24,10 @@ def _exec(argv: list[str]) -> subprocess.CompletedProcess[str]:
 
 def is_no_server(error: CommandFailed) -> bool:
     """Whether the command failed only because no tmux server is running."""
-    return "no server running" in error.stderr or "error connecting to" in error.stderr
+    return any(
+        text in error.stderr
+        for text in ("no server running", "error connecting to", "server exited unexpectedly")
+    )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

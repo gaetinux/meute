@@ -32,8 +32,11 @@ def test_exited_shell_is_reported_with_its_code(sandbox: Sandbox) -> None:
     tmux = sandbox.tmux()
     tmux.run("send-keys", "-t", pane, "exit 7", "Enter")
     wait_until(
-        "the pane to die",
-        lambda: tmux.run("display-message", "-p", "-t", pane, "#{pane_dead}") == "1",
+        "the pane to die with its status",
+        lambda: (
+            tmux.run("display-message", "-p", "-t", pane, "#{pane_dead}:#{pane_dead_status}")
+            == "1:7"
+        ),
     )
     result = sandbox.run("session", "list")
     assert result.returncode == 0, result.stderr

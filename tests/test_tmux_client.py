@@ -48,6 +48,10 @@ def test_is_no_server() -> None:
     assert not is_no_server(CommandFailed(["ls"], "boom"))
 
 
+def test_is_no_server_when_the_server_is_shutting_down() -> None:
+    assert is_no_server(CommandFailed(["ls"], "server exited unexpectedly"))
+
+
 def test_unreadable_output_message() -> None:
     assert str(UnreadableOutput("x")) == "unreadable tmux output: x"
 

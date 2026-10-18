@@ -86,9 +86,9 @@ def test_remain_on_exit_keeps_dead_pane_with_status(tmux_server: TestServer) -> 
 
     def dead() -> bool:
         info = find(tmux, pane)
-        return info is not None and info.dead
+        return info is not None and info.dead and info.dead_status is not None
 
-    wait_until("the pane to die", dead)
+    wait_until("the pane to die with its status", dead)
     info = find(tmux, pane)
     assert info is not None
     assert info.dead_status == 3
