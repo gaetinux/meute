@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, TextIO
 
 from meute.core.clock import local_zone
-from meute.core.config import load_config
 from meute.core.config_validate import Config
 from meute.core.db.samples import record_metrics, record_quota
 from meute.core.db.sessions import get_session
@@ -124,6 +123,18 @@ def _log(paths: Paths | None, error: Exception) -> None:
         log_error(paths.state_dir, _COMMAND, error)
 
 
+def _config(paths: Paths) -> Config:
+    """Load the configuration; without a file, the defaults (and tomllib is never imported)."""
+    try:
+        if paths.config_file.is_file():
+            from meute.core.config import load_config  # noqa: PLC0415 — only a config file pays
+
+            return load_config(paths.config_file)
+    except Exception as error:  # noqa: BLE001 — the default line is better than none
+        _log(paths, error)
+    return Config()
+
+
 def run_statusline(stdin: TextIO, stdout: TextIO, environ: Mapping[str, str]) -> None:
     """Record the samples of the statusline JSON on `stdin`, then print the status line.
 
@@ -152,10 +163,7 @@ def run_statusline(stdin: TextIO, stdout: TextIO, environ: Mapping[str, str]) ->
             _record(data, paths, environ)
         except Exception as error:  # noqa: BLE001 — the line must still be printed
             _log(paths, error)
-        try:
-            config = load_config(paths.config_file)
-        except Exception as error:  # noqa: BLE001 — the default line is better than none
-            _log(paths, error)
+        config = _config(paths)
     line = None
     if config.statusline.chain:
         try:

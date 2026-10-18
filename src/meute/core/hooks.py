@@ -76,14 +76,16 @@ def tool_excerpt(tool_name: str, tool_input: object) -> str:
     """Return `"<tool_name> <excerpt>"` of a tool call, or `"<tool_name>"` without excerpt.
 
     The excerpt is the command (`Bash`), the file path (`Read`, `Edit`, `Write`,
-    `NotebookEdit`) or the first string value; one line, 80 characters at most.
+    `NotebookEdit`) or the first string value; one line, 80 characters at most. The tool name
+    is one printable line too, 200 characters at most.
     """
     fields = _fields(tool_input)
     chosen = fields.get(_PATH_KEYS.get(tool_name, ""))
     if not isinstance(chosen, str):
         chosen = next((item for item in fields.values() if isinstance(item, str)), "")
+    name = one_line(tool_name, _NOTE_MAX, ellipsis=True)
     excerpt = one_line(chosen, _EXCERPT_MAX, ellipsis=True)
-    return f"{tool_name} {excerpt}" if excerpt else tool_name
+    return f"{name} {excerpt}" if excerpt else name
 
 
 def _tool(payload: Mapping[str, object]) -> str:
