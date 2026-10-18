@@ -22,4 +22,6 @@ jobs:
       # Later plans run integration tests against a real tmux.
       - run: sudo apt-get update && sudo apt-get install -y tmux
       - run: bash scripts/verify.sh
+        env:
+          HYPOTHESIS_PROFILE: ci
       - run: bash .claude/hooks/tests/run.sh
