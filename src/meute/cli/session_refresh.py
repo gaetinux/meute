@@ -9,6 +9,7 @@ from meute.core.board_view import SessionRow
 from meute.core.db.connection import Database
 from meute.core.db.sessions import list_sessions, set_session_state
 from meute.core.reconcile import PaneObservation, first_by_id, reconcile
+from meute.core.session import Session
 from meute.core.session_state import is_live
 from meute.tmux.names import MAIN_SESSION
 from meute.tmux.panes import list_panes
@@ -29,22 +30,32 @@ def refresh(ctx: CliContext, env: TmuxEnv, *, include_ended: bool = False) -> Sn
     Raises:
         TmuxError: tmux could not be read.
     """
-    return apply_refresh(ctx.db, list_panes(env.tmux), include_ended=include_ended)
+    sessions = list_sessions(ctx.db, include_ended=True)  # before the panes: see apply_refresh
+    return apply_refresh(
+        ctx.db, list_panes(env.tmux), include_ended=include_ended, sessions=sessions
+    )
 
 
 def apply_refresh(
-    db: Database, panes: Sequence[PaneInfo], *, include_ended: bool = False
+    db: Database,
+    panes: Sequence[PaneInfo],
+    *,
+    include_ended: bool = False,
+    sessions: Sequence[Session] | None = None,
 ) -> Snapshot:
     """Record the reconciled states and return the rows: live sessions and those with a pane.
 
-    With `include_ended`, ended sessions without a pane are returned too.
+    With `include_ended`, ended sessions without a pane are returned too. `sessions`, when
+    given, must have been read before `panes`: a session created in between then keeps its
+    state instead of being marked unreachable for lack of a pane.
     """
     first = first_by_id(panes, lambda pane: pane.meute_id)
     observations = [
         PaneObservation(meute_id=meute_id, dead=pane.dead, exit_code=pane.dead_status)
         for meute_id, pane in first.items()
     ]
-    sessions = list_sessions(db, include_ended=True)
+    if sessions is None:
+        sessions = list_sessions(db, include_ended=True)
     result = reconcile(sessions, observations)
     for session_id, state in result.updates:
         set_session_state(db, session_id, state)

@@ -10,7 +10,7 @@ from meute.cli.tmux_env import TmuxEnv
 from meute.core.actor import Actor, Author, Channel
 from meute.core.config import Config
 from meute.core.db.connection import Database
-from meute.core.db.sessions import create_session, get_session
+from meute.core.db.sessions import create_session, get_session, list_sessions
 from meute.core.paths import Paths
 from meute.core.session import AgentKind, NewSession, SessionId
 from meute.core.session_state import Exited, Running, Unreachable
@@ -115,4 +115,12 @@ def test_refresh_writes_nothing_when_tmux_fails(
     env = TmuxEnv(tmux=Tmux(socket="meute-test-none"), spec=spec, config_file=tmp_path / "c")
     with pytest.raises(NotInstalled):
         refresh(ctx, env)
+    assert get_session(db, ID_A).state == Running()
+
+
+def test_session_created_after_the_snapshot_stays_running(db: Database) -> None:
+    sessions = list_sessions(db, include_ended=True)
+    panes: list[PaneInfo] = []  # read before the session below got its pane
+    _create(db, ID_A)
+    apply_refresh(db, panes, sessions=sessions)
     assert get_session(db, ID_A).state == Running()
