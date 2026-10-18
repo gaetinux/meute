@@ -19,6 +19,7 @@ from meute.core.board_view import (
     confirm_stop_text,
     enter_action,
     entry_key,
+    entry_line_indexes,
     error_text,
     new_action,
     stop_target,
@@ -30,10 +31,6 @@ if TYPE_CHECKING:
 
 _EMPTY = BoardData(sessions=(), repos=(), orphans=(), home=None)
 _SELECTED_STYLE = "reverse"
-# Lines of `board_lines` before the first session: the title, a blank line, the heading.
-_FIRST_SESSION_LINE = 3
-# Lines between the last session line and the first repository: a blank line, the heading.
-_REPOS_GAP = 2
 
 
 class BoardBackend(Protocol):
@@ -46,15 +43,6 @@ class BoardBackend(Protocol):
     def perform(self, action: BoardAction) -> None:
         """Carry out `action`."""
         ...
-
-
-def _entry_line(data: BoardData, index: int) -> int:
-    """Return the index, in `board_lines(data)`, of the line of entry `index`."""
-    sessions = len(data.sessions)
-    if index < sessions:
-        return _FIRST_SESSION_LINE + index
-    # Without sessions, one placeholder line stands in their place.
-    return _FIRST_SESSION_LINE + max(sessions, 1) + _REPOS_GAP + index - sessions
 
 
 class BoardApp(App[None]):
@@ -83,6 +71,8 @@ class BoardApp(App[None]):
         self._reload()
         _ = self.set_interval(self._poll_seconds, self._reload)
 
+    # Every key comes here, not through bindings, so that a pending stop confirmation
+    # swallows any key; ctrl+q stays Textual's own priority binding and quits.
     def on_key(self, event: events.Key) -> None:
         self._error = None
         confirming, self._confirming = self._confirming, None
@@ -142,7 +132,7 @@ class BoardApp(App[None]):
         # Content(...) never parses markup: titles, paths and names show literally.
         lines = [Content(line) for line in board_lines(self._data)]
         if self._selected_entry() is not None:
-            index = _entry_line(self._data, self._selected)
+            index = entry_line_indexes(self._data)[self._selected]
             lines[index] = lines[index].stylize(_SELECTED_STYLE)
         self._board.update(Content("\n").join(lines))
         self._footer.update(Content(self._footer_text()))

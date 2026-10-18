@@ -156,12 +156,26 @@ def error_text(message: str) -> str:
     return f"Error: {message}"
 
 
-def board_lines(data: BoardData) -> list[str]:
-    """Return the board as text lines: the form the TUI reproduces and the snapshots capture."""
+def _layout(data: BoardData) -> tuple[list[str], tuple[int, ...]]:
+    """Return the board lines and, for each entry of `board_entries`, the index of its line."""
     lines = [BOARD_TITLE, "", SESSIONS_HEADING]
+    first_session = len(lines)
     lines += [session_line(row, data.home) for row in data.sessions] or [NO_SESSIONS]
     lines += ["", REPOS_HEADING]
+    first_repo = len(lines)
     lines += [repo_line(repo) for repo in data.repos]
     if data.orphans:
         lines += ["", ORPHANS_HEADING, *data.orphans]
-    return lines
+    sessions = range(first_session, first_session + len(data.sessions))
+    repos = range(first_repo, first_repo + len(data.repos))
+    return lines, (*sessions, *repos)
+
+
+def board_lines(data: BoardData) -> list[str]:
+    """Return the board as text lines: the form the TUI reproduces and the snapshots capture."""
+    return _layout(data)[0]
+
+
+def entry_line_indexes(data: BoardData) -> tuple[int, ...]:
+    """Return, for each entry of `board_entries(data)`, the index of its line in `board_lines`."""
+    return _layout(data)[1]

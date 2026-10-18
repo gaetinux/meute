@@ -22,6 +22,7 @@ from meute.core.board_view import (
     board_lines,
     confirm_stop_text,
     error_text,
+    repo_line,
     session_line,
 )
 from meute.core.errors import MeuteError
@@ -72,9 +73,9 @@ class FakeBackend:
         return data
 
     def perform(self, action: BoardAction) -> None:
+        self.actions.append(action)  # every attempt, failed ones included
         if self.perform_error is not None:
             raise self.perform_error
-        self.actions.append(action)
 
 
 def _content(app: BoardApp, widget_id: str) -> Content:
@@ -224,6 +225,38 @@ def test_poll_after_the_widgets_are_gone_does_not_crash() -> None:
             await _reload(pilot, backend, board_data())
 
     asyncio.run(scenario())
+
+
+def _highlighted_after(data: BoardData, *keys: str) -> list[str]:
+    app = BoardApp(FakeBackend(data), poll_seconds=_NO_POLL)
+    highlighted: list[str] = []
+
+    async def scenario() -> None:
+        async with app.run_test(size=_SIZE) as pilot:
+            await pilot.press(*keys)
+            highlighted.extend(_highlighted(app))
+
+    asyncio.run(scenario())
+    return highlighted
+
+
+def test_highlight_reaches_each_repository() -> None:
+    assert _highlighted_after(board_data(), "j", "j") == [repo_line(BOARD_REPO_1)]
+    assert _highlighted_after(board_data(), "j", "j", "j") == [repo_line(BOARD_REPO_2)]
+
+
+def test_highlight_skips_the_no_sessions_placeholder() -> None:
+    data = replace(board_data(), sessions=())
+    assert _highlighted_after(data) == [repo_line(BOARD_REPO_1)]
+    assert _highlighted_after(data, "j") == [repo_line(BOARD_REPO_2)]
+
+
+def test_enter_after_an_error_clears_it_and_acts_again() -> None:
+    backend = FakeBackend(board_data())
+    backend.perform_error = MeuteError("db locked")
+    assert _run(backend, "enter", "enter") == error_text("db locked")
+    # The second Enter reached the backend: dismissing the error does not swallow the key.
+    assert backend.actions == [ShowSession(session_id=BOARD_ID_A)] * 2
 
 
 def test_backend_error_is_shown_until_next_key() -> None:

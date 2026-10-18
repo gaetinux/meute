@@ -15,8 +15,11 @@ from meute.core.board_view import (
     confirm_stop_text,
     enter_action,
     entry_key,
+    entry_line_indexes,
     error_text,
     new_action,
+    repo_line,
+    session_line,
     stop_target,
 )
 from meute.core.project import RepoId
@@ -78,3 +81,21 @@ def test_stop_target_is_none_for_a_repo() -> None:
 def test_confirm_and_error_texts() -> None:
     assert confirm_stop_text("build") == 'Stop "build"? y: yes · any other key: no'
     assert error_text("db locked") == "Error: db locked"
+
+
+def test_entry_line_indexes_point_at_each_entry_line() -> None:
+    data = _data()
+    assert entry_line_indexes(data) == (3, 4, 7, 8)
+    lines = board_lines(data)
+    assert [lines[i] for i in entry_line_indexes(data)] == [
+        session_line(data.sessions[0], data.home),
+        session_line(data.sessions[1], data.home),
+        repo_line(_REPO_1),
+        repo_line(_REPO_2),
+    ]
+
+
+def test_entry_line_indexes_skip_the_no_sessions_placeholder() -> None:
+    data = BoardData(sessions=(), repos=(_REPO_1, _REPO_2), orphans=(), home=None)
+    assert entry_line_indexes(data) == (6, 7)
+    assert entry_line_indexes(BoardData(sessions=(), repos=(), orphans=(), home=None)) == ()
