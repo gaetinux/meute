@@ -38,6 +38,9 @@ def file_db(tmp_path: Path) -> Generator[tuple[Database, Path]]:
         yield database, path
 
 
+FAKE_CLAUDE_DIR = Path(__file__).parent / "fake_claude"  # first in PATH: never the real claude
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Sandbox:
     """A throw-away home where `python -m meute` runs with a frozen clock."""
@@ -50,6 +53,7 @@ class Sandbox:
     ) -> subprocess.CompletedProcess[str]:
         """Run meute with `args` in a subprocess and capture its output."""
         environ = {key: value for key, value in os.environ.items() if key != "MEUTE_SESSION"}
+        environ["PATH"] = f"{FAKE_CLAUDE_DIR}:{environ.get('PATH', '')}"
         environ |= {
             "HOME": str(self.root / "home"),
             "XDG_CONFIG_HOME": str(self.root / "config"),
