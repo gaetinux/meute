@@ -2,6 +2,7 @@
 """A fake `claude` for tests: replays captured hook payloads through the --settings commands.
 
 Usage: `claude --settings <file> --session-id <id> ...` or `claude agents --json`.
+A first Ctrl-C is ignored, a second within a second ends the session.
 MEUTE_FAKE_CLAUDE_SCRIPT picks the sequence (permission, done, exit);
 MEUTE_FAKE_CLAUDE_AGENTS names a file printed by `claude agents --json`.
 Standard library only.
@@ -13,7 +14,10 @@ import shlex
 import signal
 import subprocess
 import sys
+import time
+from collections.abc import Callable
 from pathlib import Path
+from types import FrameType
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures/claude/2.1.302"
 _START = ("hook:SessionStart-1", "statusline-1")
@@ -33,7 +37,9 @@ SEQUENCES = {
         "statusline-2",
     ),
     "exit": (*_START, "hook:UserPromptSubmit-1", "hook:Stop-1", "hook:SessionEnd-1"),
+    "end": ("hook:SessionEnd-1",),
 }
+DOUBLE_INTERRUPT_SECONDS = 1.0
 
 
 def option(args: list[str], name: str) -> str | None:
@@ -70,6 +76,20 @@ def replay(settings_path: str, session_id: str, script: str) -> None:
         run_command(command, payload)
 
 
+def interrupt_handler(settings: str, session_id: str) -> Callable[[int, FrameType | None], None]:
+    """Ignore a first Ctrl-C; a second within a second ends the session and exits 0."""
+    last: list[float] = []
+
+    def handle(_signum: int, _frame: FrameType | None) -> None:
+        now = time.monotonic()
+        if last and now - last[0] <= DOUBLE_INTERRUPT_SECONDS:
+            replay(settings, session_id, "end")
+            sys.exit(0)
+        last[:] = [now]
+
+    return handle
+
+
 def main(args: list[str]) -> int:
     """Entry point."""
     if args[:1] == ["agents"]:
@@ -81,6 +101,7 @@ def main(args: list[str]) -> int:
         sys.stderr.write("fake claude: --settings and --session-id are required\n")
         return 2
     script = os.environ.get("MEUTE_FAKE_CLAUDE_SCRIPT", "permission")
+    signal.signal(signal.SIGINT, interrupt_handler(settings, session_id))
     replay(settings, session_id, script)
     if script == "exit":
         return 0

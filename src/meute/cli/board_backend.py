@@ -3,13 +3,14 @@
 import time
 from collections.abc import Callable, Collection, Generator, Mapping
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, assert_never
 
 from meute.claude.launch import find_claude
 from meute.cli.agents_poller import AgentsPoller
-from meute.cli.context import ENVIRONMENT_ERRORS, CliContext
+from meute.cli.context import BUSY_TIMEOUT_MS, ENVIRONMENT_ERRORS, CliContext
 from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
 from meute.cli.session_refresh import refresh
@@ -28,6 +29,7 @@ from meute.core.board_view import (
 )
 from meute.core.clock import local_zone
 from meute.core.db.claude_sessions import claude_details_by_session, purge_samples
+from meute.core.db.connection import Database
 from meute.core.db.projects import list_projects
 from meute.core.db.repos import list_repos
 from meute.core.db.samples import latest_metrics, latest_quota, quota_history
@@ -170,6 +172,7 @@ class CliBoardBackend:
         self._read_at = None
         with _as_meute_error():
             self._perform(action)
+        self._read_at = None  # a slow action may end after a load that missed its effect
 
     def _perform(self, action: BoardAction) -> None:
         match action:
@@ -184,8 +187,19 @@ class CliBoardBackend:
                 session = launch_claude(self._ctx, self._env, claude, self._environ)
                 show_session(self._ctx, self._env, session.id)
             case StopSession():
-                _ = stop_session(self._ctx, self._env, action.session_id)
+                self._stop(action.session_id)
             case Detach():
                 detach_client(self._env.tmux)
             case _:
                 assert_never(action)
+
+    def _stop(self, session_id: SessionId) -> None:
+        """Stop a session on a connection of its own: the board runs this in a worker thread.
+
+        The main thread's connection is never touched here (sqlite3 connections are not shared).
+        """
+        paths = self._ctx.paths
+        with Database.open(
+            paths.db_file, busy_timeout_ms=BUSY_TIMEOUT_MS, clock=self._ctx.db.clock
+        ) as db:
+            _ = stop_session(replace(self._ctx, db=db), self._env, session_id)

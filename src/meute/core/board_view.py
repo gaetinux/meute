@@ -205,6 +205,11 @@ def confirm_stop_text(title: str) -> str:
     return f'Stop "{printable(title)}"? y: yes · any other key: no'
 
 
+def stopping_text(title: str) -> str:
+    """Return the footer text while a session is being stopped."""
+    return f'Stopping "{printable(title)}"…'
+
+
 def error_text(message: str) -> str:
     """Return the footer text for an error."""
     return f"Error: {printable(message)}"

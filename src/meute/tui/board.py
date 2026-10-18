@@ -1,8 +1,10 @@
 """The dashboard: a Textual app drawn from `meute.core.board_sessions`."""
 
+from contextlib import suppress
 from dataclasses import dataclass, replace
 from datetime import UTC, tzinfo
-from typing import TYPE_CHECKING, ClassVar, Protocol, assert_never
+from functools import partial
+from typing import ClassVar, Protocol, assert_never
 
 from textual import events
 from textual.app import App, ComposeResult
@@ -32,8 +34,10 @@ from meute.core.board_view import (
     error_text,
     new_action,
     stop_target,
+    stopping_text,
 )
 from meute.core.errors import MeuteError
+from meute.core.session import Session, SessionId
 from meute.core.sessions_view import (
     HeaderLine,
     InfoLine,
@@ -45,9 +49,6 @@ from meute.core.sessions_view import (
     selectable,
 )
 from meute.tui.sessions_pane import details_content, quota_content, view_content
-
-if TYPE_CHECKING:
-    from meute.core.session import Session
 
 _EMPTY = BoardData(sessions=(), repos=(), orphans=(), home=None)
 
@@ -104,6 +105,7 @@ class BoardApp(App[None]):
         self._selected = -1  # a line index of the view; -1: nothing selectable
         self._confirming: Session | None = None
         self._error: str | None = None
+        self._stopping: dict[SessionId, str] = {}  # sessions being stopped: id -> title
         # Held, not queried: at quit the timer may still tick after the widgets left the DOM.
         self._quota = Static(id="quota")
         self._board = Static(id="board")
@@ -128,7 +130,7 @@ class BoardApp(App[None]):
         confirming, self._confirming = self._confirming, None
         if confirming is not None:
             if event.key == "y":
-                self._perform(StopSession(session_id=confirming.id))
+                self._stop(confirming)
         else:
             self._handle_key(event.key)
         self._draw()
@@ -168,7 +170,8 @@ class BoardApp(App[None]):
         elif key == "n":
             self._perform(new_action(entry))
         elif key == "x":
-            self._confirming = stop_target(entry)
+            target = stop_target(entry)
+            self._confirming = None if target is None or target.id in self._stopping else target
 
     def on_click(self, event: events.Click) -> None:
         if event.widget is not self._board:
@@ -252,6 +255,29 @@ class BoardApp(App[None]):
         except MeuteError as error:
             self._error = str(error)
 
+    def _stop(self, session: Session) -> None:
+        """Stop `session` in a thread worker: tmux may take seconds to answer."""
+        self._stopping[session.id] = session.title
+        _ = self.run_worker(partial(self._stop_off_thread, session.id), thread=True)
+
+    def _stop_off_thread(self, session_id: SessionId) -> None:
+        """Run in the worker thread: only `call_from_thread` may touch the app from here."""
+        error: str | None = None
+        try:
+            self._backend.perform(StopSession(session_id=session_id))
+        except MeuteError as failure:
+            error = str(failure)
+        with suppress(RuntimeError):  # the app already quit: nobody left to tell
+            self.call_from_thread(self._stopped, session_id, error)
+
+    def _stopped(self, session_id: SessionId, error: str | None) -> None:
+        """Report the end of a stop: its error if any, then a forced reread."""
+        _ = self._stopping.pop(session_id, None)
+        if error is not None:
+            self._error = error
+        self._reload()
+        self._draw()
+
     def _draw(self) -> None:
         quota = self._model.data.quota
         self._quota.display = quota is not None
@@ -269,4 +295,6 @@ class BoardApp(App[None]):
             return error_text(self._error)
         if self._confirming is not None:
             return confirm_stop_text(self._confirming.title)
+        if self._stopping:
+            return stopping_text(list(self._stopping.values())[-1])
         return FOOTER

@@ -21,7 +21,7 @@ from meute.tmux.errors import TmuxError
 ENVIRONMENT_ERRORS = (OSError, sqlite3.Error, TmuxError)
 """Failures of the machine around meute (files, database, tmux), as opposed to bad input."""
 
-_BUSY_TIMEOUT_MS = 5000
+BUSY_TIMEOUT_MS = 5000
 
 
 def current_time(environ: Mapping[str, str]) -> datetime:
@@ -62,7 +62,7 @@ def open_context(environ: Mapping[str, str]) -> Generator[CliContext]:
     frozen = "MEUTE_NOW" in environ
     with Database.open(
         paths.db_file,
-        busy_timeout_ms=_BUSY_TIMEOUT_MS,
+        busy_timeout_ms=BUSY_TIMEOUT_MS,
         clock=(lambda: now) if frozen else (lambda: datetime.now(UTC)),
     ) as db:
         actor = Actor(
