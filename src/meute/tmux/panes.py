@@ -6,6 +6,7 @@ from pathlib import Path
 from meute.tmux.client import Tmux, is_no_server
 from meute.tmux.errors import CommandFailed
 from meute.tmux.parse import PANE_FORMAT, PaneId, PaneInfo, parse_pane_line
+from meute.tmux.quote import format_literal
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -44,7 +45,15 @@ def spawn_window(tmux: Tmux, spawn: Spawn) -> PaneId:
     env_args = [arg for key, value in spawn.env for arg in ("-e", f"{key}={value}")]
     pane = PaneId(
         tmux.run(
-            *create, "-P", "-F", "#{pane_id}", "-c", str(spawn.cwd), *env_args, "--", *spawn.command
+            *create,
+            "-P",
+            "-F",
+            "#{pane_id}",
+            "-c",
+            format_literal(str(spawn.cwd)),
+            *env_args,
+            "--",
+            *spawn.command,
         )
     )
     for name, value in spawn.pane_options:
