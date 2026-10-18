@@ -19,6 +19,7 @@ from meute.core.errors import InvalidInput
 from meute.core.paths import display_path
 from meute.core.session import AgentKind, session_to_json, short_id
 from meute.core.session_state import state_label
+from meute.core.text import printable
 
 session_app = typer.Typer(no_args_is_help=True, help="Sessions running in tmux.")
 
@@ -45,8 +46,8 @@ def new(
         request = BashLaunch(cwd=cwd or Path.cwd(), title=title)
         session = launch_bash(ctx, env, request, os.environ)
     typer.echo(
-        f"Launched: {short_id(session.id)} {session.title} "
-        f"({display_path(session.cwd, Path.home())})"
+        f"Launched: {short_id(session.id)} {printable(session.title)} "
+        f"({printable(display_path(session.cwd, Path.home()))})"
     )
 
 
@@ -73,11 +74,11 @@ def list_(
     for row in snapshot.sessions:
         session = row.session
         typer.echo(
-            f"{short_id(session.id)}  {session.title}  {state_label(session.state)}"
-            f"  {display_path(session.cwd, home)}"
+            f"{short_id(session.id)}  {printable(session.title)}  {state_label(session.state)}"
+            f"  {printable(display_path(session.cwd, home))}"
         )
     for orphan in snapshot.orphans:
-        typer.echo(f"orphan: {orphan}")
+        typer.echo(f"orphan: {printable(orphan)}")
 
 
 @session_app.command("show")
@@ -89,7 +90,7 @@ def show(session_id: Annotated[str, typer.Argument(help="Session id or prefix.")
 
 
 def _confirmed(title: str) -> bool:
-    typer.echo(f'Stop session "{title}"? [y/N] ', err=True, nl=False)
+    typer.echo(f'Stop session "{printable(title)}"? [y/N] ', err=True, nl=False)
     return sys.stdin.readline().strip().lower() in {"y", "yes"}
 
 
@@ -106,4 +107,4 @@ def stop(
             typer.echo("Cancelled.")
             return
         stopped = stop_session(ctx, open_tmux_env(ctx, os.environ), session.id)
-    typer.echo(f"Stopped: {short_id(stopped.id)} {stopped.title}")
+    typer.echo(f"Stopped: {short_id(stopped.id)} {printable(stopped.title)}")

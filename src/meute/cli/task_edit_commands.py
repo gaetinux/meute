@@ -17,6 +17,7 @@ from meute.core.errors import InvalidInput
 from meute.core.project import ProjectId
 from meute.core.status import parse_priority, parse_status_kind, status_from_kind
 from meute.core.task import KEEP, Due, TaskId, TaskPatch
+from meute.core.text import printable
 
 _TaskNumber = Annotated[int, typer.Argument(metavar="ID", help="Task number.")]
 _ExpectedVersion = Annotated[
@@ -113,7 +114,7 @@ def rm(
     with open_context(os.environ) as ctx:
         task = get_task(ctx.db, TaskId(task_id))
         if not yes:
-            _confirm(f"Delete #{task.id} “{task.title}”? [y/N] ")
+            _confirm(f"Delete #{task.id} “{printable(task.title)}”? [y/N] ")
         delete_task(
             ctx.db,
             task.id,

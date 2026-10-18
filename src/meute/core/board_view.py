@@ -9,6 +9,7 @@ from meute.core.project import RepoId
 from meute.core.repo import Repo
 from meute.core.session import Session, SessionId
 from meute.core.session_state import state_label
+from meute.core.text import printable
 
 BOARD_TITLE = "meute"
 SESSIONS_HEADING = "Sessions"
@@ -138,22 +139,26 @@ def session_line(row: SessionRow, home: Path | None) -> str:
     """Return the board line of a session; a leading mark shows the displayed one."""
     session = row.session
     mark = _DISPLAYED_MARK if row.displayed else _NOT_DISPLAYED_MARK
-    return f"{mark}{session.title}  {state_label(session.state)}  {display_path(session.cwd, home)}"
+    return (
+        f"{mark}{printable(session.title)}  {state_label(session.state)}  "
+        f"{printable(display_path(session.cwd, home))}"
+    )
 
 
 def repo_line(repo: Repo) -> str:
     """Return the board line of a repository: its name and, when known, its kind."""
-    return repo.name if repo.kind is None else f"{repo.name} ({repo.kind})"
+    name = printable(repo.name)
+    return name if repo.kind is None else f"{name} ({printable(repo.kind)})"
 
 
 def confirm_stop_text(title: str) -> str:
     """Return the confirmation prompt shown before stopping a session."""
-    return f'Stop "{title}"? y: yes · any other key: no'
+    return f'Stop "{printable(title)}"? y: yes · any other key: no'
 
 
 def error_text(message: str) -> str:
     """Return the footer text for an error."""
-    return f"Error: {message}"
+    return f"Error: {printable(message)}"
 
 
 def board_layout(data: BoardData) -> tuple[list[str], tuple[int, ...]]:
@@ -165,7 +170,7 @@ def board_layout(data: BoardData) -> tuple[list[str], tuple[int, ...]]:
     first_repo = len(lines)
     lines += [repo_line(repo) for repo in data.repos]
     if data.orphans:
-        lines += ["", ORPHANS_HEADING, *data.orphans]
+        lines += ["", ORPHANS_HEADING, *(printable(orphan) for orphan in data.orphans)]
     sessions = range(first_session, first_session + len(data.sessions))
     repos = range(first_repo, first_repo + len(data.repos))
     return lines, (*sessions, *repos)

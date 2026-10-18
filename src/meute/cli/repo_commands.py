@@ -11,6 +11,7 @@ from meute.cli.json_out import echo_json
 from meute.cli.repo_scan import scan_repos
 from meute.core.paths import display_path
 from meute.core.repo import repo_to_json
+from meute.core.text import printable
 
 repo_app = typer.Typer(no_args_is_help=True, help="Discovered repositories.")
 
@@ -25,4 +26,7 @@ def list_(*, json_: Annotated[bool, typer.Option("--json", help="Print JSON.")] 
             return
         home = Path.home()
         for repo in repos:
-            typer.echo(f"{repo.name}  {repo.kind or '-'}  {display_path(repo.path, home)}")
+            typer.echo(
+                f"{printable(repo.name)}  {printable(repo.kind or '-')}"
+                f"  {printable(display_path(repo.path, home))}"
+            )

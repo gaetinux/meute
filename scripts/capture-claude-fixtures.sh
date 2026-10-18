@@ -17,6 +17,7 @@ set -euo pipefail
 
 repo="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 version="$(claude --version | cut -d' ' -f1)"
+[ -n "$version" ] || { echo "cannot read claude version" >&2; exit 1; }
 out="$(realpath "${1:-$(mktemp -d)}")"
 fixtures="$repo/tests/fixtures/claude/$version"
 raw="$out/raw"

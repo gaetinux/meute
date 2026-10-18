@@ -5,6 +5,7 @@ from meute.cli.tmux_env import TmuxEnv
 from meute.core.db.sessions import get_session
 from meute.core.errors import InvalidInput
 from meute.core.session import SessionId
+from meute.core.text import printable
 from meute.tmux.layout import ensure_layout, find_layout
 from meute.tmux.names import MAIN_SESSION, MAIN_WINDOW, ROLE_WELCOME, STATUS_OPTION
 from meute.tmux.panes import (
@@ -51,4 +52,4 @@ def show_session(ctx: CliContext, env: TmuxEnv, session_id: SessionId) -> None:
         if previous is not None and previous.role == ROLE_WELCOME:
             kill_pane(env.tmux, previous.id)
     select_pane(env.tmux, pane.id)
-    set_global_option(env.tmux, STATUS_OPTION, f"▶ {session.title}")
+    set_global_option(env.tmux, STATUS_OPTION, f"▶ {printable(session.title)}")
