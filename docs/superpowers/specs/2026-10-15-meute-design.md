@@ -274,7 +274,7 @@ MEUTE_SESSION=<id> claude --settings <settings.json> --mcp-config <mcp.json> \
 ```
 
 - Le spike S1 a validé toutes ces options sur Claude Code 2.1.301. `--session-id` est respecté en mode interactif, et `MEUTE_SESSION` est transmise aux hooks et à la statusline. Le hook `SessionStart` confirme l'identifiant natif.
-- **Le mode de permission est toujours explicite.** meute passe toujours `--permission-mode`, avec la valeur choisie au lancement, ou celle de la configuration de meute (`claude.permission_mode`), ou `manual` par défaut. Une session ne doit jamais hériter en silence d'un mode permissif de l'utilisateur. Le spike S1 a montré qu'une session en mode `auto` peut aller jusqu'à pousser sur un remote. Le mode est affiché dans la liste des sessions, et les modes `auto`, `bypassPermissions` et `dontAsk` sont signalés en couleur.
+- **Le mode de permission est toujours explicite.** meute passe toujours `--permission-mode`, avec la valeur choisie au lancement, ou celle de la configuration de meute (`claude.permission_mode`), ou `auto` par défaut, la valeur par défaut de Claude Code depuis Opus 5.5 (décision de l'auteur, 2026-10-18). Une session ne doit jamais hériter en silence du mode de l'utilisateur : le mode est toujours passé explicitement. Le spike S1 a montré qu'une session en mode `auto` peut aller jusqu'à pousser sur un remote ; `manual` reste disponible par la configuration ou `--permission-mode`. Le mode est affiché dans la liste des sessions, et les modes `auto`, `bypassPermissions` et `dontAsk` sont signalés en couleur.
 - **Dossier non approuvé** : au premier lancement dans un dossier, Claude affiche sa question de confiance (réponse par défaut : « No, exit »). L'utilisateur y répond lui-même dans la zone principale, et meute ne modifie jamais `~/.claude.json`. La confiance ne s'hérite pas du dossier parent, donc chaque nouveau worktree la redemande. Le formulaire de lancement le signale.
 - Il reste à vérifier pendant l'implémentation que les réglages passés par `--settings` s'ajoutent à ceux de l'utilisateur sans les écraser, notamment ses propres hooks.
 - `~/.claude/settings.json` n'est jamais modifié. Les sessions lancées hors de meute sont visibles via `claude agents --json` (§ 5.5).
@@ -477,7 +477,7 @@ Le serveur stdio `meute mcp` propose les outils suivants :
 - **Premier lancement** : écriture d'une configuration par défaut, commentée et fonctionnelle. Une configuration existante n'est jamais écrasée.
 - **`meute config get/set`** modifie le TOML en préservant les commentaires (`tomlkit`).
 - **`meute doctor`** vérifie les versions de `tmux` (minimum 3.2, pour les options de pane) et de `claude`, l'accès à la base, l'état du serveur tmux dédié et les options de Claude utilisées.
-- **`claude.permission_mode`** : le mode de permission par défaut des sessions lancées par meute (`manual` si rien n'est défini, § 6.2).
+- **`claude.permission_mode`** : le mode de permission par défaut des sessions lancées par meute (`auto` si rien n'est défini, § 6.2).
 - **Migrations SQLite** : versionnées, appliquées à l'ouverture, avec une sauvegarde de la base (`meute.db.bak-<version>`) avant chaque migration.
 - **Tables** : `projects`, `repos`, `project_repos`, `tasks`, `task_notes`, `task_events`, `sessions`, `session_events`, `metric_samples`, `quota_samples`, `saved_states`.
 - **Purge** : les relevés de métriques de plus de 30 jours sont supprimés au démarrage du TUI.

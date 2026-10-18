@@ -55,7 +55,7 @@ def test_new_defaults_to_claude_with_explicit_permission_mode(sandbox: Sandbox) 
         "--session-id",
         session.id,
         "--permission-mode",
-        "manual",
+        "auto",
         "--name=trial",
     ]
     assert stat.S_IMODE(settings.stat().st_mode) == 0o600

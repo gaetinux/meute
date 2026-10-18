@@ -36,8 +36,9 @@ roots = ["~/git"]
 
 [claude]
 # Permission mode of the Claude sessions launched by meute:
-# manual, acceptEdits, plan, auto, dontAsk, bypassPermissions.
-permission_mode = "manual"
+# auto (Claude Code's default since Opus 5.5), manual, acceptEdits, plan, dontAsk,
+# bypassPermissions.
+permission_mode = "auto"
 # Minutes without any hook before a running session is shown as stuck?
 stuck_after_minutes = 10
 

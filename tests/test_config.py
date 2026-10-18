@@ -28,7 +28,7 @@ def test_default_config_loads_to_defaults(tmp_path: Path) -> None:
     path.write_text(DEFAULT_CONFIG, encoding="utf-8")
     assert load_config(path) == Config()
     assert Config().repos.roots == ("~/git",)
-    assert Config().claude.permission_mode == "manual"
+    assert Config().claude.permission_mode == "auto"
     assert (Config().ui.board_width, Config().ui.narrow_threshold) == (60, 120)
     assert (
         Config().quotas.peak_timezone,
@@ -81,7 +81,7 @@ def test_config_get_returns_file_value_then_default(tmp_path: Path) -> None:
     path = tmp_path / "config.toml"
     path.write_text("[ui]\nboard_width = 72\n", encoding="utf-8")
     assert config_get(path, "ui.board_width") == "72"
-    assert config_get(path, "claude.permission_mode") == "manual"
+    assert config_get(path, "claude.permission_mode") == "auto"
     assert config_get(path, "repos.roots") == '["~/git"]'
 
 

@@ -90,7 +90,7 @@ def test_roots_permission_mode_and_timezone_messages() -> None:
     ("key", "text"),
     [
         ("repos.roots", '["~/git"]'),
-        ("claude.permission_mode", "manual"),
+        ("claude.permission_mode", "auto"),
         ("ui.board_width", "60"),
         ("ui.narrow_threshold", "120"),
         ("quotas.peak_timezone", "America/New_York"),

@@ -24,7 +24,7 @@ class ReposConfig:
 class ClaudeConfig:
     """How Claude sessions are launched."""
 
-    permission_mode: str = "manual"
+    permission_mode: str = "auto"
     stuck_after_minutes: int = 10
 
 
@@ -120,7 +120,7 @@ def _roots(section: Mapping[str, object]) -> tuple[str, ...]:
 
 
 def _permission_mode(section: Mapping[str, object]) -> str:
-    value = section.get("permission_mode", "manual")
+    value = section.get("permission_mode", "auto")
     if not isinstance(value, str) or value not in PERMISSION_MODES:
         message = f"claude.permission_mode: expected one of {', '.join(sorted(PERMISSION_MODES))}"
         raise InvalidInput(message)
