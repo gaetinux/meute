@@ -296,5 +296,5 @@ class BoardApp(App[None]):
         if self._confirming is not None:
             return confirm_stop_text(self._confirming.title)
         if self._stopping:
-            return stopping_text(list(self._stopping.values())[-1])
+            return stopping_text(next(reversed(self._stopping.values())))
         return FOOTER

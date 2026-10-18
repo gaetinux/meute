@@ -10,14 +10,13 @@ from typing import TYPE_CHECKING, assert_never
 from meute.claude.launch import find_claude
 from meute.cli.agents_poller import AgentsPoller
 from meute.cli.board_data import load_board_data
-from meute.cli.context import BUSY_TIMEOUT_MS, ENVIRONMENT_ERRORS, CliContext
+from meute.cli.context import ENVIRONMENT_ERRORS, CliContext, open_database
 from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.status_publish import publish_status
 from meute.cli.tmux_env import TmuxEnv
-from meute.core.attention import attention_count
 from meute.core.board_view import (
     BoardAction,
     BoardData,
@@ -28,10 +27,8 @@ from meute.core.board_view import (
     StopSession,
 )
 from meute.core.db.claude_sessions import purge_samples
-from meute.core.db.connection import Database
 from meute.core.errors import MeuteError
 from meute.core.session import SessionId
-from meute.core.status_line import status_text
 from meute.tmux.panes import detach_client
 
 if TYPE_CHECKING:
@@ -112,8 +109,7 @@ class CliBoardBackend:
         title = next((row.session.title for row in data.sessions if row.displayed), None)
         sessions = [row.session for row in data.sessions]
         pct = None if data.quota is None else data.quota.five_hour_pct
-        if self._status != status_text(title, attention_count(sessions), pct):
-            self._status = publish_status(self._env.tmux, title, sessions, pct)
+        self._status = publish_status(self._env.tmux, title, sessions, pct, self._status)
 
     def close(self) -> None:
         """Stop the background `claude agents` run, if any."""
@@ -125,10 +121,12 @@ class CliBoardBackend:
         Raises:
             MeuteError: the action was refused, or tmux or the database failed.
         """
-        self._read_at = None
-        with _as_meute_error():
-            self._perform(action)
-        self._read_at = None  # a slow action may end after a load that missed its effect
+        try:
+            with _as_meute_error():
+                self._perform(action)
+        finally:
+            # Reset on exit too: a slow action may end after a load that missed its effect.
+            self._read_at = None
 
     def _perform(self, action: BoardAction) -> None:
         match action:
@@ -154,8 +152,5 @@ class CliBoardBackend:
 
         The main thread's connection is never touched here (sqlite3 connections are not shared).
         """
-        paths = self._ctx.paths
-        with Database.open(
-            paths.db_file, busy_timeout_ms=BUSY_TIMEOUT_MS, clock=self._ctx.db.clock
-        ) as db:
+        with open_database(self._ctx.paths, self._ctx.db.clock) as db:
             _ = stop_session(replace(self._ctx, db=db), self._env, session_id)

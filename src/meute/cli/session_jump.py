@@ -10,8 +10,7 @@ from meute.core.attention import next_attention
 from meute.core.board_sessions import board_sessions
 from meute.core.session import Session, SessionId
 from meute.core.sessions_view import SessionLine, ViewState
-from meute.tmux.names import MAIN_SESSION, MAIN_WINDOW
-from meute.tmux.panes import list_panes
+from meute.tmux.layout import main_window_panes
 
 NOTHING_TO_JUMP_TO = "Nothing needs your attention."
 
@@ -19,11 +18,7 @@ NOTHING_TO_JUMP_TO = "Nothing needs your attention."
 def _displayed_id(env: TmuxEnv) -> SessionId | None:
     """Return the session shown in the main area of `meute:main`, if any."""
     shown = next(
-        (
-            pane.meute_id
-            for pane in list_panes(env.tmux)
-            if pane.session == MAIN_SESSION and pane.window == MAIN_WINDOW and pane.meute_id
-        ),
+        (pane.meute_id for pane in main_window_panes(env.tmux) if pane.meute_id),
         None,
     )
     return None if shown is None else SessionId(shown)

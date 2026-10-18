@@ -11,11 +11,10 @@ from meute.core.claude_session import ClaudeDetails
 from meute.core.paths import display_path
 from meute.core.session_state import is_live, state_label
 from meute.core.statusline import StatuslineData
-from meute.core.text import one_line, printable
+from meute.core.text import cost_text, one_line, printable
 
 _DISPLAYED_MARK = "▶ "
 _NOT_DISPLAYED_MARK = "  "
-_MIN_COST = 0.10  # like the statusline: a smaller cost is noise
 _MAX_REPLY = 200
 _MINUTE = 60
 _HOUR = 3600
@@ -69,8 +68,9 @@ def session_text(info: SessionInfo, *, now: datetime) -> str:
     metrics = info.metrics
     if metrics is not None and metrics.context_pct is not None:
         parts.append(f"{metrics.context_pct:.0f}%")
-    if metrics is not None and metrics.cost_usd is not None and metrics.cost_usd > _MIN_COST:
-        parts.append(f"${metrics.cost_usd:.2f}")
+    cost = cost_text(None if metrics is None else metrics.cost_usd)
+    if cost:
+        parts.append(cost)
     mode = info.details.permission_mode if info.details is not None else None
     if mode:
         parts.append(mode_text(mode))

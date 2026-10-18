@@ -1,8 +1,8 @@
 """What every command needs: the clock, the actor, the configuration and the database."""
 
 import sqlite3
-from collections.abc import Generator, Mapping
-from contextlib import contextmanager
+from collections.abc import Callable, Generator, Mapping
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -51,6 +51,11 @@ class CliContext:
     paths: Paths
 
 
+def open_database(paths: Paths, clock: Callable[[], datetime]) -> AbstractContextManager[Database]:
+    """Open the database of `paths` with meute's busy timeout; the caller closes it."""
+    return Database.open(paths.db_file, busy_timeout_ms=BUSY_TIMEOUT_MS, clock=clock)
+
+
 @contextmanager
 def open_context(environ: Mapping[str, str]) -> Generator[CliContext]:
     """Prepare the folders and configuration, open the database and close it on exit."""
@@ -60,11 +65,7 @@ def open_context(environ: Mapping[str, str]) -> Generator[CliContext]:
     ensure_config(paths.config_file)
     config = load_config(paths.config_file)
     frozen = "MEUTE_NOW" in environ
-    with Database.open(
-        paths.db_file,
-        busy_timeout_ms=BUSY_TIMEOUT_MS,
-        clock=(lambda: now) if frozen else (lambda: datetime.now(UTC)),
-    ) as db:
+    with open_database(paths, (lambda: now) if frozen else (lambda: datetime.now(UTC))) as db:
         actor = Actor(
             author=Author.USER, channel=Channel.CLI, session_id=environ.get("MEUTE_SESSION")
         )

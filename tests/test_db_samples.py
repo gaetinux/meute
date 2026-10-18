@@ -6,7 +6,13 @@ from pathlib import Path
 
 from meute.core.db.connection import Database
 from meute.core.db.rows import as_integer, fetch_one
-from meute.core.db.samples import latest_metrics, latest_quota, record_metrics, record_quota
+from meute.core.db.samples import (
+    latest_metrics,
+    latest_metrics_by_session,
+    latest_quota,
+    record_metrics,
+    record_quota,
+)
 from meute.core.db.sessions import create_session
 from meute.core.session import AgentKind, NewSession, SessionId
 from meute.core.session_state import Running
@@ -251,3 +257,29 @@ def test_quota_history_lists_known_five_hour_samples_since_a_date() -> None:
             assert record_quota(db, data) is True
         history = quota_history(db, since=T0 + timedelta(seconds=100))
     assert history == [(T0 + timedelta(seconds=120), 20.0), (T0 + timedelta(seconds=180), 30.0)]
+
+
+OTHER = SessionId("bbbb2222-0000-4000-8000-000000000000")
+NONE_YET = SessionId("cccc3333-0000-4000-8000-000000000000")
+
+
+def test_latest_metrics_by_session_matches_one_query_per_session() -> None:
+    with Database.in_memory(clock=lambda: T0) as db:
+        make(db)
+        create_session(
+            db,
+            NewSession(
+                id=OTHER, agent=AgentKind.CLAUDE, title="o", cwd=Path("/work"), state=Running()
+            ),
+        )
+        record_metrics(db, SID, DATA)
+        record_metrics(db, SID, replace(DATA, context_pct=5))
+        record_metrics(db, OTHER, replace(DATA, context_pct=9))
+        ids = [SID, OTHER, NONE_YET]
+        found = latest_metrics_by_session(db, ids)
+        assert set(found) == {SID, OTHER}
+        assert found[SID] == latest_metrics(db, SID)
+        assert found[OTHER] == latest_metrics(db, OTHER)
+        assert found[SID].context_pct == 5
+        assert latest_metrics_by_session(db, []) == {}
+        assert latest_metrics_by_session(db, [OTHER]).keys() == {OTHER}

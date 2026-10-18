@@ -13,14 +13,13 @@ from meute.core.clock import local_zone
 from meute.core.db.claude_sessions import claude_details_by_session
 from meute.core.db.projects import list_projects
 from meute.core.db.repos import list_repos
-from meute.core.db.samples import latest_metrics, latest_quota, quota_history
+from meute.core.db.samples import latest_metrics_by_session, latest_quota, quota_history
 from meute.core.db.sessions import list_sessions
-from meute.core.quota_view import QuotaLine, projected_limit
+from meute.core.quota_view import PROJECTION_WINDOW, QuotaLine, projected_limit
 from meute.core.session import SessionId
 from meute.core.session_state import is_live
 from meute.core.statusline_render import peak_text
 
-QUOTA_HISTORY = timedelta(minutes=30)
 RECENTLY_ENDED = timedelta(days=7)
 
 
@@ -28,7 +27,7 @@ def quota_line(ctx: CliContext, now: datetime, environ: Mapping[str, str]) -> Qu
     """Return the latest quota, its "limit around" projection and the peak hours (spec 7.4)."""
     latest = latest_quota(ctx.db)
     five_resets = None if latest is None else latest.five_hour_resets_at
-    history = quota_history(ctx.db, since=now - QUOTA_HISTORY)
+    history = quota_history(ctx.db, since=now - PROJECTION_WINDOW)
     return QuotaLine(
         five_hour_pct=None if latest is None else latest.five_hour_pct,
         five_hour_resets_at=five_resets,
@@ -65,7 +64,6 @@ def load_board_data(
     db = ctx.db
     clock = db.now()
     live = [row.session.id for row in snapshot.sessions if is_live(row.session.state)]
-    metrics = {session_id: latest_metrics(db, session_id) for session_id in live}
     return BoardData(
         sessions=snapshot.sessions,
         repos=tuple(list_repos(db)),
@@ -74,7 +72,7 @@ def load_board_data(
         outside=snapshot.outside,
         ended=recently_ended(ctx, {row.session.id for row in snapshot.sessions}, clock),
         details=claude_details_by_session(db),
-        metrics={key: value for key, value in metrics.items() if value is not None},
+        metrics=latest_metrics_by_session(db, live),
         projects={project.id: project.name for project in list_projects(db)},
         quota=quota_line(ctx, clock, environ),
         now=clock,

@@ -5,7 +5,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, tzinfo
 
-_WINDOW = timedelta(minutes=30)
+PROJECTION_WINDOW = timedelta(minutes=30)
+"""How far back the samples count for the "limit around" projection."""
 _LIMIT_PCT = 100.0
 _WARN_PCT = 50
 _ALERT_PCT = 80
@@ -59,7 +60,7 @@ def projected_limit(
     a slope that is not positive, or when the limit is not after `now` and before `resets_at`.
     It never raises: a limit too far away for a datetime is None.
     """
-    recent = [(at, pct) for at, pct in samples if now - _WINDOW <= at <= now]
+    recent = [(at, pct) for at, pct in samples if now - PROJECTION_WINDOW <= at <= now]
     cycle = _current_cycle(recent)
     if len(cycle) < 2:  # noqa: PLR2004 — a line needs two points
         return None

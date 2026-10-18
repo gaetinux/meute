@@ -11,13 +11,18 @@ from meute.tmux.panes import set_global_option
 
 
 def publish_status(
-    tmux: Tmux, displayed: str | None, sessions: Sequence[Session], five_hour_pct: float | None
+    tmux: Tmux,
+    displayed: str | None,
+    sessions: Sequence[Session],
+    five_hour_pct: float | None,
+    last: str | None = None,
 ) -> str:
-    """Write the status line (displayed title, attention count, 5 h quota); return its text.
+    """Write the status line unless its text equals `last`; return its text.
 
     Raises:
         TmuxError: tmux failed.
     """
     text = status_text(displayed, attention_count(sessions), five_hour_pct)
-    set_global_option(tmux, STATUS_OPTION, text)
+    if text != last:
+        set_global_option(tmux, STATUS_OPTION, text)
     return text
