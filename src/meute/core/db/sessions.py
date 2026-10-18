@@ -187,3 +187,26 @@ def write_state(
             before.id,
         ),
     )
+
+
+def set_assumed_state(db: Database, judged: Session, state: SessionState) -> bool:
+    """Record an assumed `state` unless the session changed since it was read as `judged`.
+
+    Meant for states guessed from silence or `claude agents`: a hook that landed in between
+    wins, and the last activity is kept, since nothing was heard from the session.
+    Returns whether the row was written.
+    """
+    with db.transaction() as conn:
+        cursor = conn.execute(
+            "UPDATE sessions SET state = ?, exit_code = ? WHERE id = ? AND state = ?"
+            " AND exit_code IS ? AND last_activity_at = ?",
+            (
+                state_id(state),
+                _exit_code(state),
+                judged.id,
+                state_id(judged.state),
+                _exit_code(judged.state),
+                to_db(judged.last_activity_at),
+            ),
+        )
+        return cursor.rowcount == 1

@@ -11,7 +11,7 @@ from meute.core.agents import AgentInfo, assumed_state, outside_agents
 from meute.core.board_view import SessionRow
 from meute.core.db.claude_sessions import claude_details_by_session
 from meute.core.db.connection import Database
-from meute.core.db.sessions import list_sessions, set_session_state
+from meute.core.db.sessions import list_sessions, set_assumed_state, set_session_state
 from meute.core.reconcile import PaneObservation, first_by_id, reconcile
 from meute.core.session import Session
 from meute.core.session_state import is_live
@@ -174,7 +174,6 @@ def _apply_agents(
         native_id = native.get(session.id)
         agent = by_id.get(session.id) or (by_id.get(native_id) if native_id else None)
         state = assumed_state(session, agent, now=reading.now, stuck_after=reading.stuck_after)
-        if state is not None:
-            set_session_state(db, session.id, state)
+        if state is not None and set_assumed_state(db, session, state):
             changed = True
     return outside_agents(reading.agents, sessions, native_ids=native.values()), changed
