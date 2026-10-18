@@ -133,3 +133,15 @@ def test_without_claude_poll_is_always_none() -> None:
     for _ in range(3):
         assert poller.poll() is None
         clock.now += 20.0
+
+
+def test_failed_flag_follows_the_last_harvest(tmp_path: Path) -> None:
+    good, _ = _counting(tmp_path)
+    clock = _Clock()
+    poller = AgentsPoller(good, monotonic=clock)
+    assert not poller.failed
+    _ = _harvest(poller)
+    assert not poller.failed
+    bad = AgentsPoller(_script(tmp_path, "exit 1", "bad"), monotonic=clock)
+    _ = bad.poll()
+    wait_until("the failure", lambda: bad.poll() is None and bad.failed)

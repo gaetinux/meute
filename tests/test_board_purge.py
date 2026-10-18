@@ -54,6 +54,14 @@ def test_old_samples_are_purged_recent_kept(tmp_path: Path) -> None:
         assert _count(db) == 1
 
 
+class _FakeBackend:
+    def __init__(self, calls: list[str]) -> None:
+        self._calls = calls
+
+    def close(self) -> None:
+        self._calls.append("close")
+
+
 class _FakeApp:
     def __init__(self, calls: list[str]) -> None:
         self._calls = calls
@@ -79,8 +87,8 @@ def test_board_command_purges_at_start(tmp_path: Path, monkeypatch: pytest.Monke
     def app_factory(*_: object) -> _FakeApp:
         return _FakeApp(calls)
 
-    def backend(*_: object) -> None:
-        return None
+    def backend(*_: object) -> _FakeBackend:
+        return _FakeBackend(calls)
 
     def tmux_env(*_: object) -> None:
         return None
@@ -91,4 +99,4 @@ def test_board_command_purges_at_start(tmp_path: Path, monkeypatch: pytest.Monke
     monkeypatch.setattr("meute.cli.board_backend.CliBoardBackend", backend)
     monkeypatch.setattr("meute.tui.board.BoardApp", app_factory)
     assert CliRunner().invoke(app, ["board"]).exit_code == 0
-    assert calls == ["scan", "purge", "run"]
+    assert calls == ["scan", "purge", "run", "close"]

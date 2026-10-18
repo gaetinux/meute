@@ -25,7 +25,8 @@ def _fake_claude(tmp_path: Path) -> dict[str, str]:
 
 
 def _states(context: CliContext, tmux_env: TmuxEnv, silence: timedelta) -> list[SessionState]:
-    later = replace(context, now=context.now + silence)
+    # the context's own `now` stays at its start: the live clock is the database's
+    later = replace(context, db=replace(context.db, clock=lambda: context.now + silence))
     return [row.session.state for row in refresh(later, tmux_env, agents=None).sessions]
 
 

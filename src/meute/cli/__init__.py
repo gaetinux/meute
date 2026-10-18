@@ -66,7 +66,11 @@ def board() -> None:
         env = open_tmux_env(ctx, os.environ)
         _ = scan_repos(ctx)
         _ = purge_old_samples(ctx)
-        BoardApp(CliBoardBackend(ctx, env, os.environ)).run()
+        backend = CliBoardBackend(ctx, env, os.environ)
+        try:
+            BoardApp(backend).run()
+        finally:
+            backend.close()
 
 
 @app.command("welcome", hidden=True)

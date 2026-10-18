@@ -69,7 +69,7 @@ def refresh(
         unsettled=_unsettled(env.tmux, panes),
         reading=AgentsReading(
             agents=() if agents is None else agents,
-            now=ctx.now,
+            now=ctx.db.now(),  # live: the context's own clock stops when the board starts
             stuck_after=timedelta(minutes=ctx.config.claude.stuck_after_minutes),
         ),
     )
@@ -163,15 +163,16 @@ def _apply_agents(
 ) -> tuple[tuple[AgentInfo, ...], bool]:
     """Record the assumed states; return the agents outside meute and whether a state changed."""
     native = {
-        session.id: native_id
+        session.id: details.native_id
         for session in sessions
         if session.agent is AgentKind.CLAUDE
-        and (native_id := get_claude_details(db, session.id).native_id) is not None
+        and (details := get_claude_details(db, session.id)).native_id
     }
     by_id = {agent.session_id: agent for agent in reading.agents}
     changed = False
     for session in sessions:
-        agent = by_id.get(session.id) or by_id.get(native.get(session.id, ""))
+        native_id = native.get(session.id)
+        agent = by_id.get(session.id) or (by_id.get(native_id) if native_id else None)
         state = assumed_state(session, agent, now=reading.now, stuck_after=reading.stuck_after)
         if state is not None:
             set_session_state(db, session.id, state)

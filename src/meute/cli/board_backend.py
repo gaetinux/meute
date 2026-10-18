@@ -84,6 +84,8 @@ class CliBoardBackend:
         now = self._monotonic()
         version = self._ctx.db.data_version()
         fresh = self._agents.poll()
+        if self._agents.failed and fresh is None:
+            fresh = ()  # claude agents stopped answering: forget what it said before
         if fresh is not None and fresh != self._known:
             self._known = fresh
             self._read_at = None  # the assumed states and the outside list changed
@@ -103,6 +105,10 @@ class CliBoardBackend:
             home=Path.home(),
             outside=snapshot.outside,
         )
+
+    def close(self) -> None:
+        """Stop the background `claude agents` run, if any."""
+        self._agents.close()
 
     def perform(self, action: BoardAction) -> None:
         """Carry out `action`; the next load rereads.

@@ -25,6 +25,12 @@ class AgentsPoller:
         self._monotonic = monotonic
         self._run: AgentsRun | None = None
         self._started_at: float | None = None
+        self._failed = False
+
+    @property
+    def failed(self) -> bool:
+        """Whether the last run failed, timed out or could not start."""
+        return self._failed
 
     def poll(self) -> tuple[AgentInfo, ...] | None:
         """Return a fresh result, or `None` while there is nothing new; never blocks."""
@@ -37,6 +43,8 @@ class AgentsPoller:
         ):
             self._started_at = now
             self._run = start_agents(self._claude)
+            if self._run is None:
+                self._failed = True
         return result
 
     def close(self) -> None:
@@ -52,8 +60,10 @@ class AgentsPoller:
         if run.process.poll() is not None:
             self._run = None
             text = finish_agents(run)
+            self._failed = text is None
             return None if text is None else parse_agents(text)
         if now - self._started_at > KILL_AFTER_SECONDS:
             self._run = None
+            self._failed = True
             kill_agents(run)
         return None

@@ -64,3 +64,11 @@ def test_outside_excludes_known_sessions(db: Database) -> None:
     stranger = _agent("zzz")
     snapshot = _apply(db, (_agent(SID), stranger))
     assert snapshot.outside == (stranger,)
+
+
+def test_agent_without_id_never_matches_a_session_without_native_id(db: Database) -> None:
+    _make(db)
+    nameless = _agent("", "idle")
+    snapshot = _apply(db, (nameless,))
+    assert get_session(db, SID).state == MaybeStuck()  # not corrected to idle by the nameless agent
+    assert snapshot.outside == (nameless,)
