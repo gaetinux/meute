@@ -89,6 +89,11 @@ def _peak(now: datetime, quotas: QuotasConfig, local: tzinfo) -> str:
     return f"{off}(peak in ~{start - hour}h){_RESET}"
 
 
+def peak_text(now: datetime, quotas: QuotasConfig, local: tzinfo) -> str:
+    """Return the peak-hours text of the status line, without colour codes."""
+    return _ESCAPE.sub("", _peak(now, quotas, local))
+
+
 def _visible_length(text: str) -> int:
     return len(_ESCAPE.sub("", text))
 

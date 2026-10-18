@@ -232,3 +232,22 @@ def test_huge_cost_is_recorded_without_error() -> None:
         make(db)
         data = parse_statusline({"cost": {"total_cost_usd": 10**30, "total_duration_ms": 10**30}})
         assert record_metrics(db, SID, data) is True
+
+
+def test_quota_history_lists_known_five_hour_samples_since_a_date() -> None:
+    from meute.core.db.samples import quota_history  # noqa: PLC0415 — new tests only
+
+    clock = Clock()
+    with Database.in_memory(clock=clock) as db:
+        db = replace(db, clock=clock)  # noqa: PLW2901 — same database, settable clock
+        for seconds, five, seven in (
+            (0, 10.0, 1.0),
+            (60, None, 2.0),
+            (120, 20.0, 2.0),
+            (180, 30.0, 3.0),
+        ):
+            clock.after(seconds)
+            data = StatuslineData(five_hour_pct=five, seven_day_pct=seven)
+            assert record_quota(db, data) is True
+        history = quota_history(db, since=T0 + timedelta(seconds=100))
+    assert history == [(T0 + timedelta(seconds=120), 20.0), (T0 + timedelta(seconds=180), 30.0)]

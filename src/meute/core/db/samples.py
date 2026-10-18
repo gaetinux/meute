@@ -3,7 +3,15 @@
 from datetime import datetime, timedelta
 
 from meute.core.db.connection import Database
-from meute.core.db.rows import as_instant, as_integer, as_real, as_text, fetch_one, optional
+from meute.core.db.rows import (
+    as_instant,
+    as_integer,
+    as_real,
+    as_text,
+    fetch_all,
+    fetch_one,
+    optional,
+)
 from meute.core.instants import to_db
 from meute.core.session import SessionId
 from meute.core.statusline import StatuslineData
@@ -176,3 +184,17 @@ def latest_quota(db: Database) -> StatuslineData | None:
         seven_day_pct=optional(as_real, row[2]),
         seven_day_resets_at=optional(as_instant, row[3]),
     )
+
+
+def quota_history(db: Database, *, since: datetime) -> list[tuple[datetime, float]]:
+    """Return `(created_at, five_hour_pct)` of the quota samples from `since`, oldest first.
+
+    Samples without a known five-hour percentage are left out.
+    """
+    rows = fetch_all(
+        db.conn,
+        "SELECT created_at, five_hour_pct FROM quota_samples"
+        " WHERE created_at >= ? AND five_hour_pct IS NOT NULL ORDER BY id",
+        (to_db(since),),
+    )
+    return [(as_instant(created), as_real(pct)) for created, pct in rows]
