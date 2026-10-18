@@ -1,4 +1,4 @@
-> **Plan Rust obsolète, conservé pour l'historique. Ne pas l'exécuter.** L'implémentation de référence se trouve sous le tag `rust-plan-2-wip` ; ce plan est à réécrire pour Python après le plan 1 Python ([plan 1 Python](2026-10-16-meute-plan-1-python-socle-taches.md)).
+> **Plan Rust obsolète, conservé pour l'historique. Ne pas l'exécuter.** L'implémentation de référence se trouve sous le tag `rust-plan-2-wip` ; il est remplacé par le [plan 2 Python](2026-10-18-meute-plan-2-python-tmux-sessions-bash.md).
 
 # meute — Plan 2 : tmux, dépôts et sessions Bash — Plan d'implémentation
 

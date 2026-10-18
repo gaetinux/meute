@@ -11,8 +11,8 @@ La V1 est découpée en six plans. Chacun produit un logiciel utilisable et test
 
 | # | Plan | Livrable | Sections de la spécification |
 |---|---|---|---|
-| 1 | **Socle et tâches** — *à refaire en Python* : `docs/superpowers/plans/2026-10-16-meute-plan-1-python-socle-taches.md` | Workspace, CI, configuration, base SQLite et migrations, gestion des tâches et des projets en CLI | § 4.2, 4.3, 9.1–9.3, 13, 16, 17 |
-| 2 | tmux, dépôts et sessions Bash — *plan Rust rédigé et largement implémenté sous `rust-plan-2-wip`, à réécrire pour Python après le plan 1* | `meute` démarre son serveur tmux, sa disposition (zone principale et tableau de bord minimal), découvre les dépôts et lance, échange, réconcilie et arrête des sessions Bash | § 5, 6.1, 6.3–6.5, 10 (découverte) |
+| 1 | **Socle et tâches** — *fait en Python (PR #7)* : `docs/superpowers/plans/2026-10-16-meute-plan-1-python-socle-taches.md` | Workspace, CI, configuration, base SQLite et migrations, gestion des tâches et des projets en CLI | § 4.2, 4.3, 9.1–9.3, 13, 16, 17 |
+| 2 | tmux, dépôts et sessions Bash — *à faire en Python* : `docs/superpowers/plans/2026-10-18-meute-plan-2-python-tmux-sessions-bash.md` (référence : plan Rust sous `rust-plan-2-wip`) | `meute` démarre son serveur tmux, sa disposition (zone principale et tableau de bord minimal), découvre les dépôts et lance, échange, réconcilie et arrête des sessions Bash | § 5, 6.1, 6.3–6.5, 10 (découverte) |
 | 3 | Adaptateur Claude | Lancement de Claude (§ 6.2), `meute ingest hook` / `statusline`, rendu de la statusline, `claude agents --json` | § 5.5, 6.2, 7 |
 | 4 | TUI complet | Vue Sessions (projets, « à traiter », quotas et projection, détails), vue Tâches (saisie rapide avec aperçu, regroupements, détail), mode étroit | § 4.5, 5.2, 7.4, 9.5, 10 |
 | 5 | MCP | `meute mcp` et les outils de tâches, contexte composé (§ 8) | § 8, 12 |
