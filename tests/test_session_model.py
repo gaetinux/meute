@@ -29,6 +29,14 @@ def test_parse_session_id_canonicalises_and_rejects() -> None:
         parse_session_id("nope")
 
 
+@pytest.mark.parametrize(
+    "text", ["aaaa1111000-0-4000-8000-000000000000", "aaaa1111000040008000000000000000"]
+)
+def test_parse_session_id_requires_the_hyphenated_form(text: str) -> None:
+    with pytest.raises(InvalidInput, match=r"^invalid session id: "):
+        parse_session_id(text)
+
+
 def test_short_id_and_new_id() -> None:
     assert short_id(SessionId("aaaa1111-0000-4000-8000-000000000000")) == "aaaa1111"
     first, second = new_session_id(), new_session_id()

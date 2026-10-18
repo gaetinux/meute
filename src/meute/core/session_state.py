@@ -1,6 +1,7 @@
 """The state of a session and its text forms."""
 
 from dataclasses import dataclass
+from typing import assert_never
 
 from meute.core.errors import InvalidInput
 from meute.core.json_types import JsonObject
@@ -72,18 +73,32 @@ SessionState = (
 )
 
 
-_IDS: dict[type[SessionState], str] = {
-    Running: "running",
-    SubagentRunning: "subagent_running",
-    Compacting: "compacting",
-    PermissionRequested: "permission_requested",
-    WaitingInput: "waiting_input",
-    Idle: "idle",
-    Exited: "exited",
-    Unreachable: "unreachable",
-    MaybeStuck: "maybe_stuck",
-    Unknown: "unknown",
-}
+def state_id(state: SessionState) -> str:  # noqa: PLR0911, C901 — one return per session state
+    """Return the identifier stored in the database for `state`."""
+    match state:
+        case Running():
+            return "running"
+        case SubagentRunning():
+            return "subagent_running"
+        case Compacting():
+            return "compacting"
+        case PermissionRequested():
+            return "permission_requested"
+        case WaitingInput():
+            return "waiting_input"
+        case Idle():
+            return "idle"
+        case Exited():
+            return "exited"
+        case Unreachable():
+            return "unreachable"
+        case MaybeStuck():
+            return "maybe_stuck"
+        case Unknown():
+            return "unknown"
+        case _:
+            assert_never(state)
+
 
 _STATELESS: dict[str, SessionState] = {
     "running": Running(),
@@ -97,24 +112,6 @@ _STATELESS: dict[str, SessionState] = {
     "unknown": Unknown(),
 }
 
-_LABELS: dict[type[SessionState], str] = {
-    Running: "running",
-    SubagentRunning: "subagent",
-    Compacting: "compacting",
-    PermissionRequested: "permission",
-    WaitingInput: "waiting for your reply",
-    Idle: "idle",
-    Exited: "exited",
-    Unreachable: "unreachable",
-    MaybeStuck: "stuck?",
-    Unknown: "unknown?",
-}
-
-
-def state_id(state: SessionState) -> str:
-    """Return the identifier stored in the database for `state`."""
-    return _IDS[type(state)]
-
 
 def state_from_parts(state: str, code: int | None) -> SessionState:
     """Build a state from its identifier; `code` is read for `exited` only.
@@ -122,7 +119,7 @@ def state_from_parts(state: str, code: int | None) -> SessionState:
     Raises:
         InvalidInput: `state` is not a known identifier.
     """
-    if state == _IDS[Exited]:
+    if state == "exited":
         return Exited(code=code)
     if state in _STATELESS:
         return _STATELESS[state]
@@ -135,11 +132,33 @@ def is_live(state: SessionState) -> bool:
     return not isinstance(state, Exited | Unreachable)
 
 
-def state_label(state: SessionState) -> str:
+def state_label(state: SessionState) -> str:  # noqa: PLR0911, C901 — one return per session state
     """Return the display text of `state`; assumed states carry a `?`."""
-    if isinstance(state, Exited) and state.code is not None:
-        return f"exited ({state.code})"
-    return _LABELS[type(state)]
+    match state:
+        case Running():
+            return "running"
+        case SubagentRunning():
+            return "subagent"
+        case Compacting():
+            return "compacting"
+        case PermissionRequested():
+            return "permission"
+        case WaitingInput():
+            return "waiting for your reply"
+        case Idle():
+            return "idle"
+        case Exited(code=None):
+            return "exited"
+        case Exited(code=code):
+            return f"exited ({code})"
+        case Unreachable():
+            return "unreachable"
+        case MaybeStuck():
+            return "stuck?"
+        case Unknown():
+            return "unknown?"
+        case _:
+            assert_never(state)
 
 
 def state_to_json(state: SessionState) -> JsonObject:

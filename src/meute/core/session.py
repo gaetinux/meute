@@ -41,7 +41,7 @@ def parse_session_id(text: str) -> SessionId:
         parsed = uuid.UUID(text)
     except ValueError:
         parsed = None
-    if parsed is None or len(text) != len(str(parsed)):
+    if parsed is None or str(parsed) != text.lower():
         message = f"invalid session id: {text}"
         raise InvalidInput(message)
     return SessionId(str(parsed))
