@@ -11,6 +11,7 @@ from meute.core.hooks import interpret_hook
 from meute.core.json_types import parse_json_object
 from meute.core.paths import Paths
 from meute.core.session import SessionId, parse_session_id
+from meute.ingest import drain
 
 MAX_STDIN_CHARS = 1024 * 1024
 BUSY_TIMEOUT_MS = 200
@@ -43,11 +44,14 @@ def run_hook(event: str, stdin: TextIO, environ: Mapping[str, str]) -> None:
         sqlite3.Error: the database is locked or unreadable (the caller logs it).
         MigrationError: the database schema is not the current one (never migrated here).
     """
-    text = stdin.read(MAX_STDIN_CHARS + 1)  # always drained, so Claude never blocks on a pipe
+    text = stdin.read(MAX_STDIN_CHARS + 1)
+    oversized = len(text) > MAX_STDIN_CHARS
+    if oversized:
+        drain(stdin)  # read to the end, so Claude never blocks or gets EPIPE on its pipe
     session_id = session_from_env(environ)
     if session_id is None:
         return
-    if len(text) > MAX_STDIN_CHARS:
+    if oversized:
         message = "hook payload larger than 1 MiB"
         raise ValueError(message)
     payload = parse_json_object(text)
