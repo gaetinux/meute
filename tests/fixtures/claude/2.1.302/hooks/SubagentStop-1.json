@@ -1,0 +1,27 @@
+{
+  "session_id": "7393e221-2a26-44ab-ae9c-fc905efac6e6",
+  "transcript_path": "/home/user/.claude/projects/x/7393e221-2a26-44ab-ae9c-fc905efac6e6.jsonl",
+  "cwd": "/home/user/git/poc-app-rust",
+  "scratchpad_dir": "/tmp/claude-1000/-home-user-git-poc-app-rust/7393e221-2a26-44ab-ae9c-fc905efac6e6/scratchpad",
+  "prompt_id": "8c51775f-3d8d-4a99-afc6-e18cbc1c7ccf",
+  "permission_mode": "default",
+  "agent_id": "aba6836016bc01043",
+  "agent_type": "general-purpose",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "SubagentStop",
+  "stop_hook_active": false,
+  "agent_transcript_path": "/home/user/.claude/projects/x/7393e221-2a26-44ab-ae9c-fc905efac6e6/subagents/agent-aba6836016bc01043.jsonl",
+  "last_assistant_message": "pong",
+  "background_tasks": [
+    {
+      "id": "aba6836016bc01043",
+      "type": "subagent",
+      "status": "running",
+      "description": "Reply pong",
+      "agent_type": "general-purpose"
+    }
+  ],
+  "session_crons": []
+}

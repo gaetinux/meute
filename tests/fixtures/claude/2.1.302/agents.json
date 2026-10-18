@@ -1,0 +1,20 @@
+[
+  {
+    "pid": 388326,
+    "cwd": "/home/user/git/poc-app-rust",
+    "kind": "interactive",
+    "startedAt": 1792327897812,
+    "sessionId": "7393e221-2a26-44ab-ae9c-fc905efac6e6",
+    "name": "meute-capture",
+    "status": "idle"
+  },
+  {
+    "pid": 390369,
+    "cwd": "/home/user/git/poc-app-rust",
+    "kind": "interactive",
+    "startedAt": 1792327925899,
+    "sessionId": "da5617d5-a0f8-46e1-a5cf-7132e7db6a13",
+    "name": "-meute-capture-dash",
+    "status": "idle"
+  }
+]

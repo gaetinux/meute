@@ -1,0 +1,19 @@
+{
+  "session_id": "7393e221-2a26-44ab-ae9c-fc905efac6e6",
+  "transcript_path": "/home/user/.claude/projects/x/7393e221-2a26-44ab-ae9c-fc905efac6e6.jsonl",
+  "cwd": "/home/user/git/poc-app-rust",
+  "scratchpad_dir": "/tmp/claude-1000/-home-user-git-poc-app-rust/7393e221-2a26-44ab-ae9c-fc905efac6e6/scratchpad",
+  "prompt_id": "8c51775f-3d8d-4a99-afc6-e18cbc1c7ccf",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Agent",
+  "tool_input": {
+    "description": "Reply pong",
+    "prompt": "Reply with the single word \"pong\". Do nothing else.",
+    "subagent_type": "general-purpose"
+  },
+  "tool_use_id": "toolu_01Td8pZyBuDPZfRJuu9gMu2g"
+}

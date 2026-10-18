@@ -1,0 +1,31 @@
+{
+  "session_id": "7393e221-2a26-44ab-ae9c-fc905efac6e6",
+  "transcript_path": "/home/user/.claude/projects/x/7393e221-2a26-44ab-ae9c-fc905efac6e6.jsonl",
+  "cwd": "/home/user/git/poc-app-rust",
+  "scratchpad_dir": "/tmp/claude-1000/-home-user-git-poc-app-rust/7393e221-2a26-44ab-ae9c-fc905efac6e6/scratchpad",
+  "prompt_id": "ff45ddd1-7040-4ed1-bfc6-222d540a34f7",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "mkdir /tmp/capture/denied",
+    "description": "Create a directory in another session's scratchpad"
+  },
+  "permission_suggestions": [
+    {
+      "type": "addDirectories",
+      "directories": [
+        "/tmp/capture"
+      ],
+      "destination": "session"
+    },
+    {
+      "type": "setMode",
+      "mode": "acceptEdits",
+      "destination": "session"
+    }
+  ]
+}
