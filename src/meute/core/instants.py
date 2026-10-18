@@ -2,7 +2,6 @@
 
 import re
 from datetime import UTC, datetime
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from meute.core.errors import InvalidInput
 
@@ -49,6 +48,8 @@ def parse_zoned(text: str) -> datetime:
     Raises:
         InvalidInput: the text has another shape or the zone is unknown.
     """
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError  # noqa: PLC0415 — keeps ingest start-up light
+
     match = _ZONED.fullmatch(text)
     if match is None:
         message = f"invalid zoned time: {text}"

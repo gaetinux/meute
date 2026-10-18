@@ -181,4 +181,4 @@ def interpret_hook(event: str, payload: Mapping[str, object]) -> HookEffect | No
     )
     if effect is None:
         return None
-    return replace(effect, native_id=_capped(payload, "session_id", _ID_MAX))
+    return replace(effect, native_id=_capped(payload, "session_id", _ID_MAX) or None)

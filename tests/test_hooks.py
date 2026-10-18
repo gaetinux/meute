@@ -229,3 +229,10 @@ def test_identifying_fields_are_capped() -> None:
     assert mode is not None
     assert mode.permission_mode is not None
     assert len(mode.permission_mode) == 200
+
+
+@pytest.mark.parametrize("blank", ["", "   ", "\t\n"])
+def test_blank_session_id_gives_no_native_id(blank: str) -> None:
+    effect = interpret_hook("Stop", {"session_id": blank})
+    assert effect is not None
+    assert effect.native_id is None
