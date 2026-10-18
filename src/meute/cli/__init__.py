@@ -2,7 +2,6 @@
 
 import importlib.metadata
 import os
-import sqlite3
 import sys
 from collections.abc import Sequence
 
@@ -11,16 +10,24 @@ import typer
 from meute.cli import task_commands as task_commands
 from meute.cli import task_edit_commands as task_edit_commands
 from meute.cli.config_commands import config_app
-from meute.cli.context import current_time
+from meute.cli.context import ENVIRONMENT_ERRORS, current_time, open_context
+from meute.cli.layout_commands import layout_app, open_meute
 from meute.cli.project_commands import project_app
 from meute.cli.render import task_line
+from meute.cli.repo_commands import repo_app
+from meute.cli.session_commands import session_app
 from meute.cli.task_app import task_app
+from meute.cli.tmux_env import open_tmux_env
+from meute.cli.welcome import wait_forever, welcome_text
 from meute.core.errors import MeuteError, VersionConflict
 
 app = typer.Typer(name="meute", add_completion=False, pretty_exceptions_enable=False)
 app.add_typer(task_app, name="task")
 app.add_typer(project_app, name="project")
 app.add_typer(config_app, name="config")
+app.add_typer(repo_app, name="repo")
+app.add_typer(session_app, name="session")
+app.add_typer(layout_app, name="layout", hidden=True)
 
 _FAILURE = 1
 
@@ -31,9 +38,10 @@ def _print_version(value: bool) -> None:  # noqa: FBT001 — Typer callback sign
         raise typer.Exit
 
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def _root(
-    version: bool = typer.Option(  # noqa: FBT001 — Typer declares options as defaults
+    context: typer.Context,
+    version: bool = typer.Option(  # noqa: FBT001, ARG001 — Typer declares options as defaults; consumed by its eager callback
         False,  # noqa: FBT003 — Typer default
         "--version",
         callback=_print_version,
@@ -41,7 +49,31 @@ def _root(
         help="Show the version and exit.",
     ),
 ) -> None:
-    """Claude Code session manager."""
+    """Claude Code session manager: without a command, open meute in tmux."""
+    if context.invoked_subcommand is None:
+        open_meute(os.environ)
+
+
+@app.command("board")
+def board() -> None:
+    """Run the dashboard (the right-hand pane of the layout)."""
+    from meute.cli.board_backend import CliBoardBackend  # noqa: PLC0415 — keeps Textual out of every other command's start-up
+    from meute.cli.repo_scan import scan_repos  # noqa: PLC0415 — only the dashboard scans on start
+    from meute.tui.board import BoardApp  # noqa: PLC0415 — keeps Textual out of every other command's start-up
+
+    with open_context(os.environ) as ctx:
+        env = open_tmux_env(ctx, os.environ)
+        _ = scan_repos(ctx)
+        BoardApp(CliBoardBackend(ctx, env, os.environ)).run()
+
+
+@app.command("welcome", hidden=True)
+def welcome() -> None:
+    """Show the welcome text until the pane is killed."""
+    with open_context(os.environ) as ctx:
+        keys = ctx.config.keys
+    typer.echo(welcome_text(keys))
+    wait_forever()
 
 
 def _fail(message: str) -> None:
@@ -68,7 +100,7 @@ def run(argv: Sequence[str]) -> int:
         if isinstance(error, VersionConflict):
             print(task_line(error.current, current_time(os.environ)), file=sys.stderr)
         return error.exit_code
-    except (OSError, sqlite3.Error) as error:
+    except ENVIRONMENT_ERRORS as error:
         _fail(str(error))
         return _FAILURE
     return 0

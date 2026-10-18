@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from meute.core.paths import Paths
+from meute.core.paths import Paths, display_path
 
 H = Path("/h")
 
@@ -47,3 +47,17 @@ def test_ensure_dirs_creates_parent_directories(tmp_path: Path) -> None:
     p.ensure_dirs()
     for name in ("c", "d", "s"):
         assert (tmp_path / name / "meute").is_dir()
+
+
+@pytest.mark.parametrize(
+    ("path", "home", "expected"),
+    [
+        ("/h", "/h", "~"),
+        ("/h/git/api", "/h", "~/git/api"),
+        ("/srv/api", "/h", "/srv/api"),
+        ("/h/git", None, "/h/git"),
+        ("/h2/api", "/h", "/h2/api"),
+    ],
+)
+def test_display_path(path: str, home: str | None, expected: str) -> None:
+    assert display_path(Path(path), None if home is None else Path(home)) == expected

@@ -1,16 +1,31 @@
-"""Reading and validating the configuration file."""
+"""Reading and writing the configuration file."""
 
 import json
 import os
 import tempfile
 import tomllib
-from collections.abc import Mapping
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypeGuard
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from meute.core.config_validate import (
+    Config,
+    KeysConfig,
+    validate_config,
+)
 from meute.core.errors import ConfigError, InvalidInput
+
+# Config, KeysConfig and validate_config are re-exported for the existing callers.
+__all__ = [
+    "DEFAULT_CONFIG",
+    "Config",
+    "KeysConfig",
+    "config_get",
+    "config_key",
+    "ensure_config",
+    "load_config",
+    "validate_config",
+    "write_atomic",
+]
 
 DEFAULT_CONFIG = """\
 # meute configuration — edit by hand or with `meute config set`.
@@ -30,68 +45,17 @@ board_width = 60
 # Below this terminal width, the dashboard goes full screen.
 narrow_threshold = 120
 
+[keys]
+# Global shortcuts, without the tmux prefix (M- = Alt).
+focus_board = "M-p"
+focus_main = "M-o"
+
 [quotas]
 # Peak hours: weekdays, from peak_start_hour to peak_end_hour, in this time zone.
 peak_timezone = "America/New_York"
 peak_start_hour = 8
 peak_end_hour = 14
 """
-
-PERMISSION_MODES = frozenset(
-    {"manual", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"}
-)
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class ReposConfig:
-    """Where to look for Git repositories."""
-
-    roots: tuple[str, ...] = ("~/git",)
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class ClaudeConfig:
-    """How Claude sessions are launched."""
-
-    permission_mode: str = "manual"
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class UiConfig:
-    """Dashboard layout."""
-
-    board_width: int = 60
-    narrow_threshold: int = 120
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class QuotasConfig:
-    """Peak hours of the Claude quotas."""
-
-    peak_timezone: str = "America/New_York"
-    peak_start_hour: int = 8
-    peak_end_hour: int = 14
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class Config:
-    """The whole configuration; every field has a default."""
-
-    repos: ReposConfig = field(default_factory=ReposConfig)
-    claude: ClaudeConfig = field(default_factory=ClaudeConfig)
-    ui: UiConfig = field(default_factory=UiConfig)
-    quotas: QuotasConfig = field(default_factory=QuotasConfig)
-
-
-def _is_table(value: object) -> TypeGuard[dict[str, object]]:
-    return isinstance(value, dict)
-
-
-def _is_string_list(value: object) -> TypeGuard[list[str]]:
-    if not isinstance(value, list):
-        return False
-    items: list[object] = value  # pyright: ignore[reportUnknownVariableType] — isinstance narrows an object to list[Unknown]
-    return all(isinstance(item, str) for item in items)
 
 
 def _is_string_tuple(value: object) -> TypeGuard[tuple[str, ...]]:
@@ -101,91 +65,14 @@ def _is_string_tuple(value: object) -> TypeGuard[tuple[str, ...]]:
     return all(isinstance(item, str) for item in items)
 
 
-def _section(data: Mapping[str, object], name: str) -> Mapping[str, object]:
-    value = data.get(name, {})
-    if not _is_table(value):
-        message = f"{name}: expected a table"
-        raise InvalidInput(message)
-    return value
-
-
-def _int(
-    section: Mapping[str, object], dotted: str, default: int, low: int, high: int | None = None
-) -> int:
-    value = section.get(dotted.partition(".")[2], default)
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, int)
-        or value < low
-        or (high is not None and value > high)
-    ):
-        expected = (
-            f"an integer >= {low}" if high is None else f"an integer between {low} and {high}"
-        )
-        message = f"{dotted}: expected {expected}"
-        raise InvalidInput(message)
-    return value
-
-
-def _roots(section: Mapping[str, object]) -> tuple[str, ...]:
-    value = section.get("roots")
-    if value is None:
-        return ReposConfig().roots
-    if not _is_string_list(value):
-        message = "repos.roots: expected a list of strings"
-        raise InvalidInput(message)
-    return tuple(value)
-
-
-def _permission_mode(section: Mapping[str, object]) -> str:
-    value = section.get("permission_mode", "manual")
-    if not isinstance(value, str) or value not in PERMISSION_MODES:
-        message = f"claude.permission_mode: expected one of {', '.join(sorted(PERMISSION_MODES))}"
-        raise InvalidInput(message)
-    return value
-
-
-def _timezone(section: Mapping[str, object]) -> str:
-    value = section.get("peak_timezone", "America/New_York")
-    message = "quotas.peak_timezone: expected an IANA time zone name"
-    if not isinstance(value, str):
-        raise InvalidInput(message)
-    try:
-        ZoneInfo(value)
-    except (ZoneInfoNotFoundError, ValueError, OSError):
-        raise InvalidInput(message) from None
-    return value
-
-
-def validate_config(data: Mapping[str, object]) -> Config:
-    """Turn parsed TOML into a Config, ignoring unknown sections and keys.
-
-    Raises:
-        InvalidInput: a known key holds a value of the wrong type or range.
-    """
-    ui = _section(data, "ui")
-    quotas = _section(data, "quotas")
-    return Config(
-        repos=ReposConfig(roots=_roots(_section(data, "repos"))),
-        claude=ClaudeConfig(permission_mode=_permission_mode(_section(data, "claude"))),
-        ui=UiConfig(
-            board_width=_int(ui, "ui.board_width", 60, 1),
-            narrow_threshold=_int(ui, "ui.narrow_threshold", 120, 1),
-        ),
-        quotas=QuotasConfig(
-            peak_timezone=_timezone(quotas),
-            peak_start_hour=_int(quotas, "quotas.peak_start_hour", 8, 0, 24),
-            peak_end_hour=_int(quotas, "quotas.peak_end_hour", 14, 0, 24),
-        ),
-    )
-
-
 def _flatten(config: Config) -> dict[str, object]:
     return {
         "repos.roots": config.repos.roots,
         "claude.permission_mode": config.claude.permission_mode,
         "ui.board_width": config.ui.board_width,
         "ui.narrow_threshold": config.ui.narrow_threshold,
+        "keys.focus_board": config.keys.focus_board,
+        "keys.focus_main": config.keys.focus_main,
         "quotas.peak_timezone": config.quotas.peak_timezone,
         "quotas.peak_start_hour": config.quotas.peak_start_hour,
         "quotas.peak_end_hour": config.quotas.peak_end_hour,

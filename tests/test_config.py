@@ -151,3 +151,28 @@ def test_ensure_config_on_a_dangling_symlink_creates_its_target(tmp_path: Path) 
     assert ensure_config(link)
     assert link.is_symlink()
     assert target.read_text(encoding="utf-8") == DEFAULT_CONFIG
+
+
+def test_default_config_has_keys_section(tmp_path: Path) -> None:
+    path = tmp_path / "config.toml"
+    ensure_config(path)
+    assert config_get(path, "keys.focus_board") == "M-p"
+    assert config_get(path, "keys.focus_main") == "M-o"
+
+
+@pytest.mark.parametrize("field", ["focus_board", "focus_main"])
+@pytest.mark.parametrize("value", [r"M-p \; kill-server", "", "M p", "a" * 21])
+def test_keys_must_be_tmux_keys(tmp_path: Path, field: str, value: str) -> None:
+    path = tmp_path / "config.toml"
+    path.write_text(f"[keys]\n{field} = '{value}'\n", encoding="utf-8")
+    with pytest.raises(ConfigError) as info:
+        load_config(path)
+    assert str(info.value).endswith(f"keys.{field}: expected a tmux key such as M-p")
+
+
+@pytest.mark.parametrize("value", ["M-N", "F5", "C-M-x"])
+def test_keys_accept_letters_digits_and_dashes(tmp_path: Path, value: str) -> None:
+    path = tmp_path / "config.toml"
+    path.write_text(f'[keys]\nfocus_board = "{value}"\nfocus_main = "{value}"\n', encoding="utf-8")
+    keys = load_config(path).keys
+    assert (keys.focus_board, keys.focus_main) == (value, value)

@@ -1,0 +1,8 @@
+# serializer version: 1
+# name: test_list_without_server_marks_sessions_unreachable
+  '''
+  11111111  build  unreachable  /srv/build
+  22222222  tests  unreachable  /srv/tests
+  
+  '''
+# ---

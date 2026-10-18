@@ -32,12 +32,12 @@ class MigrationError(MeuteError):
 
 
 class NotFound(MeuteError):  # noqa: N818 — name fixed by the specification
-    """A task or a project does not exist."""
+    """A task, a project or a session does not exist."""
 
     exit_code = 4
 
     def __init__(self, entity: str, ident: str) -> None:
-        """Build the error for the `entity` (`task` or `project`) identified by `ident`."""
+        """Build the error for the `entity` kind (task, project, session, ...) and `ident`."""
         super().__init__(f"{entity} not found: {ident}")
         self.entity = entity
         self.ident = ident
