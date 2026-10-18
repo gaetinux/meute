@@ -96,6 +96,11 @@ def kill_pane(tmux: Tmux, pane: PaneId) -> None:
     tmux.run("kill-pane", "-t", pane)
 
 
+def detach_client(tmux: Tmux) -> None:
+    """Detach the current client: the one whose pane runs this command."""
+    tmux.run("detach-client")
+
+
 def switch_client_to(tmux: Tmux, pane: PaneId) -> None:
     """Switch the attached client to the session holding a pane."""
     tmux.run("switch-client", "-t", pane)

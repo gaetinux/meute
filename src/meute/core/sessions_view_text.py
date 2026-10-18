@@ -51,6 +51,11 @@ def duration_text(milliseconds: int) -> str:
     return f"{hours}h{rest:02d}" if hours else f"{minutes}m"
 
 
+def mode_text(mode: str) -> str:
+    """Return how a permission mode ends a session line: `[mode]`."""
+    return f"[{one_line(mode, _MAX_REPLY)}]"
+
+
 def session_text(info: SessionInfo, *, now: datetime) -> str:
     """Return the line of a session: marks, title, state, age, then what is known."""
     session = info.row.session
@@ -68,7 +73,7 @@ def session_text(info: SessionInfo, *, now: datetime) -> str:
         parts.append(f"${metrics.cost_usd:.2f}")
     mode = info.details.permission_mode if info.details is not None else None
     if mode:
-        parts.append(f"[{one_line(mode, _MAX_REPLY)}]")
+        parts.append(mode_text(mode))
     return f"{mark}{attention}" + "  ".join(parts)
 
 

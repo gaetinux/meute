@@ -181,9 +181,9 @@ def board_repo(repo_id: int, name: str, kind: str | None) -> Repo:
 
 
 BOARD_SESSION_A = board_session(
-    BOARD_ID_A, "build", BOARD_HOME / "git" / "meute", RepoId(1), exited=False
+    BOARD_ID_A, "build", BOARD_HOME / "git" / "meute", None, exited=False
 )
-BOARD_SESSION_B = board_session(BOARD_ID_B, "tests", Path("/srv/work"), None, exited=True)
+BOARD_SESSION_B = board_session(BOARD_ID_B, "tests", Path("/srv/work"), None, exited=False)
 BOARD_REPO_1 = board_repo(1, "meute", "rust")
 BOARD_REPO_2 = board_repo(2, "notes", None)
 

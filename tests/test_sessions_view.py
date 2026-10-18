@@ -302,7 +302,7 @@ def test_keep_selection_falls_back_into_selectable_list() -> None:
     assert keep_selection(key, gone, 5) == selectable(gone)[-1]
 
 
-def test_keep_selection_never_lands_on_a_header_or_info() -> None:
+def test_keep_selection_never_lands_on_an_expanded_header_or_info() -> None:
     view = _view([_info(1, "a", Running())], ViewState(collapsed=frozenset({"alpha"})))
     assert selectable(view) == (0,)  # R6: only the collapsed header can be selected
     assert keep_selection("session:x", view, 0) == 0

@@ -1,15 +1,20 @@
 """The dashboard view model: what the board shows and decides, without any UI toolkit."""
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import assert_never
 
 from meute.core.agents import AgentInfo
+from meute.core.claude_session import ClaudeDetails
 from meute.core.paths import display_path
-from meute.core.project import RepoId
+from meute.core.project import ProjectId, RepoId
+from meute.core.quota_view import QuotaLine
 from meute.core.repo import Repo
 from meute.core.session import Session, SessionId
 from meute.core.session_state import state_label
+from meute.core.statusline import StatuslineData
 from meute.core.text import printable
 
 BOARD_TITLE = "meute"
@@ -18,7 +23,7 @@ REPOS_HEADING = "Repositories"
 ORPHANS_HEADING = "Orphans"
 OUTSIDE_HEADING = "Outside meute"
 NO_SESSIONS = "No sessions. Pick a repository and press n."
-FOOTER = "↑↓ select · Enter show · c Claude · n Bash · x stop"
+FOOTER = "↑↓ select · Enter show · c Claude · n Bash · x stop · a attention · e ended · q detach"
 
 _DISPLAYED_MARK = "▶ "
 _NOT_DISPLAYED_MARK = "  "
@@ -35,13 +40,22 @@ class SessionRow:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class BoardData:
-    """Everything the board draws."""
+    """Everything the board draws; `now` is the clock the ages are measured by."""
 
     sessions: tuple[SessionRow, ...]
     repos: tuple[Repo, ...]
     orphans: tuple[str, ...]
     home: Path | None
     outside: tuple[AgentInfo, ...] = ()
+    details: Mapping[SessionId, ClaudeDetails] = field(
+        default_factory=dict[SessionId, ClaudeDetails]
+    )
+    metrics: Mapping[SessionId, StatuslineData] = field(
+        default_factory=dict[SessionId, StatuslineData]
+    )
+    projects: Mapping[ProjectId, str] = field(default_factory=dict[ProjectId, str])
+    quota: QuotaLine | None = None
+    now: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -74,7 +88,12 @@ class StopSession:
     session_id: SessionId
 
 
-BoardAction = ShowSession | LaunchBash | LaunchClaude | StopSession
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Detach:
+    """Detach the terminal from meute, stopping nothing."""
+
+
+BoardAction = ShowSession | LaunchBash | LaunchClaude | StopSession | Detach
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

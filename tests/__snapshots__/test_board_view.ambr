@@ -5,7 +5,7 @@
     '',
     'Sessions',
     '▶ build  running  ~/git/meute',
-    '  tests  exited (2)  /srv/work',
+    '  tests  running  /srv/work',
     '',
     'Repositories',
     'meute (rust)',

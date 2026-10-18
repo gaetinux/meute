@@ -34,6 +34,7 @@ class UiConfig:
 
     board_width: int = 60
     narrow_threshold: int = 120
+    show_details: bool = True
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -109,6 +110,14 @@ def _int(
     return value
 
 
+def _bool(section: Mapping[str, object], dotted: str, *, default: bool) -> bool:
+    value = section.get(dotted.partition(".")[2], default)
+    if not isinstance(value, bool):
+        message = f"{dotted}: expected true or false"
+        raise InvalidInput(message)
+    return value
+
+
 def _roots(section: Mapping[str, object]) -> tuple[str, ...]:
     value = section.get("roots")
     if value is None:
@@ -180,6 +189,7 @@ def validate_config(data: Mapping[str, object]) -> Config:
         ui=UiConfig(
             board_width=_int(ui, "ui.board_width", 60, 1),
             narrow_threshold=_int(ui, "ui.narrow_threshold", 120, 1),
+            show_details=_bool(ui, "ui.show_details", default=True),
         ),
         keys=KeysConfig(
             focus_board=_key(keys, "focus_board", default_keys.focus_board),

@@ -64,7 +64,7 @@ def test_enter_on_session_shows_and_on_repo_launches_there() -> None:
 def test_new_on_session_launches_in_its_cwd_and_repo() -> None:
     data = _data()
     assert new_action(SessionEntry(row=data.sessions[0])) == LaunchBash(
-        cwd=_SESSION_A.cwd, repo_id=RepoId(1)
+        cwd=_SESSION_A.cwd, repo_id=None
     )
     assert new_action(SessionEntry(row=data.sessions[1])) == LaunchBash(
         cwd=Path("/srv/work"), repo_id=None

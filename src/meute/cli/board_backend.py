@@ -3,7 +3,7 @@
 import time
 from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, assert_never
 
@@ -19,20 +19,29 @@ from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import (
     BoardAction,
     BoardData,
+    Detach,
     LaunchBash,
     LaunchClaude,
     ShowSession,
     StopSession,
 )
-from meute.core.db.claude_sessions import purge_samples
+from meute.core.clock import local_zone
+from meute.core.db.claude_sessions import claude_details_by_session, purge_samples
+from meute.core.db.projects import list_projects
 from meute.core.db.repos import list_repos
+from meute.core.db.samples import latest_metrics, latest_quota, quota_history
 from meute.core.errors import MeuteError
+from meute.core.quota_view import QuotaLine, projected_limit
+from meute.core.session_state import is_live
+from meute.core.statusline_render import peak_text
+from meute.tmux.panes import detach_client
 
 if TYPE_CHECKING:
     from meute.core.agents import AgentInfo
 
 TMUX_REREAD_SECONDS = 2.0
 SAMPLE_RETENTION = timedelta(days=30)
+QUOTA_HISTORY = timedelta(minutes=30)
 
 
 @contextmanager
@@ -41,6 +50,21 @@ def _as_meute_error() -> Generator[None]:
         yield
     except ENVIRONMENT_ERRORS as error:
         raise MeuteError(str(error)) from error
+
+
+def quota_line(ctx: CliContext, now: datetime, environ: Mapping[str, str]) -> QuotaLine:
+    """Return the latest quota, its "limit around" projection and the peak hours (spec 7.4)."""
+    latest = latest_quota(ctx.db)
+    five_resets = None if latest is None else latest.five_hour_resets_at
+    history = quota_history(ctx.db, since=now - QUOTA_HISTORY)
+    return QuotaLine(
+        five_hour_pct=None if latest is None else latest.five_hour_pct,
+        five_hour_resets_at=five_resets,
+        seven_day_pct=None if latest is None else latest.seven_day_pct,
+        seven_day_resets_at=None if latest is None else latest.seven_day_resets_at,
+        limit_at=projected_limit(history, resets_at=five_resets, now=now),
+        peak=peak_text(now, ctx.config.quotas, local_zone(environ)),
+    )
 
 
 def purge_old_samples(ctx: CliContext) -> int:
@@ -96,14 +120,22 @@ class CliBoardBackend:
         ):
             return None
         snapshot = refresh(self._ctx, self._env, agents=self._known)
-        repos = list_repos(self._ctx.db)
+        db = self._ctx.db
+        clock = db.now()
+        live = [row.session.id for row in snapshot.sessions if is_live(row.session.state)]
+        metrics = {session_id: latest_metrics(db, session_id) for session_id in live}
         self._data_version, self._read_at = version, now
         return BoardData(
             sessions=snapshot.sessions,
-            repos=tuple(repos),
+            repos=tuple(list_repos(db)),
             orphans=snapshot.orphans,
             home=Path.home(),
             outside=snapshot.outside,
+            details=claude_details_by_session(db),
+            metrics={key: value for key, value in metrics.items() if value is not None},
+            projects={project.id: project.name for project in list_projects(db)},
+            quota=quota_line(self._ctx, clock, self._environ),
+            now=clock,
         )
 
     def close(self) -> None:
@@ -134,5 +166,7 @@ class CliBoardBackend:
                 show_session(self._ctx, self._env, session.id)
             case StopSession():
                 _ = stop_session(self._ctx, self._env, action.session_id)
+            case Detach():
+                detach_client(self._env.tmux)
             case _:
                 assert_never(action)

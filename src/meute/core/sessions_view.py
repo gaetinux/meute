@@ -208,7 +208,8 @@ def keep_selection(
     is selected.
 
     `fallback` is a position among the selectable lines, clamped to them. Returns -1 when
-    nothing can be selected, so the selection never rests on a header or an information line.
+    nothing can be selected: the selection never rests on an information line or on the
+    header of an expanded group (a collapsed group's header is selectable).
     """
     choices = selectable(view)
     if not choices:

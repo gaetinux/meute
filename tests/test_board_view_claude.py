@@ -22,7 +22,7 @@ def test_c_on_repo_launches_claude_there() -> None:
 def test_c_on_session_launches_claude_where_it_runs() -> None:
     data = board_data()
     assert claude_action(SessionEntry(row=data.sessions[0])) == LaunchClaude(
-        cwd=data.sessions[0].session.cwd, repo_id=RepoId(1)
+        cwd=data.sessions[0].session.cwd, repo_id=None
     )
     assert claude_action(SessionEntry(row=data.sessions[1])) == LaunchClaude(
         cwd=Path("/srv/work"), repo_id=None
@@ -30,4 +30,6 @@ def test_c_on_session_launches_claude_where_it_runs() -> None:
 
 
 def test_footer_lists_both_launch_keys() -> None:
-    assert FOOTER == "↑↓ select · Enter show · c Claude · n Bash · x stop"
+    assert FOOTER == (
+        "↑↓ select · Enter show · c Claude · n Bash · x stop · a attention · e ended · q detach"
+    )
