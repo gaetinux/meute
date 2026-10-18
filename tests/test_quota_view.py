@@ -67,8 +67,22 @@ def test_a_limit_already_reached_is_none() -> None:
     assert projected_limit([(at(-10), 98.0), (at(0), 100.0)], resets_at=None, now=NOW) is None
 
 
+@pytest.mark.parametrize("step", [1e-9, 1e-12])
+def test_near_flat_slope_is_none(step: float) -> None:
+    samples = [(at(-10), 50.0), (at(0), 50.0 + step)]
+    assert projected_limit(samples, resets_at=None, now=NOW) is None
+
+
+def test_nan_percentage_is_none() -> None:
+    samples = [(at(-10), 50.0), (at(0), float("nan"))]
+    assert projected_limit(samples, resets_at=None, now=NOW) is None
+
+
 @given(
-    st.lists(st.tuples(st.integers(-3600, 600), st.floats(0, 100)), max_size=12),
+    st.lists(
+        st.tuples(st.integers(-3600, 600), st.floats(0, 100) | st.floats(50, 50.000001)),
+        max_size=12,
+    ),
     st.one_of(st.none(), st.integers(-60, 600)),
 )
 def test_projection_is_none_or_between_now_and_reset(
