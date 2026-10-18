@@ -52,5 +52,10 @@ Ce que le plan 2 laisse volontairement de côté, à traiter dans les plans indi
 - **Plan 3, critère d'entrée — ouverture concurrente de la base** : maintenu tel quel (voir « Reports issus du plan 1 »).
 - **Plan 3 — colonnes Claude de `sessions`** : `native_id`, mode de permission, métriques… arrivent avec la migration du plan 3.
 - **Plan 4 — TUI complet** : les actions sur les panneaux orphelins (adopter, fermer), qui sont seulement affichés ; le formulaire `N`, la recommandation de worktree et le « dernier type utilisé » de `n` (qui lance toujours Bash) ; la vue Sessions alimentée par tmux seul quand la base est indisponible ou verrouillée (§ 16 ; le tableau de bord affiche l'erreur dans son pied de page).
+- **Plan 4 — défauts connus du tableau de bord** :
+  - en mode étroit, `M-o` fait sortir le tableau de bord du plein écran jusqu'au prochain rattachement ou redimensionnement : les cibles `{left}` et `{right}` désignent le panneau zoomé, il faudra des cibles par index avec `select-pane -Z` ;
+  - les actions du tableau de bord s'exécutent dans la boucle de Textual : arrêter une session Bash inactive (qui ignore `C-c`) fige le tableau pendant les 5 s de délai, à déplacer dans un worker ;
+  - le hook `client-resized` relance `meute layout sync` à chaque redimensionnement, sans regroupement ;
+  - après un changement de `[keys]`, les anciens raccourcis restent liés jusqu'au redémarrage du serveur.
 - **Plan 6 — projets automatiques et worktrees** : la création automatique de projets et les worktrees ; les worktrees découverts ne sont pas enregistrés en base.
 - **Avant les plans hooks et MCP (3 et 5)** : retirer les caractères de contrôle des titres affichés (report du plan 1).
