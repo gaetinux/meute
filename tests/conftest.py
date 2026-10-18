@@ -13,6 +13,7 @@ from hypothesis import settings
 
 from meute.core.db.connection import Database
 from support import FIXED
+from tmux_support import TestServer
 
 settings.register_profile("dev", max_examples=100)
 settings.register_profile("ci", max_examples=1000)
@@ -73,3 +74,13 @@ class Sandbox:
 def sandbox(tmp_path: Path) -> Sandbox:
     """A fresh sandbox below `tmp_path`."""
     return Sandbox(root=tmp_path)
+
+
+@pytest.fixture
+def tmux_server() -> Generator[TestServer]:
+    """A throw-away tmux server, always killed at the end of the test."""
+    server = TestServer.start()
+    try:
+        yield server
+    finally:
+        server.stop()

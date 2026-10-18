@@ -1,6 +1,8 @@
 """Helpers shared by the tests: plain functions, not fixtures."""
 
 import json
+import time
+from collections.abc import Callable
 from datetime import UTC, date, datetime
 
 from meute.core.actor import Actor, Author, Channel
@@ -95,3 +97,13 @@ def seed_mixed(db: Database) -> None:
         )
         if not isinstance(status, Todo):
             update_task(db, task.id, 1, TaskPatch(status=status), USER)
+
+
+def wait_until(what: str, predicate: Callable[[], bool], *, timeout: float = 10.0) -> None:
+    """Poll `predicate` every 100 ms until it holds, or fail after `timeout` seconds."""
+    deadline = time.monotonic() + timeout
+    while not predicate():
+        if time.monotonic() >= deadline:
+            msg = f"timed out waiting for {what}"
+            raise AssertionError(msg)
+        time.sleep(0.1)
