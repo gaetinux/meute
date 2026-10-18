@@ -68,6 +68,10 @@ class Database:
         """Return the schema version of the database."""
         return int(self.pragma("user_version"))
 
+    def data_version(self) -> int:
+        """Return `PRAGMA data_version`: it changes when another connection wrote the file."""
+        return int(self.pragma("data_version"))
+
     def pragma(self, name: str) -> str:
         """Return the value of the pragma `name` as text.
 

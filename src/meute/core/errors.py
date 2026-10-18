@@ -32,7 +32,7 @@ class MigrationError(MeuteError):
 
 
 class NotFound(MeuteError):  # noqa: N818 — name fixed by the specification
-    """A task or a project does not exist."""
+    """A task, a project or a session does not exist."""
 
     exit_code = 4
 
