@@ -129,7 +129,22 @@ def state_from_parts(state: str, code: int | None) -> SessionState:
 
 def is_live(state: SessionState) -> bool:
     """Return whether the session still runs: false for `Exited` and `Unreachable` only."""
-    return not isinstance(state, Exited | Unreachable)
+    match state:
+        case Exited() | Unreachable():
+            return False
+        case (
+            Running()
+            | SubagentRunning()
+            | Compacting()
+            | PermissionRequested()
+            | WaitingInput()
+            | Idle()
+            | MaybeStuck()
+            | Unknown()
+        ):
+            return True
+        case _:
+            assert_never(state)
 
 
 def state_label(state: SessionState) -> str:  # noqa: PLR0911, C901 — one return per session state
@@ -163,6 +178,20 @@ def state_label(state: SessionState) -> str:  # noqa: PLR0911, C901 — one retu
 
 def state_to_json(state: SessionState) -> JsonObject:
     """Return the tagged JSON form of `state`."""
-    if isinstance(state, Exited):
-        return {"kind": "exited", "code": state.code}
-    return {"kind": state_id(state)}
+    match state:
+        case Exited():
+            return {"kind": "exited", "code": state.code}
+        case (
+            Running()
+            | SubagentRunning()
+            | Compacting()
+            | PermissionRequested()
+            | WaitingInput()
+            | Idle()
+            | Unreachable()
+            | MaybeStuck()
+            | Unknown()
+        ):
+            return {"kind": state_id(state)}
+        case _:
+            assert_never(state)
