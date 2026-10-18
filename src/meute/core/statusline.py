@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TypeGuard
 
+_MAX_EPOCH = 253402300800  # 9999-12-31T23:59:59Z + 1 s: the last year the database text can hold
+
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class StatuslineData:
@@ -55,9 +57,12 @@ def _first(*values: str | None) -> str | None:
 
 
 def _number(value: object) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+    if isinstance(value, bool) or not isinstance(value, int | float):
         return None
-    return value
+    try:
+        return value if math.isfinite(value) else None
+    except OverflowError:
+        return None
 
 
 def _integer(value: object) -> int | None:
@@ -66,7 +71,7 @@ def _integer(value: object) -> int | None:
 
 def _epoch(value: object) -> datetime | None:
     seconds = _number(value)
-    if seconds is None:
+    if seconds is None or not 0 <= seconds < _MAX_EPOCH:
         return None
     try:
         return datetime.fromtimestamp(seconds, UTC)

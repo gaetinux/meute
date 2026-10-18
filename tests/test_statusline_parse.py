@@ -105,13 +105,40 @@ def test_non_finite_and_out_of_range_numbers_become_none() -> None:
     assert data.seven_day_resets_at is None
 
 
-def test_integer_valued_float_durations_are_accepted_as_numbers_only_when_int() -> None:
+def test_duration_accepts_integers_only() -> None:
     assert parse_statusline({"cost": {"total_duration_ms": 12}}).duration_ms == 12
     assert parse_statusline({"cost": {"total_duration_ms": 12.0}}).duration_ms is None
 
 
+def test_huge_integers_become_none() -> None:
+    data = parse_statusline(
+        {
+            "cost": {"total_cost_usd": 10**400},
+            "context_window": {"used_percentage": -(10**400)},
+            "rate_limits": {"five_hour": {"used_percentage": 10**400, "resets_at": 10**400}},
+        }
+    )
+    assert data == StatuslineData()
+
+
+def test_instants_outside_the_storable_years_become_none() -> None:
+    before_1970 = parse_statusline({"rate_limits": {"five_hour": {"resets_at": -1}}})
+    after_9999 = parse_statusline({"rate_limits": {"five_hour": {"resets_at": 253402300800}}})
+    year_1 = parse_statusline({"rate_limits": {"five_hour": {"resets_at": -62135596800}}})
+    assert before_1970.five_hour_resets_at is None
+    assert after_9999.five_hour_resets_at is None
+    assert year_1.five_hour_resets_at is None
+    epoch = parse_statusline({"rate_limits": {"five_hour": {"resets_at": 0}}})
+    assert epoch.five_hour_resets_at == datetime(1970, 1, 1, tzinfo=UTC)
+
+
 weird = st.recursive(
-    st.none() | st.booleans() | st.integers() | st.floats() | st.text(),
+    st.none()
+    | st.booleans()
+    | st.integers()
+    | st.integers(min_value=10**300, max_value=10**400)
+    | st.floats()
+    | st.text(),
     lambda children: st.lists(children) | st.dictionaries(st.text(), children),
     max_leaves=6,
 )
