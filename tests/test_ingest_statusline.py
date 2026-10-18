@@ -2,6 +2,7 @@
 
 import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -16,6 +17,7 @@ from meute.core.db.rows import as_integer, fetch_one
 from meute.core.db.sessions import create_session
 from meute.core.session import AgentKind, NewSession, SessionId
 from meute.core.session_state import Unknown
+from meute.ingest.statusline import run_statusline
 from support import claude_statusline_fixture
 
 SID = SessionId("aaaa1111-0000-4000-8000-000000000000")
@@ -145,7 +147,7 @@ def test_failing_or_slow_chain_falls_back(seeded: Sandbox) -> None:
     write_config(seeded, '[statusline]\nchain = "sleep 5"\n')
     started = time.monotonic()
     result = run(seeded, payload())
-    assert time.monotonic() - started < 2.5
+    assert time.monotonic() - started < 2
     assert "Opus 5.5" in ESCAPE.sub("", result.stdout)
 
 
@@ -153,7 +155,7 @@ def test_slow_chain_with_a_child_does_not_hold_the_pipe(seeded: Sandbox) -> None
     write_config(seeded, '[statusline]\nchain = "sleep 5; echo late"\n')
     started = time.monotonic()
     result = run(seeded, payload())
-    assert time.monotonic() - started < 2.5
+    assert time.monotonic() - started < 2
     assert "late" not in result.stdout
 
 
@@ -174,3 +176,47 @@ def test_unknown_ingest_kind_reads_all_of_stdin(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(sys, "stdin", stdin)
     assert ingest.run(["bogus"]) == 0
     assert stdin.read() == ""
+
+
+def test_chain_with_an_escaped_descendant_still_returns_quickly(seeded: Sandbox) -> None:
+    write_config(seeded, '[statusline]\nchain = "setsid sleep 5 & echo partial"\n')
+    started = time.monotonic()
+    result = run(seeded, payload())
+    assert time.monotonic() - started < 2
+    assert "Opus 5.5" in ESCAPE.sub("", result.stdout)
+
+
+def test_chain_with_a_background_descendant_holding_stdout(seeded: Sandbox) -> None:
+    write_config(seeded, '[statusline]\nchain = "(sleep 5) & echo partial"\n')
+    started = time.monotonic()
+    result = run(seeded, payload())
+    assert time.monotonic() - started < 2
+    assert "Opus 5.5" in ESCAPE.sub("", result.stdout)
+
+
+def test_chain_receives_the_original_bytes(
+    seeded: Sandbox, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    for name in ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"):
+        monkeypatch.setenv(name, str(seeded.root / name.split("_")[1].lower()))
+    write_config(seeded, f'[statusline]\nchain = "cat > {tmp_path}/got; echo ok"\n')
+    stdin = io.StringIO('{"model": {"display_name": "caf\udce9"}}')
+    stdout = io.StringIO()
+    run_statusline(stdin, stdout, dict(os.environ) | {"MEUTE_SESSION": str(SID)})
+    assert stdout.getvalue() == "ok\n"
+    assert (tmp_path / "got").read_bytes() == b'{"model": {"display_name": "caf\xe9"}}'
+
+
+def test_stdin_is_read_and_a_line_printed_even_without_a_home(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def no_home() -> Path:
+        message = "no home"
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(Path, "home", no_home)
+    stdin = io.StringIO(payload())
+    stdout = io.StringIO()
+    run_statusline(stdin, stdout, {})
+    assert stdin.read() == ""
+    assert "Opus 5.5" in ESCAPE.sub("", stdout.getvalue())

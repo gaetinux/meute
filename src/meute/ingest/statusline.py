@@ -28,6 +28,7 @@ from meute.ingest.hook import BUSY_TIMEOUT_MS, MAX_STDIN_CHARS
 from meute.ingest.log import log_error
 
 _CHAIN_TIMEOUT_SECONDS = 1
+_REAP_TIMEOUT_SECONDS = 0.2
 _COMMAND = "ingest statusline"
 
 
@@ -83,8 +84,32 @@ def _user() -> str:
         return "?"
 
 
+def _encode(payload: str) -> bytes:
+    """Return the bytes read from stdin, original bytes included when they were not UTF-8."""
+    try:
+        return payload.encode("utf-8", errors="surrogateescape")
+    except UnicodeEncodeError:
+        return payload.encode("utf-8", errors="replace")
+
+
+def _abandon(process: "subprocess.Popen[bytes]") -> None:
+    """Kill the chain and let go of it at once, whatever descendants still hold its pipes."""
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(process.pid, signal.SIGKILL)
+    for pipe in (process.stdin, process.stdout):
+        if pipe is not None:
+            with contextlib.suppress(OSError):
+                pipe.close()
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        process.wait(timeout=_REAP_TIMEOUT_SECONDS)
+
+
 def _run_chain(chain: str, payload: str) -> str | None:
-    """Return the output of the user's `chain` command, or None when it fails or is too slow."""
+    """Return the output of the user's `chain` command, or None when it fails or is too slow.
+
+    Takes about a second at most, whatever the command and its descendants do.
+    """
+    data = _encode(payload)  # before the child exists: nothing here can orphan it
     process = subprocess.Popen(  # noqa: S603 — the command is the user's own configuration
         ["/bin/sh", "-c", chain],
         stdin=subprocess.PIPE,
@@ -93,14 +118,20 @@ def _run_chain(chain: str, payload: str) -> str | None:
         start_new_session=True,  # its whole group can be killed on a timeout
     )
     try:
-        output, _ = process.communicate(payload.encode(), timeout=_CHAIN_TIMEOUT_SECONDS)
+        output, _ = process.communicate(data, timeout=_CHAIN_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
-        with contextlib.suppress(ProcessLookupError):
-            os.killpg(process.pid, signal.SIGKILL)
-        process.communicate()
+        _abandon(process)
         return None
+    except BaseException:
+        _abandon(process)  # an interruption must not orphan the child either
+        raise
     text = output.decode("utf-8", errors="replace")
     return text if process.returncode == 0 and text.strip() else None
+
+
+def _log(paths: Paths | None, error: Exception) -> None:
+    if paths is not None:
+        log_error(paths.state_dir, _COMMAND, error)
 
 
 def run_statusline(stdin: TextIO, stdout: TextIO, environ: Mapping[str, str]) -> None:
@@ -111,9 +142,12 @@ def run_statusline(stdin: TextIO, stdout: TextIO, environ: Mapping[str, str]) ->
     stops the line from being printed. A payload that is not a JSON object under 1 MiB is
     logged and prints nothing.
     """
-    paths = Paths.from_env(environ, home=Path.home())
-    raw = stdin.read(MAX_STDIN_CHARS + 1)
+    raw = stdin.read(MAX_STDIN_CHARS + 1)  # first: nothing below may leave stdin unread
     config = Config()
+    try:
+        paths: Paths | None = Paths.from_env(environ, home=Path.home())
+    except Exception:  # noqa: BLE001 — no home folder: no samples, no log, still a line
+        paths = None
     try:
         if len(raw) > MAX_STDIN_CHARS:
             drain(stdin)
@@ -121,22 +155,23 @@ def run_statusline(stdin: TextIO, stdout: TextIO, environ: Mapping[str, str]) ->
             raise ValueError(message)  # noqa: TRY301 — logged below like any other failure
         data = _parse(raw)
     except ValueError as error:  # not a statusline call: nothing sensible to print
-        log_error(paths.state_dir, _COMMAND, error)
+        _log(paths, error)
         return
-    try:
-        _record(data, paths, environ)
-    except Exception as error:  # noqa: BLE001 — the line must still be printed
-        log_error(paths.state_dir, _COMMAND, error)
-    try:
-        config = load_config(paths.config_file)
-    except Exception as error:  # noqa: BLE001 — the default line is better than none
-        log_error(paths.state_dir, _COMMAND, error)
+    if paths is not None:
+        try:
+            _record(data, paths, environ)
+        except Exception as error:  # noqa: BLE001 — the line must still be printed
+            _log(paths, error)
+        try:
+            config = load_config(paths.config_file)
+        except Exception as error:  # noqa: BLE001 — the default line is better than none
+            _log(paths, error)
     line = None
     if config.statusline.chain:
         try:
             line = _run_chain(config.statusline.chain, raw)
         except Exception as error:  # noqa: BLE001 — a broken chain falls back to meute's line
-            log_error(paths.state_dir, _COMMAND, error)
+            _log(paths, error)
     if line is None:
         line = render_statusline(
             data,
