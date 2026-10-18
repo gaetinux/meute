@@ -1,5 +1,8 @@
 """Repository kind detection."""
 
+import codecs
+import os
+import stat
 from enum import Enum
 from pathlib import Path
 
@@ -16,11 +19,38 @@ class RepoKind(Enum):
     PYTHON = "python"
 
 
-def _mentions_fastapi(path: Path) -> bool:
+def _is_present(path: Path) -> bool:
+    """Whether `path` is a regular file or a symlink, without following it."""
     try:
-        with path.open("rb") as handle:
-            text = handle.read(_TEXT_LIMIT).decode("utf-8")
-    except (OSError, ValueError):
+        mode = path.lstat().st_mode
+    except OSError:
+        return False
+    return stat.S_ISREG(mode) or stat.S_ISLNK(mode)
+
+
+def _read_regular(path: Path) -> bytes | None:
+    """The first bytes of `path` if it is a regular file; a symlink, FIFO or device is not read."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return None
+    try:
+        with os.fdopen(fd, "rb") as handle:
+            if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                return None
+            return handle.read(_TEXT_LIMIT)
+    except OSError:
+        return None
+
+
+def _mentions_fastapi(path: Path) -> bool:
+    data = _read_regular(path)
+    if data is None:
+        return False
+    try:
+        # Not final: a character cut by the read limit is dropped, invalid bytes still fail.
+        text = codecs.getincrementaldecoder("utf-8")().decode(data, final=False)
+    except ValueError:
         return False
     return "fastapi" in text.lower()
 
@@ -29,7 +59,7 @@ def detect_kind(folder: Path) -> RepoKind | None:
     """Detects the kind of project in `folder`; the first matching rule wins."""
 
     def has(name: str) -> bool:
-        return (folder / name).is_file()
+        return _is_present(folder / name)
 
     if has("Cargo.toml"):
         return RepoKind.RUST
