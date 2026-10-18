@@ -53,7 +53,8 @@ def refresh(
     """Read the panes, then reconcile; a tmux failure stops everything before any write.
 
     With `agents` (from `claude agents --json`), silent Claude sessions get their assumed state
-    and the agents outside meute are returned; `None` means the command was not consulted.
+    and the agents outside meute are returned. Without `agents` (not consulted, or failed) only
+    the silence rule applies: a silent running session is `stuck?`.
 
     Raises:
         TmuxError: tmux could not be read.
@@ -66,10 +67,8 @@ def refresh(
         include_ended=include_ended,
         sessions=sessions,
         unsettled=_unsettled(env.tmux, panes),
-        reading=None
-        if agents is None
-        else AgentsReading(
-            agents=agents,
+        reading=AgentsReading(
+            agents=() if agents is None else agents,
             now=ctx.now,
             stuck_after=timedelta(minutes=ctx.config.claude.stuck_after_minutes),
         ),
