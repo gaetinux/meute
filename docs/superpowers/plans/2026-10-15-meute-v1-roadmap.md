@@ -66,9 +66,9 @@ Ce que le plan 3 laisse volontairement de côté, à traiter dans les plans indi
 Limites connues, relevées pendant le plan 3 :
 
 - **Hook `Notification`** : Claude Code 2.1.302 ne l'a jamais émis pendant la capture S7 ; les tests utilisent un exemple fait à la main. À recapturer quand une version l'émet.
-- **Chemin chaud `ingest hook`** : 44,8 ms en médiane (p95 45,6 ms) pour un budget de 50 ms ; peu de marge et aucun test de durée ne le garde.
-- **`ingest`** : une charge trop grosse n'est pas lue jusqu'au bout ; la rotation de `ingest.log` n'est pas atomique entre processus et le journal est ouvert sans `O_NOFOLLOW` ; un hook contenant des substituts isolés est abandonné (journalisé).
-- **États** : un `SubagentStop` tardif ignoré, et un état supposé (`stuck?`, `idle`), mettent quand même à jour `last_activity_at` ; un sous-agent d'arrière-plan qui finit pendant que l'utilisateur lit n'apparaît pas dans l'état.
+- **Chemins chauds** : `ingest hook` 41,0 ms en médiane (p95 48,7 ms) et `ingest statusline` 47,1 ms sans base, pour un budget de 50 ms ; peu de marge et aucun test de durée ne les garde.
+- **`ingest`** : la rotation de `ingest.log` n'est pas atomique entre processus ; un hook contenant des substituts isolés est abandonné (journalisé).
+- **États** : un `SubagentStop` tardif ignoré met quand même à jour `last_activity_at` ; un sous-agent d'arrière-plan qui finit pendant que l'utilisateur lit n'apparaît pas dans l'état ; `/clear` et `/resume` sont traités d'après la documentation de Claude Code, sans capture réelle (à vérifier au premier essai du plan 4) ; `meute session stop` relit sans `claude agents` et peut écrire `stuck?` pour une session silencieuse, que le tableau de bord corrige au relevé suivant ; après une permission refusée, la session reste `permission` jusqu'au prompt suivant.
 - **Statusline** : les descendants `setsid` de la commande `[statusline] chain` lui survivent.
 - **`--settings`** : un `settings.json` ou un dossier de session remplacé par un lien symbolique est suivi ; les dossiers parents du dossier 0700 suivent l'umask ; le dossier de réglages reste en place si le lancement échoue.
 - **`claude agents --json`** : la liste des sessions extérieures reste vide pendant qu'une nouvelle tentative attend après un échec ; la purge des relevés au démarrage du tableau de bord n'est pas protégée contre `sqlite3.Error`.
