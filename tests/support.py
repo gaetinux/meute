@@ -83,6 +83,14 @@ def claude_fixture(name: str) -> JsonObject:
     return loaded
 
 
+def claude_statusline_fixture(name: str) -> JsonObject:
+    """Load the captured Claude 2.1.302 statusline payload `<name>.json`, e.g. `statusline-2`."""
+    path = Path(__file__).parent / "fixtures/claude/2.1.302" / f"{name}.json"
+    loaded = load_json(path.read_text(encoding="utf-8"))
+    assert isinstance(loaded, dict)
+    return loaded
+
+
 def seed_mixed(db: Database) -> None:
     """Create project `meute` and eight tasks covering every status, priority and due kind."""
     project = create_project(db, "meute")
