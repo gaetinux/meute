@@ -2,8 +2,10 @@
 
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, tzinfo
+
+from meute.core.statusline import StatuslineData
 
 PROJECTION_WINDOW = timedelta(minutes=30)
 """How far back the samples count for the "limit around" projection."""
@@ -22,6 +24,19 @@ class QuotaLine:
     seven_day_resets_at: datetime | None
     limit_at: datetime | None
     peak: str
+
+
+def current_quota(sample: StatuslineData, *, now: datetime) -> StatuslineData:
+    """Return `sample` without the windows whose reset is not after `now`.
+
+    A window that has reset says nothing about the current one: its percentage and reset are
+    dropped until a newer sample arrives. A window with no known reset is kept.
+    """
+    if sample.five_hour_resets_at is not None and sample.five_hour_resets_at <= now:
+        sample = replace(sample, five_hour_pct=None, five_hour_resets_at=None)
+    if sample.seven_day_resets_at is not None and sample.seven_day_resets_at <= now:
+        sample = replace(sample, seven_day_pct=None, seven_day_resets_at=None)
+    return sample
 
 
 def _current_cycle(samples: Sequence[tuple[datetime, float]]) -> Sequence[tuple[datetime, float]]:

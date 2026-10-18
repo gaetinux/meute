@@ -6,6 +6,7 @@ from meute.cli.tmux_env import TmuxEnv
 from meute.core.db.samples import latest_quota
 from meute.core.db.sessions import get_session, list_sessions
 from meute.core.errors import InvalidInput
+from meute.core.quota_view import current_quota
 from meute.core.session import SessionId
 from meute.tmux.layout import ensure_layout, find_layout
 from meute.tmux.names import MAIN_SESSION, MAIN_WINDOW, ROLE_WELCOME
@@ -52,7 +53,8 @@ def show_session(ctx: CliContext, env: TmuxEnv, session_id: SessionId) -> None:
         if previous is not None and previous.role == ROLE_WELCOME:
             kill_pane(env.tmux, previous.id)
     select_pane(env.tmux, pane.id)
-    quota = latest_quota(ctx.db)
+    sample = latest_quota(ctx.db)
+    quota = None if sample is None else current_quota(sample, now=ctx.db.now())
     _ = publish_status(
         env.tmux,
         session.title,

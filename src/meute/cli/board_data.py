@@ -15,7 +15,7 @@ from meute.core.db.projects import list_projects
 from meute.core.db.repos import list_repos
 from meute.core.db.samples import latest_metrics_by_session, latest_quota, quota_history
 from meute.core.db.sessions import list_sessions
-from meute.core.quota_view import PROJECTION_WINDOW, QuotaLine, projected_limit
+from meute.core.quota_view import PROJECTION_WINDOW, QuotaLine, current_quota, projected_limit
 from meute.core.session import SessionId
 from meute.core.session_state import is_live
 from meute.core.statusline_render import peak_text
@@ -24,8 +24,12 @@ RECENTLY_ENDED = timedelta(days=7)
 
 
 def quota_line(ctx: CliContext, now: datetime, environ: Mapping[str, str]) -> QuotaLine:
-    """Return the latest quota, its "limit around" projection and the peak hours (spec 7.4)."""
-    latest = latest_quota(ctx.db)
+    """Return the latest quota, its "limit around" projection and the peak hours (spec 7.4).
+
+    Windows that have reset since the latest sample are left out.
+    """
+    sample = latest_quota(ctx.db)
+    latest = None if sample is None else current_quota(sample, now=now)
     five_resets = None if latest is None else latest.five_hour_resets_at
     history = quota_history(ctx.db, since=now - PROJECTION_WINDOW)
     return QuotaLine(
