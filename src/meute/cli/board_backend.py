@@ -1,21 +1,21 @@
 """The dashboard's backend: tmux and the database, read and acted upon by the CLI code."""
 
 import time
-from collections.abc import Callable, Collection, Generator, Mapping
+from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import timedelta
 from typing import TYPE_CHECKING, assert_never
 
 from meute.claude.launch import find_claude
 from meute.cli.agents_poller import AgentsPoller
+from meute.cli.board_data import load_board_data
 from meute.cli.context import BUSY_TIMEOUT_MS, ENVIRONMENT_ERRORS, CliContext
 from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
-from meute.cli.session_refresh import refresh
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
+from meute.cli.status_publish import publish_status
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.attention import attention_count
 from meute.core.board_view import (
@@ -24,33 +24,21 @@ from meute.core.board_view import (
     Detach,
     LaunchBash,
     LaunchClaude,
-    SessionRow,
     ShowSession,
     StopSession,
 )
-from meute.core.clock import local_zone
-from meute.core.db.claude_sessions import claude_details_by_session, purge_samples
+from meute.core.db.claude_sessions import purge_samples
 from meute.core.db.connection import Database
-from meute.core.db.projects import list_projects
-from meute.core.db.repos import list_repos
-from meute.core.db.samples import latest_metrics, latest_quota, quota_history
-from meute.core.db.sessions import list_sessions
 from meute.core.errors import MeuteError
-from meute.core.quota_view import QuotaLine, projected_limit
 from meute.core.session import SessionId
-from meute.core.session_state import is_live
 from meute.core.status_line import status_text
-from meute.core.statusline_render import peak_text
-from meute.tmux.names import STATUS_OPTION
-from meute.tmux.panes import detach_client, set_global_option
+from meute.tmux.panes import detach_client
 
 if TYPE_CHECKING:
     from meute.core.agents import AgentInfo
 
 TMUX_REREAD_SECONDS = 2.0
 SAMPLE_RETENTION = timedelta(days=30)
-QUOTA_HISTORY = timedelta(minutes=30)
-RECENTLY_ENDED = timedelta(days=7)
 
 
 @contextmanager
@@ -59,35 +47,6 @@ def _as_meute_error() -> Generator[None]:
         yield
     except ENVIRONMENT_ERRORS as error:
         raise MeuteError(str(error)) from error
-
-
-def quota_line(ctx: CliContext, now: datetime, environ: Mapping[str, str]) -> QuotaLine:
-    """Return the latest quota, its "limit around" projection and the peak hours (spec 7.4)."""
-    latest = latest_quota(ctx.db)
-    five_resets = None if latest is None else latest.five_hour_resets_at
-    history = quota_history(ctx.db, since=now - QUOTA_HISTORY)
-    return QuotaLine(
-        five_hour_pct=None if latest is None else latest.five_hour_pct,
-        five_hour_resets_at=five_resets,
-        seven_day_pct=None if latest is None else latest.seven_day_pct,
-        seven_day_resets_at=None if latest is None else latest.seven_day_resets_at,
-        limit_at=projected_limit(history, resets_at=five_resets, now=now),
-        peak=peak_text(now, ctx.config.quotas, local_zone(environ)),
-    )
-
-
-def recently_ended(
-    ctx: CliContext, shown: Collection[SessionId], now: datetime
-) -> tuple[SessionRow, ...]:
-    """Return the sessions ended within 7 days that `shown` lacks: they have no pane."""
-    since = now - RECENTLY_ENDED
-    return tuple(
-        SessionRow(session=session, has_pane=False, displayed=False)
-        for session in list_sessions(ctx.db, include_ended=True)
-        if not is_live(session.state)
-        and session.id not in shown
-        and (session.ended_at or session.last_activity_at) >= since
-    )
 
 
 def purge_old_samples(ctx: CliContext) -> int:
@@ -143,36 +102,18 @@ class CliBoardBackend:
             and now - self._read_at < TMUX_REREAD_SECONDS
         ):
             return None
-        snapshot = refresh(self._ctx, self._env, agents=self._known)
-        db = self._ctx.db
-        clock = db.now()
-        live = [row.session.id for row in snapshot.sessions if is_live(row.session.state)]
-        metrics = {session_id: latest_metrics(db, session_id) for session_id in live}
+        data = load_board_data(self._ctx, self._env, self._environ, self._known)
         self._data_version, self._read_at = version, now
-        quota = quota_line(self._ctx, clock, self._environ)
-        self._publish_status(snapshot.sessions, quota)
-        return BoardData(
-            sessions=snapshot.sessions,
-            repos=tuple(list_repos(db)),
-            orphans=snapshot.orphans,
-            home=Path.home(),
-            outside=snapshot.outside,
-            ended=recently_ended(self._ctx, {row.session.id for row in snapshot.sessions}, clock),
-            details=claude_details_by_session(db),
-            metrics={key: value for key, value in metrics.items() if value is not None},
-            projects={project.id: project.name for project in list_projects(db)},
-            quota=quota,
-            now=clock,
-        )
+        self._publish_status(data)
+        return data
 
-    def _publish_status(self, rows: tuple[SessionRow, ...], quota: QuotaLine) -> None:
+    def _publish_status(self, data: BoardData) -> None:
         """Write the tmux status line when its text changed since the last write."""
-        title = next((row.session.title for row in rows if row.displayed), None)
-        attention = attention_count([row.session for row in rows])
-        text = status_text(title, attention, quota.five_hour_pct)
-        if text != self._status:
-            set_global_option(self._env.tmux, STATUS_OPTION, text)
-            self._status = text
+        title = next((row.session.title for row in data.sessions if row.displayed), None)
+        sessions = [row.session for row in data.sessions]
+        pct = None if data.quota is None else data.quota.five_hour_pct
+        if self._status != status_text(title, attention_count(sessions), pct):
+            self._status = publish_status(self._env.tmux, title, sessions, pct)
 
     def close(self) -> None:
         """Stop the background `claude agents` run, if any."""

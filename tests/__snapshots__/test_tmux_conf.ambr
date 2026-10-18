@@ -21,7 +21,7 @@
   bind -n M-N run-shell -b "'/opt/meute/bin/python' '-m' 'meute' 'session' 'previous'"
   bind -n M-q detach-client
   bind -n M-p switch-client -t =meute:main \; select-pane -t '=meute:main.{right}'
-  bind -n M-o select-pane -t '=meute:main.{left}'
+  bind -n M-o if-shell -F "#{window_zoomed_flag}" "" "select-pane -t '=meute:main.{left}'"
   set-hook -g client-attached "run-shell -b \"'/opt/meute/bin/python' '-m' 'meute' 'layout' 'sync'\""
   set-hook -g client-resized "run-shell -b \"'/opt/meute/bin/python' '-m' 'meute' 'layout' 'sync'\""
   

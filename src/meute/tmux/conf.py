@@ -95,7 +95,11 @@ def render_config(spec: LayoutSpec) -> str:
             f"bind -n {spec.keys.focus_board} switch-client -t {target}"
             f" \\; select-pane -t '{target}.{{right}}'"
         ),
-        f"bind -n {spec.keys.focus_main} select-pane -t '{target}.{{left}}'",
+        # Narrow mode (zoomed window): the board is all there is, so the key does nothing.
+        (
+            f'bind -n {spec.keys.focus_main} if-shell -F "#{{window_zoomed_flag}}" ""'
+            f" \"select-pane -t '{target}.{{left}}'\""
+        ),
         *(f'set-hook -g {name} "{hook}"' for name in _SYNC_HOOKS),
     ]
     return "\n".join(lines) + "\n"

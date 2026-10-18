@@ -1,21 +1,18 @@
 """Showing a session in the main area of the `meute:main` window."""
 
 from meute.cli.context import CliContext
+from meute.cli.status_publish import publish_status
 from meute.cli.tmux_env import TmuxEnv
-from meute.core.attention import attention_count
 from meute.core.db.samples import latest_quota
 from meute.core.db.sessions import get_session, list_sessions
 from meute.core.errors import InvalidInput
 from meute.core.session import SessionId
-from meute.core.session_state import is_live
-from meute.core.status_line import status_text
 from meute.tmux.layout import ensure_layout, find_layout
-from meute.tmux.names import MAIN_SESSION, MAIN_WINDOW, ROLE_WELCOME, STATUS_OPTION
+from meute.tmux.names import MAIN_SESSION, MAIN_WINDOW, ROLE_WELCOME
 from meute.tmux.panes import (
     kill_pane,
     list_panes,
     select_pane,
-    set_global_option,
     swap_panes,
     switch_client_to,
 )
@@ -56,9 +53,9 @@ def show_session(ctx: CliContext, env: TmuxEnv, session_id: SessionId) -> None:
             kill_pane(env.tmux, previous.id)
     select_pane(env.tmux, pane.id)
     quota = latest_quota(ctx.db)
-    text = status_text(
+    _ = publish_status(
+        env.tmux,
         session.title,
-        attention_count([row for row in list_sessions(ctx.db) if is_live(row.state)]),
+        list_sessions(ctx.db),
         None if quota is None else quota.five_hour_pct,
     )
-    set_global_option(env.tmux, STATUS_OPTION, text)
