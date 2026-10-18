@@ -172,5 +172,5 @@ pytest_add_cli_args_test_selection = [
     "tests/test_views.py", "tests/test_session_state.py", "tests/test_session_model.py",
     "tests/test_db_sessions.py", "tests/test_reconcile.py", "tests/test_mutants_db.py", "tests/test_mutants_config.py",
     "tests/test_mutants_model.py", "tests/test_tmux_parse.py", "tests/test_tmux_version.py",
-    "tests/test_tmux_conf.py",
+    "tests/test_tmux_conf.py", "tests/test_git_kind.py", "tests/test_git_discover.py",
 ]
