@@ -17,7 +17,7 @@ from hypothesis import settings
 
 from meute.core.db.connection import Database
 from meute.tmux.client import Tmux
-from process_support import survivors
+from process_support import command_line, survivors
 from support import FIXED
 from tmux_support import (
     RUN_DIR_PREFIX,
@@ -75,11 +75,12 @@ def no_process_survives() -> Generator[None]:
     deadline = time.monotonic() + _SURVIVOR_GRACE_SECONDS
     while (left := survivors(nodeid)) and time.monotonic() < deadline:
         time.sleep(0.02)
+    described = [f"{pid} {command_line(pid)}" for pid in left]
     for pid in left:
         with suppress(OSError):
             os.kill(pid, signal.SIGKILL)
-    if left and nodeid not in _ESCAPING_ON_PURPOSE:
-        pytest.fail(f"processes outlived the test: {left}", pytrace=False)
+    if described and nodeid not in _ESCAPING_ON_PURPOSE:
+        pytest.fail(f"processes outlived the test: {described}", pytrace=False)
 
 
 @pytest.fixture

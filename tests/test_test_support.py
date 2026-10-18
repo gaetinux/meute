@@ -98,3 +98,15 @@ def test_survivors_finds_the_processes_a_test_left(monkeypatch: pytest.MonkeyPat
     while survivors("tests/x.py::left") and time.monotonic() < deadline:
         time.sleep(0.01)
     assert survivors("tests/x.py::left") == []
+
+
+def test_survivors_ignores_another_run_of_the_same_test(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "tests/x.py::other_run (call)")
+    monkeypatch.setenv("TMUX_TMPDIR", "/elsewhere/meute-tests-1")  # another run's folder
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        monkeypatch.undo()
+        assert survivors("tests/x.py::other_run") == []
+    finally:
+        child.send_signal(signal.SIGKILL)
+        _ = child.wait()
