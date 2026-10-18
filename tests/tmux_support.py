@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
-from meute.tmux.client import Tmux
-from meute.tmux.errors import NotInstalled, TmuxError
+from meute.tmux.client import Tmux, is_no_server
+from meute.tmux.errors import CommandFailed, NotInstalled, TmuxError
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -46,8 +46,17 @@ class TestServer:
         )
 
     def stop(self) -> None:
-        """Kill the server and remove its socket file; an already dead server is fine."""
-        self._run("kill-server")
-        if self.socket_path is not None:
-            with suppress(OSError):
-                self.socket_path.unlink(missing_ok=True)
+        """Kill the server and remove its socket file; an already dead server is fine.
+
+        Raises:
+            CommandFailed: kill-server failed for a reason other than a missing server.
+        """
+        try:
+            killed = self._run("kill-server")
+            error = CommandFailed(("kill-server",), killed.stderr.rstrip())
+            if killed.returncode != 0 and not is_no_server(error):
+                raise error
+        finally:
+            if self.socket_path is not None:
+                with suppress(OSError):
+                    self.socket_path.unlink(missing_ok=True)

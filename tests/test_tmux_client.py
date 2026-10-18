@@ -54,19 +54,24 @@ def test_unreadable_output_message() -> None:
 
 def test_stop_removes_the_socket_file() -> None:
     server = TestServer.start()
-    socket = Path(server.tmux.run("display-message", "-p", "#{socket_path}"))
-    assert socket.exists()
-    server.stop()
+    try:
+        socket = Path(server.tmux.run("display-message", "-p", "#{socket_path}"))
+        assert socket.exists()
+    finally:
+        server.stop()
     assert not socket.exists()
 
 
 def test_stop_works_when_path_is_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     server = TestServer.start()
-    socket = Path(server.tmux.run("display-message", "-p", "#{socket_path}"))
-    with monkeypatch.context() as patch:
-        patch.setenv("PATH", "")
+    try:
+        socket = Path(server.tmux.run("display-message", "-p", "#{socket_path}"))
+        with monkeypatch.context() as patch:
+            patch.setenv("PATH", "")
+            server.stop()
+        with pytest.raises(CommandFailed) as raised:
+            server.tmux.run("ls")
+        assert is_no_server(raised.value)
+        assert not socket.exists()
+    finally:
         server.stop()
-    with pytest.raises(CommandFailed) as raised:
-        server.tmux.run("ls")
-    assert is_no_server(raised.value)
-    assert not socket.exists()
