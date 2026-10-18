@@ -12,7 +12,7 @@ La V1 est découpée en six plans. Chacun produit un logiciel utilisable et test
 | # | Plan | Livrable | Sections de la spécification |
 |---|---|---|---|
 | 1 | **Socle et tâches** — *fait en Python (PR #7)* : `docs/superpowers/plans/2026-10-16-meute-plan-1-python-socle-taches.md` | Workspace, CI, configuration, base SQLite et migrations, gestion des tâches et des projets en CLI | § 4.2, 4.3, 9.1–9.3, 13, 16, 17 |
-| 2 | tmux, dépôts et sessions Bash — *à faire en Python* : `docs/superpowers/plans/2026-10-18-meute-plan-2-python-tmux-sessions-bash.md` (référence : plan Rust sous `rust-plan-2-wip`) | `meute` démarre son serveur tmux, sa disposition (zone principale et tableau de bord minimal), découvre les dépôts et lance, échange, réconcilie et arrête des sessions Bash | § 5, 6.1, 6.3–6.5, 10 (découverte) |
+| 2 | tmux, dépôts et sessions Bash — *fait en Python* : `docs/superpowers/plans/2026-10-18-meute-plan-2-python-tmux-sessions-bash.md` (référence : plan Rust sous `rust-plan-2-wip`) | `meute` démarre son serveur tmux, sa disposition (zone principale et tableau de bord minimal), découvre les dépôts et lance, échange, réconcilie et arrête des sessions Bash | § 5, 6.1, 6.3–6.5, 10 (découverte) |
 | 3 | Adaptateur Claude | Lancement de Claude (§ 6.2), `meute ingest hook` / `statusline`, rendu de la statusline, `claude agents --json` | § 5.5, 6.2, 7 |
 | 4 | TUI complet | Vue Sessions (projets, « à traiter », quotas et projection, détails), vue Tâches (saisie rapide avec aperçu, regroupements, détail), mode étroit | § 4.5, 5.2, 7.4, 9.5, 10 |
 | 5 | MCP | `meute mcp` et les outils de tâches, contexte composé (§ 8) | § 8, 12 |
@@ -43,3 +43,14 @@ Décisions prises à la revue finale du plan 1, à traiter au début des plans s
 - **Plan 3, critère d'entrée — ouverture concurrente de la base** : deux processus qui ouvrent ou migrent la base en même temps (les hooks de Claude se déclenchent en parallèle) doivent passer par un verrou `IMMEDIATE`, ou relire la version et réessayer, autour de la sauvegarde et de la migration.
 - **Avant les plans 2 à 6 — tests** : regrouper les fonctions utilitaires de test de `meute-core` dans `tests/common/` — *intégré au plan 1 Python* (fixtures dans `tests/conftest.py`, fonctions dans `tests/support.py`).
 
+## Reports issus du plan 2
+
+Ce que le plan 2 laisse volontairement de côté, à traiter dans les plans indiqués :
+
+- **Plans 3 et 4 — états Claude** : `M-n` / `M-N` et le compteur « needs attention » de la barre d'état dépendent des états Claude.
+- **Plan 3 — `meute session new --kind`** : l'option vaudra `claude` par défaut (elle lance Bash seul au plan 2).
+- **Plan 3, critère d'entrée — ouverture concurrente de la base** : maintenu tel quel (voir « Reports issus du plan 1 »).
+- **Plan 3 — colonnes Claude de `sessions`** : `native_id`, mode de permission, métriques… arrivent avec la migration du plan 3.
+- **Plan 4 — TUI complet** : les actions sur les panneaux orphelins (adopter, fermer), qui sont seulement affichés ; le formulaire `N`, la recommandation de worktree et le « dernier type utilisé » de `n` (qui lance toujours Bash) ; la vue Sessions alimentée par tmux seul quand la base est indisponible ou verrouillée (§ 16 ; le tableau de bord affiche l'erreur dans son pied de page).
+- **Plan 6 — projets automatiques et worktrees** : la création automatique de projets et les worktrees ; les worktrees découverts ne sont pas enregistrés en base.
+- **Avant les plans hooks et MCP (3 et 5)** : retirer les caractères de contrôle des titres affichés (report du plan 1).
