@@ -38,7 +38,8 @@ def fetch_all(
     return [tuple(row) for row in conn.execute(sql, params)]  # pyright: ignore[reportAny] — sqlite3 rows are untyped
 
 
-def _text(value: object) -> str:
+def as_text(value: object) -> str:
+    """Return `value` as a str; a corrupt database raises ValueError."""
     if not isinstance(value, str):
         message = f"corrupt row: expected text, got {value!r}"
         raise ValueError(message)  # noqa: TRY004 — a corrupt database, not a caller error
@@ -61,11 +62,13 @@ def inserted_id(cursor: sqlite3.Cursor) -> int:
     return cursor.lastrowid
 
 
-def _instant(value: object) -> datetime:
-    return from_db(_text(value))
+def as_instant(value: object) -> datetime:
+    """Return the stored instant `value`; a corrupt database raises ValueError."""
+    return from_db(as_text(value))
 
 
-def _optional[T](convert: Callable[[object], T], value: object) -> T | None:
+def optional[T](convert: Callable[[object], T], value: object) -> T | None:
+    """Return `convert(value)`, or None when `value` is NULL."""
     return None if value is None else convert(value)
 
 
@@ -73,18 +76,18 @@ def row_to_project(row: tuple[object, ...]) -> Project:
     """Convert a `projects` row (id, name, description, instructions, created_at)."""
     return Project(
         id=ProjectId(as_integer(row[0])),
-        name=_text(row[1]),
-        description=_text(row[2]),
-        instructions=_text(row[3]),
-        created_at=_instant(row[4]),
+        name=as_text(row[1]),
+        description=as_text(row[2]),
+        instructions=as_text(row[3]),
+        created_at=as_instant(row[4]),
     )
 
 
 def _row_due(due_date: object, due_at: object) -> Due | None:
     if due_date is not None:
-        return DueDate(day=date.fromisoformat(_text(due_date)))
+        return DueDate(day=date.fromisoformat(as_text(due_date)))
     if due_at is not None:
-        return DueAt(at=_instant(due_at))
+        return DueAt(at=as_instant(due_at))
     return None
 
 
@@ -94,25 +97,25 @@ def row_to_task(row: tuple[object, ...]) -> Task:
     Raises:
         ValueError: the row holds an unknown status or priority, or a wrong type.
     """
-    project_id = _optional(as_integer, row[8])
+    project_id = optional(as_integer, row[8])
     project = (
-        None if project_id is None else ProjectRef(id=ProjectId(project_id), name=_text(row[9]))
+        None if project_id is None else ProjectRef(id=ProjectId(project_id), name=as_text(row[9]))
     )
-    repo_id = _optional(as_integer, row[10])
-    status: TaskStatus = status_from_kind(StatusKind(_text(row[3])), _optional(_text, row[4]))
+    repo_id = optional(as_integer, row[10])
+    status: TaskStatus = status_from_kind(StatusKind(as_text(row[3])), optional(as_text, row[4]))
     return Task(
         id=TaskId(as_integer(row[0])),
-        title=_text(row[1]),
-        description=_text(row[2]),
+        title=as_text(row[1]),
+        description=as_text(row[2]),
         status=status,
-        priority=Priority(_text(row[5])),
+        priority=Priority(as_text(row[5])),
         due=_row_due(row[6], row[7]),
         project=project,
         repo_id=None if repo_id is None else RepoId(repo_id),
         version=as_integer(row[11]),
-        created_at=_instant(row[12]),
-        updated_at=_instant(row[13]),
-        completed_at=_optional(_instant, row[14]),
+        created_at=as_instant(row[12]),
+        updated_at=as_instant(row[13]),
+        completed_at=optional(as_instant, row[14]),
     )
 
 
@@ -120,13 +123,13 @@ def row_to_event(row: tuple[object, ...]) -> TaskEvent:
     """Convert a `task_events` row (task_id, field, old, new, author, channel, session, at)."""
     return TaskEvent(
         task_id=TaskId(as_integer(row[0])),
-        field=_text(row[1]),
-        old_value=_optional(_text, row[2]),
-        new_value=_optional(_text, row[3]),
-        author=Author(_text(row[4])),
-        channel=Channel(_text(row[5])),
-        session_id=_optional(_text, row[6]),
-        created_at=_instant(row[7]),
+        field=as_text(row[1]),
+        old_value=optional(as_text, row[2]),
+        new_value=optional(as_text, row[3]),
+        author=Author(as_text(row[4])),
+        channel=Channel(as_text(row[5])),
+        session_id=optional(as_text, row[6]),
+        created_at=as_instant(row[7]),
     )
 
 
@@ -135,11 +138,11 @@ def row_to_note(row: tuple[object, ...]) -> Note:
     return Note(
         id=as_integer(row[0]),
         task_id=TaskId(as_integer(row[1])),
-        body=_text(row[2]),
-        author=Author(_text(row[3])),
-        channel=Channel(_text(row[4])),
-        session_id=_optional(_text, row[5]),
-        created_at=_instant(row[6]),
+        body=as_text(row[2]),
+        author=Author(as_text(row[3])),
+        channel=Channel(as_text(row[4])),
+        session_id=optional(as_text, row[5]),
+        created_at=as_instant(row[6]),
     )
 
 

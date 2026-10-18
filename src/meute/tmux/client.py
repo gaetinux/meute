@@ -8,6 +8,20 @@ from meute.tmux.errors import CommandFailed, NotInstalled, TooOld
 from meute.tmux.parse import MIN_VERSION, TmuxVersion, parse_version
 
 
+def _exec(argv: list[str]) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(  # noqa: S603 — fixed argv, no shell; "tmux" is resolved through PATH by design
+            argv,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except FileNotFoundError as error:
+        raise NotInstalled from error
+
+
 def is_no_server(error: CommandFailed) -> bool:
     """Whether the command failed only because no tmux server is running."""
     return "no server running" in error.stderr or "error connecting to" in error.stderr
@@ -34,17 +48,7 @@ class Tmux:
             NotInstalled: the tmux binary is missing.
             CommandFailed: tmux exited with a non-zero status.
         """
-        try:
-            done = subprocess.run(  # noqa: S603 — fixed argv, no shell; "tmux" is resolved through PATH by design
-                [*self.base_args(), *args],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                check=False,
-            )
-        except FileNotFoundError as error:
-            raise NotInstalled from error
+        done = _exec([*self.base_args(), *args])
         if done.returncode != 0:
             raise CommandFailed(args, done.stderr.rstrip())
         return done.stdout.removesuffix("\n")
@@ -87,15 +91,4 @@ def check_version() -> TmuxVersion | None:
         NotInstalled: the tmux binary is missing.
         TooOld: the installed tmux is older than 3.2.
     """
-    try:
-        done = subprocess.run(
-            ["tmux", "-V"],  # noqa: S607 — tmux is resolved through PATH by design
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-        )
-    except FileNotFoundError as error:
-        raise NotInstalled from error
-    return _classify_version(done.stdout)
+    return _classify_version(_exec(["tmux", "-V"]).stdout)

@@ -4,9 +4,16 @@ import sqlite3
 from pathlib import Path
 
 from meute.core.db.connection import Database
-from meute.core.db.rows import as_integer, fetch_all, fetch_one
+from meute.core.db.rows import (
+    as_instant,
+    as_integer,
+    as_text,
+    fetch_all,
+    fetch_one,
+    optional,
+)
 from meute.core.errors import InvalidInput, NotFound
-from meute.core.instants import from_db, to_db
+from meute.core.instants import to_db
 from meute.core.project import ProjectId, RepoId
 from meute.core.session import AgentKind, NewSession, Session, SessionId
 from meute.core.session_state import Exited, SessionState, is_live, state_from_parts, state_id
@@ -17,21 +24,14 @@ _SELECT = (
     " last_activity_at, created_at, ended_at FROM sessions"
 )
 _MIN_PREFIX = 4
+_ENDED_STATES = "('exited', 'unreachable')"  # the states `is_live` rejects
 
 
-def _text(value: object) -> str:
-    if not isinstance(value, str):
-        message = f"corrupt row: expected text, got {value!r}"
-        raise ValueError(message)  # noqa: TRY004 — a corrupt database, not a caller error
-    return value
-
-
-def _optional_integer(value: object) -> int | None:
-    return None if value is None else as_integer(value)
+_text = as_text
 
 
 def _row_to_session(row: tuple[object, ...]) -> Session:
-    project_id, repo_id, task_id = (_optional_integer(row[i]) for i in (3, 4, 5))
+    project_id, repo_id, task_id = (optional(as_integer, row[i]) for i in (3, 4, 5))
     return Session(
         id=SessionId(_text(row[0])),
         agent=AgentKind(_text(row[1])),
@@ -40,10 +40,10 @@ def _row_to_session(row: tuple[object, ...]) -> Session:
         repo_id=None if repo_id is None else RepoId(repo_id),
         task_id=None if task_id is None else TaskId(task_id),
         cwd=Path(_text(row[6])),
-        state=state_from_parts(_text(row[7]), _optional_integer(row[8])),
-        last_activity_at=from_db(_text(row[9])),
-        created_at=from_db(_text(row[10])),
-        ended_at=None if row[11] is None else from_db(_text(row[11])),
+        state=state_from_parts(_text(row[7]), optional(as_integer, row[8])),
+        last_activity_at=as_instant(row[9]),
+        created_at=as_instant(row[10]),
+        ended_at=optional(as_instant, row[11]),
     )
 
 
@@ -148,10 +148,9 @@ def find_session(db: Database, prefix: str) -> Session:
 
 def list_sessions(db: Database, *, include_ended: bool = False) -> list[Session]:
     """Return the sessions ordered by creation then identifier; live ones unless asked."""
-    sessions = [
-        _row_to_session(row) for row in fetch_all(db.conn, f"{_SELECT} ORDER BY created_at, id")
-    ]
-    return sessions if include_ended else [s for s in sessions if is_live(s.state)]
+    where = "" if include_ended else f" WHERE state NOT IN {_ENDED_STATES}"
+    rows = fetch_all(db.conn, f"{_SELECT}{where} ORDER BY created_at, id")
+    return [_row_to_session(row) for row in rows]
 
 
 def set_session_state(db: Database, session_id: SessionId, state: SessionState) -> Session:

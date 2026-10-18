@@ -1,5 +1,6 @@
 """A throw-away tmux server for tests: dedicated socket, empty configuration."""
 
+import os
 import shutil
 import subprocess
 from contextlib import suppress
@@ -9,6 +10,30 @@ from uuid import uuid4
 
 from meute.tmux.client import Tmux, is_no_server
 from meute.tmux.errors import CommandFailed, NotInstalled, TmuxError
+
+
+def socket_file(socket: str) -> Path:
+    """Return where tmux keeps the socket file of `-L socket`."""
+    parent = os.environ.get("TMUX_TMPDIR") or "/tmp"  # noqa: S108 — tmux's own default socket folder
+    return Path(parent) / f"tmux-{os.getuid()}" / socket
+
+
+def kill_socket(
+    binary: str, socket: str, path: Path | None = None
+) -> subprocess.CompletedProcess[str] | None:
+    """Kill the server on `socket` and remove its socket file; None when there was no file.
+
+    The file is removed even when the server already exited on its own (its last pane died).
+    """
+    path = path or socket_file(socket)
+    if not path.exists():
+        return None
+    killed = subprocess.run(
+        [binary, "-L", socket, "kill-server"], capture_output=True, text=True, check=False
+    )
+    with suppress(OSError):
+        path.unlink(missing_ok=True)
+    return killed
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -37,26 +62,15 @@ class TestServer:
             raise
         return TestServer(tmux=tmux, binary=binary, socket_path=Path(path))
 
-    def _run(self, *args: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [self.binary, "-L", self.tmux.socket, *args],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
     def stop(self) -> None:
         """Kill the server and remove its socket file; an already dead server is fine.
 
         Raises:
             CommandFailed: kill-server failed for a reason other than a missing server.
         """
-        try:
-            killed = self._run("kill-server")
-            error = CommandFailed(("kill-server",), killed.stderr.rstrip())
-            if killed.returncode != 0 and not is_no_server(error):
-                raise error
-        finally:
-            if self.socket_path is not None:
-                with suppress(OSError):
-                    self.socket_path.unlink(missing_ok=True)
+        killed = kill_socket(self.binary, self.tmux.socket, self.socket_path)
+        if killed is None or killed.returncode == 0:
+            return
+        error = CommandFailed(("kill-server",), killed.stderr.rstrip())
+        if not is_no_server(error):
+            raise error

@@ -1,6 +1,6 @@
 """The reconciliation rule between recorded sessions and observed tmux panes."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 from meute.core.session import AgentKind, Session, SessionId
@@ -22,6 +22,19 @@ class Reconciliation:
 
     updates: tuple[tuple[SessionId, SessionState], ...]
     orphans: tuple[str, ...]
+
+
+def first_by_id[T](items: Iterable[T], key: Callable[[T], str | None]) -> dict[str, T]:
+    """Map each identifier given by `key` to the first item carrying it, in order.
+
+    Items whose `key` is None are ignored.
+    """
+    first: dict[str, T] = {}
+    for item in items:
+        meute_id = key(item)
+        if meute_id is not None:
+            first.setdefault(meute_id, item)
+    return first
 
 
 def _new_state(session: Session, pane: PaneObservation | None) -> SessionState | None:
@@ -49,9 +62,7 @@ def reconcile(sessions: Sequence[Session], panes: Sequence[PaneObservation]) -> 
         The updates, in session order, and the pane identifiers matching no session,
         without duplicates, in pane order.
     """
-    by_id: dict[str, PaneObservation] = {}
-    for pane in panes:
-        by_id.setdefault(pane.meute_id, pane)
+    by_id = first_by_id(panes, lambda pane: pane.meute_id)
     updates: list[tuple[SessionId, SessionState]] = []
     for session in sessions:
         if not is_live(session.state):

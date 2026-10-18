@@ -18,6 +18,15 @@ def meute_command() -> tuple[str, ...]:
     return (sys.executable, "-m", "meute")
 
 
+def _write_if_changed(path: Path, text: str) -> None:
+    try:
+        if path.read_text(encoding="utf-8") == text:
+            return
+    except (OSError, UnicodeDecodeError):
+        pass
+    write_atomic(path, text)
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class TmuxEnv:
     """A tmux client, the layout it is built for and the generated configuration file."""
@@ -45,7 +54,7 @@ def open_tmux_env(ctx: CliContext, environ: Mapping[str, str]) -> TmuxEnv:
         keys=Keys(focus_board=ctx.config.keys.focus_board, focus_main=ctx.config.keys.focus_main),
     )
     config_file = ctx.paths.state_dir / "tmux.conf"
-    write_atomic(config_file, render_config(spec))
+    _write_if_changed(config_file, render_config(spec))
     socket = environ.get("MEUTE_TMUX_SOCKET") or DEFAULT_SOCKET
     return TmuxEnv(
         tmux=Tmux(socket=socket, config_file=config_file), spec=spec, config_file=config_file

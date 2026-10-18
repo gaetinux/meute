@@ -1,5 +1,6 @@
 """What every command needs: the clock, the actor, the configuration and the database."""
 
+import sqlite3
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -15,6 +16,10 @@ from meute.core.errors import InvalidInput
 from meute.core.instants import parse_zoned
 from meute.core.paths import Paths
 from meute.core.project import Project
+from meute.tmux.errors import TmuxError
+
+ENVIRONMENT_ERRORS = (OSError, sqlite3.Error, TmuxError)
+"""Failures of the machine around meute (files, database, tmux), as opposed to bad input."""
 
 _BUSY_TIMEOUT_MS = 5000
 _LOCALTIME = Path("/etc/localtime")

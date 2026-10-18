@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import NewType
 
 from meute.tmux.errors import UnreadableOutput
+from meute.tmux.names import ID_OPTION, ROLE_OPTION
 
 _VERSION = re.compile(r"tmux\s+(?:next-)?(\d+)\.(\d+)")
 
@@ -31,7 +32,7 @@ def parse_version(output: str) -> TmuxVersion | None:
 PaneId = NewType("PaneId", str)  # a tmux pane identifier such as "%12"
 
 PANE_FORMAT = (
-    "#{pane_id}\t#{session_name}\t#{window_name}\t#{@meute_id}\t#{@meute_role}"
+    f"#{{pane_id}}\t#{{session_name}}\t#{{window_name}}\t#{{{ID_OPTION}}}\t#{{{ROLE_OPTION}}}"
     "\t#{pane_dead}\t#{pane_dead_status}\t#{pane_width}"
 )
 

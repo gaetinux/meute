@@ -4,17 +4,12 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from meute.core.db.connection import Database
-from meute.core.db.rows import as_integer, fetch_all
+from meute.core.db.rows import as_integer, as_text, fetch_all
 from meute.core.instants import from_db, to_db
 from meute.core.project import RepoId
 from meute.core.repo import NewRepo, Repo
 
-
-def _text(value: object) -> str:
-    if not isinstance(value, str):
-        message = f"corrupt row: expected text, got {value!r}"
-        raise ValueError(message)  # noqa: TRY004 — a corrupt database, not a caller error
-    return value
+_text = as_text
 
 
 def _row_to_repo(row: tuple[object, ...]) -> Repo:

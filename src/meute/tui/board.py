@@ -15,11 +15,10 @@ from meute.core.board_view import (
     BoardEntry,
     StopSession,
     board_entries,
-    board_lines,
+    board_layout,
     confirm_stop_text,
     enter_action,
     entry_key,
-    entry_line_indexes,
     error_text,
     new_action,
     stop_target,
@@ -99,14 +98,17 @@ class BoardApp(App[None]):
                 self._confirming = stop_target(entry)
 
     def _reload(self) -> None:
+        error_before = self._error
         try:
             data = self._backend.load()
         except MeuteError as error:
             self._error = str(error)
+            data = None
         else:
             if data is not None:
                 self._replace(data)
-        self._draw()
+        if data is not None or self._error != error_before:
+            self._draw()
 
     def _replace(self, data: BoardData) -> None:
         """Swap the data in, keeping the selected entry when it is still there."""
@@ -130,9 +132,10 @@ class BoardApp(App[None]):
 
     def _draw(self) -> None:
         # Content(...) never parses markup: titles, paths and names show literally.
-        lines = [Content(line) for line in board_lines(self._data)]
-        if self._selected_entry() is not None:
-            index = entry_line_indexes(self._data)[self._selected]
+        text_lines, indexes = board_layout(self._data)
+        lines = [Content(line) for line in text_lines]
+        if indexes:
+            index = indexes[self._selected]
             lines[index] = lines[index].stylize(_SELECTED_STYLE)
         self._board.update(Content("\n").join(lines))
         self._footer.update(Content(self._footer_text()))

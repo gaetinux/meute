@@ -8,7 +8,7 @@ from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import SessionRow
 from meute.core.db.connection import Database
 from meute.core.db.sessions import list_sessions, set_session_state
-from meute.core.reconcile import PaneObservation, reconcile
+from meute.core.reconcile import PaneObservation, first_by_id, reconcile
 from meute.core.session_state import is_live
 from meute.tmux.names import MAIN_SESSION
 from meute.tmux.panes import list_panes
@@ -39,30 +39,26 @@ def apply_refresh(
 
     With `include_ended`, ended sessions without a pane are returned too.
     """
-    # The first pane carrying an identifier counts, as in `reconcile`.
-    first: dict[str, PaneInfo] = {}
-    for pane in panes:
-        if pane.meute_id is not None:
-            first.setdefault(pane.meute_id, pane)
+    first = first_by_id(panes, lambda pane: pane.meute_id)
     observations = [
         PaneObservation(meute_id=meute_id, dead=pane.dead, exit_code=pane.dead_status)
         for meute_id, pane in first.items()
     ]
-    result = reconcile(list_sessions(db, include_ended=True), observations)
+    sessions = list_sessions(db, include_ended=True)
+    result = reconcile(sessions, observations)
     for session_id, state in result.updates:
         set_session_state(db, session_id, state)
-    rows = tuple(
+    if result.updates:
+        sessions = list_sessions(db, include_ended=True)
+    rows = (
         SessionRow(
             session=session,
             has_pane=session.id in first,
             displayed=session.id in first and first[session.id].session == MAIN_SESSION,
         )
-        for session in list_sessions(db, include_ended=True)
+        for session in sessions
     )
     shown = tuple(
         row for row in rows if include_ended or row.has_pane or is_live(row.session.state)
     )
-    return Snapshot(
-        sessions=shown,
-        orphans=result.orphans,
-    )
+    return Snapshot(sessions=shown, orphans=result.orphans)

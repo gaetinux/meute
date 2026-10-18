@@ -163,11 +163,11 @@ def _permission_mode(section: Mapping[str, object]) -> str:
 _TMUX_KEY = re.compile(r"[A-Za-z0-9-]{1,20}")
 
 
-def _key(section: Mapping[str, object], dotted: str, default: str) -> str:
+def _key(section: Mapping[str, object], name: str, default: str) -> str:
     """Return a tmux key name; it is copied into the generated tmux file, so it is strict."""
-    value = section.get(dotted.partition(".")[2], default)
+    value = section.get(name, default)
     if not isinstance(value, str) or _TMUX_KEY.fullmatch(value) is None:
-        message = f"{dotted}: expected a tmux key such as M-p"
+        message = f"keys.{name}: expected a tmux key such as M-p"
         raise InvalidInput(message)
     return value
 
@@ -193,6 +193,7 @@ def validate_config(data: Mapping[str, object]) -> Config:
     ui = _section(data, "ui")
     keys = _section(data, "keys")
     quotas = _section(data, "quotas")
+    default_keys = KeysConfig()
     return Config(
         repos=ReposConfig(roots=_roots(_section(data, "repos"))),
         claude=ClaudeConfig(permission_mode=_permission_mode(_section(data, "claude"))),
@@ -201,8 +202,8 @@ def validate_config(data: Mapping[str, object]) -> Config:
             narrow_threshold=_int(ui, "ui.narrow_threshold", 120, 1),
         ),
         keys=KeysConfig(
-            focus_board=_key(keys, "keys.focus_board", "M-p"),
-            focus_main=_key(keys, "keys.focus_main", "M-o"),
+            focus_board=_key(keys, "focus_board", default_keys.focus_board),
+            focus_main=_key(keys, "focus_main", default_keys.focus_main),
         ),
         quotas=QuotasConfig(
             peak_timezone=_timezone(quotas),

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from meute.tmux.names import MAIN_SESSION, MAIN_WINDOW, STATUS_OPTION
+from meute.tmux.names import MAIN_TARGET, STATUS_OPTION
 
 _SYNC_HOOKS = ("client-attached", "client-resized")
 
@@ -43,7 +43,7 @@ def render_config(spec: LayoutSpec) -> str:
     The sync command is quoted for `sh`, then escaped twice for a tmux string:
     tmux parses it when the file is sourced and again when the hook runs.
     """
-    target = f"={MAIN_SESSION}:{MAIN_WINDOW}"
+    target = MAIN_TARGET
     shell = " ".join(_sh_quote(word) for word in spec.sync_command)
     run_shell = f'run-shell -b "{_tmux_escape(shell)}"'
     hook = _tmux_escape(run_shell)

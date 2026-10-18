@@ -1,12 +1,12 @@
 """The dashboard's backend: tmux and the database, read and acted upon by the CLI code."""
 
-import sqlite3
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Generator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
 from typing import assert_never
 
-from meute.cli.context import CliContext
+from meute.cli.context import ENVIRONMENT_ERRORS, CliContext
 from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.session_refresh import refresh
 from meute.cli.session_show import show_session
@@ -15,9 +15,16 @@ from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import BoardAction, BoardData, LaunchBash, ShowSession, StopSession
 from meute.core.db.repos import list_repos
 from meute.core.errors import MeuteError
-from meute.tmux.errors import TmuxError
 
 TMUX_REREAD_SECONDS = 2.0
+
+
+@contextmanager
+def _as_meute_error() -> Generator[None]:
+    try:
+        yield
+    except ENVIRONMENT_ERRORS as error:
+        raise MeuteError(str(error)) from error
 
 
 class CliBoardBackend:
@@ -44,10 +51,8 @@ class CliBoardBackend:
         Raises:
             MeuteError: tmux or the database failed.
         """
-        try:
+        with _as_meute_error():
             return self._load()
-        except (TmuxError, OSError, sqlite3.Error) as error:
-            raise MeuteError(str(error)) from error
 
     def _load(self) -> BoardData | None:
         now = self._monotonic()
@@ -75,10 +80,8 @@ class CliBoardBackend:
             MeuteError: the action was refused, or tmux or the database failed.
         """
         self._read_at = None
-        try:
+        with _as_meute_error():
             self._perform(action)
-        except (TmuxError, OSError, sqlite3.Error) as error:
-            raise MeuteError(str(error)) from error
 
     def _perform(self, action: BoardAction) -> None:
         match action:

@@ -156,7 +156,7 @@ def error_text(message: str) -> str:
     return f"Error: {message}"
 
 
-def _layout(data: BoardData) -> tuple[list[str], tuple[int, ...]]:
+def board_layout(data: BoardData) -> tuple[list[str], tuple[int, ...]]:
     """Return the board lines and, for each entry of `board_entries`, the index of its line."""
     lines = [BOARD_TITLE, "", SESSIONS_HEADING]
     first_session = len(lines)
@@ -173,9 +173,9 @@ def _layout(data: BoardData) -> tuple[list[str], tuple[int, ...]]:
 
 def board_lines(data: BoardData) -> list[str]:
     """Return the board as text lines: the form the TUI reproduces and the snapshots capture."""
-    return _layout(data)[0]
+    return board_layout(data)[0]
 
 
 def entry_line_indexes(data: BoardData) -> tuple[int, ...]:
     """Return, for each entry of `board_entries(data)`, the index of its line in `board_lines`."""
-    return _layout(data)[1]
+    return board_layout(data)[1]

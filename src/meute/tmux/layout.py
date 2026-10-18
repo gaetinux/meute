@@ -5,11 +5,17 @@ from dataclasses import dataclass
 from meute.tmux.client import Tmux
 from meute.tmux.conf import LayoutSpec
 from meute.tmux.errors import UnreadableOutput
-from meute.tmux.names import MAIN_SESSION, MAIN_WINDOW, ROLE_BOARD, ROLE_OPTION, ROLE_WELCOME
+from meute.tmux.names import (
+    MAIN_SESSION,
+    MAIN_TARGET,
+    MAIN_WINDOW,
+    ROLE_BOARD,
+    ROLE_OPTION,
+    ROLE_WELCOME,
+)
 from meute.tmux.panes import kill_pane, list_panes, select_pane, set_pane_option
 from meute.tmux.parse import PaneId, PaneInfo
 
-_MAIN_TARGET = f"={MAIN_SESSION}:{MAIN_WINDOW}"
 _NO_BOARD = "no dashboard in meute:main"
 
 
@@ -46,13 +52,20 @@ def _main_pane(panes: list[PaneInfo]) -> PaneId | None:
 
 def _geometry(tmux: Tmux) -> tuple[int, bool]:
     output = tmux.run(
-        "display-message", "-p", "-t", _MAIN_TARGET, "#{window_width}\t#{window_zoomed_flag}"
+        "display-message", "-p", "-t", MAIN_TARGET, "#{window_width}\t#{window_zoomed_flag}"
     )
     width, _, zoomed = output.partition("\t")
     if not width.isdigit() or zoomed not in {"0", "1"}:
         msg = f"window geometry {output!r}"
         raise UnreadableOutput(msg)
     return int(width), zoomed == "1"
+
+
+def _require_layout(tmux: Tmux) -> Layout:
+    layout = find_layout(tmux)
+    if layout is None:
+        raise UnreadableOutput(_NO_BOARD)
+    return layout
 
 
 def find_layout(tmux: Tmux) -> Layout | None:
@@ -66,9 +79,8 @@ def find_layout(tmux: Tmux) -> Layout | None:
     board = _live_board(panes)
     if board is None:
         return None
-    main = next((p.id for p in panes if p.id != board and not _is_board(p)), None)
     width, zoomed = _geometry(tmux)
-    return Layout(board=board, main=main, width=width, zoomed=zoomed)
+    return Layout(board=board, main=_main_pane(panes), width=width, zoomed=zoomed)
 
 
 def _create_pane(tmux: Tmux, args: list[str], command: tuple[str, ...], role: str) -> PaneId:
@@ -123,15 +135,12 @@ def ensure_layout(tmux: Tmux, spec: LayoutSpec) -> Layout:
         _repair(tmux, spec)
     else:
         _create_session(tmux, spec)
-    layout = find_layout(tmux)
-    if layout is None:
-        raise UnreadableOutput(_NO_BOARD)
+    layout = _require_layout(tmux)
     narrow = is_narrow(layout.width, spec.narrow_threshold)
+    if narrow == layout.zoomed and narrow:
+        return layout
     if narrow != layout.zoomed:
         tmux.run("resize-pane", "-Z", "-t", layout.board)
     if not narrow:
         tmux.run("resize-pane", "-t", layout.board, "-x", str(spec.board_width))
-    final = find_layout(tmux)
-    if final is None:
-        raise UnreadableOutput(_NO_BOARD)
-    return final
+    return _require_layout(tmux)

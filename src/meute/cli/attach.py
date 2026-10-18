@@ -5,7 +5,7 @@ from collections.abc import Mapping
 
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.errors import MeuteError
-from meute.tmux.names import MAIN_SESSION, MAIN_WINDOW
+from meute.tmux.names import MAIN_TARGET
 
 
 def attach_command(env: TmuxEnv, environ: Mapping[str, str]) -> tuple[list[str], dict[str, str]]:
@@ -13,7 +13,7 @@ def attach_command(env: TmuxEnv, environ: Mapping[str, str]) -> tuple[list[str],
 
     Without `TMUX`, tmux agrees to attach even when meute runs inside another tmux.
     """
-    args = [*env.tmux.base_args(), "attach-session", "-t", f"={MAIN_SESSION}:{MAIN_WINDOW}"]
+    args = [*env.tmux.base_args(), "attach-session", "-t", MAIN_TARGET]
     return args, {key: value for key, value in environ.items() if key != "TMUX"}
 
 
