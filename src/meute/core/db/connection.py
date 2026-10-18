@@ -22,14 +22,14 @@ _PRAGMA_NAME = re.compile(r"[a-z_]+")
 
 # tests/test_mutants_db.py monkeypatches this name: keep it a module-level function.
 def migrate(conn: sqlite3.Connection, db_path: Path | None) -> None:
-    """Migrate `conn`; the migrations are loaded on first use, so `open_existing` never pays."""
+    """Switch to WAL and migrate `conn`; loaded on first use, so `open_existing` never pays."""
     from meute.core.db import migrations  # noqa: PLC0415 — keeps `open_existing` light
 
-    migrations.migrate(conn, db_path)
+    migrations.prepare(conn, db_path)
 
 
 def _connect(path: Path | None, pragmas: tuple[str, ...]) -> sqlite3.Connection:
-    """Connect to `path` (None: in memory), apply `pragmas` and migrate; close on failure."""
+    """Connect to `path` (None: in memory), apply `pragmas` and prepare it; close on failure."""
     conn = sqlite3.connect(":memory:" if path is None else path, autocommit=True)
     try:
         for pragma in pragmas:
@@ -65,7 +65,6 @@ class Database:
         path.parent.mkdir(parents=True, exist_ok=True)
         pragmas = (
             f"PRAGMA busy_timeout = {int(busy_timeout_ms)}",
-            "PRAGMA journal_mode = WAL",
             "PRAGMA foreign_keys = ON",
         )
         return cls(conn=_connect(path, pragmas), clock=clock)

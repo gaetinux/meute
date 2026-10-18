@@ -71,6 +71,21 @@ def migrate(
         _migrate_locked(conn, db_path, migrations)
 
 
+def prepare(conn: sqlite3.Connection, db_path: Path | None) -> None:
+    """Switch a file database to WAL and migrate it, both under the migration lock.
+
+    Switching a rollback-journal file to WAL takes an exclusive lock that the busy handler
+    does not wait for: two processes doing it at once would fail, so the lock serialises them.
+
+    Raises:
+        MigrationError: see `migrate`.
+    """
+    with _migration_lock(db_path):
+        if db_path is not None:
+            conn.execute("PRAGMA journal_mode = WAL")
+        _migrate_locked(conn, db_path, MIGRATIONS)
+
+
 def _migrate_locked(
     conn: sqlite3.Connection, db_path: Path | None, migrations: Sequence[str]
 ) -> None:
