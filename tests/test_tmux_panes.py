@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
@@ -32,12 +33,10 @@ def test_list_panes_on_never_started_socket_is_empty() -> None:
     assert list_panes(Tmux(socket="meute-test-never-started-panes")) == []
 
 
-def test_list_panes_other_errors_propagate(
-    monkeypatch: pytest.MonkeyPatch, tmux_server: TestServer
-) -> None:
+def test_list_panes_other_errors_propagate(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATH", "")
     with pytest.raises(NotInstalled):
-        list_panes(tmux_server.tmux)
+        list_panes(Tmux(socket=f"meute-test-never-started-{uuid4().hex}"))
     assert not is_no_server(CommandFailed(("x",), "unknown command: x"))
 
 
