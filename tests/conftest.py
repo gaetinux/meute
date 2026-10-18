@@ -2,10 +2,12 @@
 
 import os
 import shutil
+import signal
 import subprocess
 import sys
+import time
 from collections.abc import Generator, Mapping
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
@@ -15,12 +17,69 @@ from hypothesis import settings
 
 from meute.core.db.connection import Database
 from meute.tmux.client import Tmux
+from process_support import survivors
 from support import FIXED
-from tmux_support import TestServer, kill_socket
+from tmux_support import (
+    RUN_DIR_PREFIX,
+    TestServer,
+    clean_run_dir,
+    kill_socket,
+    sweep_stale_run_dirs,
+)
 
 settings.register_profile("dev", max_examples=100)
 settings.register_profile("ci", max_examples=1000)
 settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "dev"))
+
+_RUN_ROOT = Path("/tmp")  # noqa: S108 — short: tmux socket paths must stay under 100 characters
+_RUN_DIR_KEY = pytest.StashKey[Path]()
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """On the controller, give the run its own tmux folder, inherited by workers and meute."""
+    if hasattr(config, "workerinput"):
+        return
+    binary = shutil.which("tmux")
+    if binary is not None:
+        sweep_stale_run_dirs(binary, _RUN_ROOT)
+    folder = _RUN_ROOT / f"{RUN_DIR_PREFIX}{os.getpid()}"
+    folder.mkdir(mode=0o700, exist_ok=True)
+    config.stash[_RUN_DIR_KEY] = folder
+    os.environ["TMUX_TMPDIR"] = str(folder)
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:
+    """On the controller, kill every tmux server left in the run's folder and remove it."""
+    folder = config.stash.get(_RUN_DIR_KEY, None)
+    binary = shutil.which("tmux")
+    if folder is not None and binary is not None:
+        clean_run_dir(binary, folder)
+
+
+_SURVIVOR_GRACE_SECONDS = 3.0
+# Tests whose process escapes on purpose: their survivors are killed without failing them.
+_ESCAPING_ON_PURPOSE = frozenset(
+    {
+        "tests/test_ingest_statusline.py::test_chain_with_an_escaped_descendant_still_returns_quickly",
+    }
+)
+
+
+@pytest.fixture(autouse=True)
+def no_process_survives() -> Generator[None]:
+    """Fail a test whose processes outlive it (tmux panes get a grace period); kill them."""
+    nodeid = os.environ.get("PYTEST_CURRENT_TEST", "").rpartition(" (")[0]
+    yield
+    if not nodeid:
+        return
+    deadline = time.monotonic() + _SURVIVOR_GRACE_SECONDS
+    while (left := survivors(nodeid)) and time.monotonic() < deadline:
+        time.sleep(0.02)
+    for pid in left:
+        with suppress(OSError):
+            os.kill(pid, signal.SIGKILL)
+    if left and nodeid not in _ESCAPING_ON_PURPOSE:
+        pytest.fail(f"processes outlived the test: {left}", pytrace=False)
 
 
 @pytest.fixture

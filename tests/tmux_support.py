@@ -2,7 +2,9 @@
 
 import os
 import shutil
+import signal
 import subprocess
+import time
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +12,8 @@ from uuid import uuid4
 
 from meute.tmux.client import Tmux, is_no_server
 from meute.tmux.errors import CommandFailed, NotInstalled, TmuxError
+
+_EXIT_GRACE_SECONDS = 5.0
 
 
 def socket_file(socket: str) -> Path:
@@ -21,19 +25,47 @@ def socket_file(socket: str) -> Path:
 def kill_socket(
     binary: str, socket: str, path: Path | None = None
 ) -> subprocess.CompletedProcess[str] | None:
-    """Kill the server on `socket` and remove its socket file; None when there was no file.
+    """Kill the server on `socket`, wait for it to exit; None when there was no socket file.
 
-    The file is removed even when the server already exited on its own (its last pane died).
+    The socket file is removed once the server is known gone: killed, or already exited on
+    its own (its last pane died); a failed kill keeps it, so a later sweep can retry.
     """
     path = path or socket_file(socket)
     if not path.exists():
         return None
+    pid = _server_pid(binary, path)
     killed = subprocess.run(
-        [binary, "-L", socket, "kill-server"], capture_output=True, text=True, check=False
+        [binary, "-S", str(path), "kill-server"], capture_output=True, text=True, check=False
     )
-    with suppress(OSError):
-        path.unlink(missing_ok=True)
+    if pid is not None:
+        _wait_for_exit(pid)
+    if killed.returncode == 0 or is_no_server(CommandFailed(("kill-server",), killed.stderr)):
+        with suppress(OSError):
+            path.unlink(missing_ok=True)
     return killed
+
+
+def _server_pid(binary: str, path: Path) -> int | None:
+    shown = subprocess.run(
+        [binary, "-S", str(path), "display-message", "-p", "#{pid}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    text = shown.stdout.strip()
+    return int(text) if shown.returncode == 0 and text.isdigit() else None
+
+
+def _wait_for_exit(pid: int) -> None:
+    """Wait for the tmux server `pid` to exit; kill it if it lingers."""
+    deadline = time.monotonic() + _EXIT_GRACE_SECONDS
+    while time.monotonic() < deadline:
+        if not _alive(pid):
+            return
+        time.sleep(0.01)
+    with suppress(OSError):  # check it is still tmux: the pid may have been reused
+        if b"tmux" in Path(f"/proc/{pid}/cmdline").read_bytes():
+            os.kill(pid, signal.SIGKILL)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -74,3 +106,31 @@ class TestServer:
         error = CommandFailed(("kill-server",), killed.stderr.rstrip())
         if not is_no_server(error):
             raise error
+
+
+RUN_DIR_PREFIX = "meute-tests-"
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:  # another user's process
+        return True
+    return True
+
+
+def sweep_stale_run_dirs(binary: str, root: Path) -> None:
+    """Clean the `meute-tests-<pid>` folders of `root` whose test run is no longer alive."""
+    for folder in root.glob(f"{RUN_DIR_PREFIX}*"):
+        pid = folder.name.removeprefix(RUN_DIR_PREFIX)
+        if pid.isdigit() and not _alive(int(pid)):
+            clean_run_dir(binary, folder)
+
+
+def clean_run_dir(binary: str, folder: Path) -> None:
+    """Kill every tmux server whose socket lies in `folder`, then remove the folder."""
+    for sock in folder.glob("tmux-*/*"):
+        _ = kill_socket(binary, sock.name, sock)
+    shutil.rmtree(folder, ignore_errors=True)

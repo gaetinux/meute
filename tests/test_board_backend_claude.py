@@ -25,8 +25,11 @@ def test_launch_claude_shows_the_new_session(ctx: CliContext, env: TmuxEnv, tmp_
     script.chmod(script.stat().st_mode | stat.S_IXUSR)
     ensure_layout(env.tmux, _SPEC)
     backend = CliBoardBackend(ctx, env, {"PATH": str(fake)})
-    backend.perform(LaunchClaude(cwd=tmp_path, repo_id=None))
-    data = backend.load()
+    try:
+        backend.perform(LaunchClaude(cwd=tmp_path, repo_id=None))
+        data = backend.load()
+    finally:
+        backend.close()  # reaps the background `claude agents` run
     assert data is not None
     (row,) = data.sessions
     assert row.session.agent is AgentKind.CLAUDE
@@ -40,5 +43,8 @@ def test_launch_claude_without_claude_is_a_meute_error(
     tmp_path: Path,
 ) -> None:
     backend = CliBoardBackend(ctx, env, {"PATH": str(tmp_path)})
-    with pytest.raises(MeuteError, match=r"^claude not found: "):
-        backend.perform(LaunchClaude(cwd=tmp_path, repo_id=None))
+    try:
+        with pytest.raises(MeuteError, match=r"^claude not found: "):
+            backend.perform(LaunchClaude(cwd=tmp_path, repo_id=None))
+    finally:
+        backend.close()
