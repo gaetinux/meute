@@ -16,6 +16,7 @@ from meute.core.board_view import (
     StopSession,
     board_entries,
     board_layout,
+    claude_action,
     confirm_stop_text,
     enter_action,
     entry_key,
@@ -45,7 +46,7 @@ class BoardBackend(Protocol):
 
 
 class BoardApp(App[None]):
-    """Lists the sessions and repositories; Enter, n and x act on the selected entry."""
+    """Lists the sessions and repositories; Enter, c, n and x act on the selected entry."""
 
     TITLE = BOARD_TITLE
     CSS: ClassVar[str] = "#footer { dock: bottom; }"
@@ -92,6 +93,8 @@ class BoardApp(App[None]):
             entry = entries[self._selected]
             if key == "enter":
                 self._perform(enter_action(entry))
+            elif key == "c":
+                self._perform(claude_action(entry))
             elif key == "n":
                 self._perform(new_action(entry))
             elif key == "x":

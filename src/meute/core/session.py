@@ -81,6 +81,7 @@ class NewSession:
     project_id: ProjectId | None = None
     repo_id: RepoId | None = None
     task_id: TaskId | None = None
+    permission_mode: str | None = None  # what meute asked Claude for; hooks refine it
 
 
 def session_to_json(session: Session) -> JsonObject:

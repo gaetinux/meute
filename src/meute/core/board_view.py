@@ -4,18 +4,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import assert_never
 
+from meute.core.agents import AgentInfo
 from meute.core.paths import display_path
 from meute.core.project import RepoId
 from meute.core.repo import Repo
 from meute.core.session import Session, SessionId
 from meute.core.session_state import state_label
+from meute.core.text import printable
 
 BOARD_TITLE = "meute"
 SESSIONS_HEADING = "Sessions"
 REPOS_HEADING = "Repositories"
 ORPHANS_HEADING = "Orphans"
+OUTSIDE_HEADING = "Outside meute"
 NO_SESSIONS = "No sessions. Pick a repository and press n."
-FOOTER = "↑↓ select · Enter show · n new Bash · x stop"
+FOOTER = "↑↓ select · Enter show · c Claude · n Bash · x stop"
 
 _DISPLAYED_MARK = "▶ "
 _NOT_DISPLAYED_MARK = "  "
@@ -38,6 +41,7 @@ class BoardData:
     repos: tuple[Repo, ...]
     orphans: tuple[str, ...]
     home: Path | None
+    outside: tuple[AgentInfo, ...] = ()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -56,13 +60,21 @@ class LaunchBash:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class LaunchClaude:
+    """Start a Claude session in `cwd`."""
+
+    cwd: Path
+    repo_id: RepoId | None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class StopSession:
     """Stop a session."""
 
     session_id: SessionId
 
 
-BoardAction = ShowSession | LaunchBash | StopSession
+BoardAction = ShowSession | LaunchBash | LaunchClaude | StopSession
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -123,6 +135,12 @@ def new_action(entry: BoardEntry) -> LaunchBash:
             assert_never(entry)
 
 
+def claude_action(entry: BoardEntry) -> LaunchClaude:
+    """Return what `c` does: launch Claude where `n` would launch Bash."""
+    launch = new_action(entry)
+    return LaunchClaude(cwd=launch.cwd, repo_id=launch.repo_id)
+
+
 def stop_target(entry: BoardEntry) -> Session | None:
     """Return the session `x` would stop; a repository has none."""
     match entry:
@@ -138,22 +156,34 @@ def session_line(row: SessionRow, home: Path | None) -> str:
     """Return the board line of a session; a leading mark shows the displayed one."""
     session = row.session
     mark = _DISPLAYED_MARK if row.displayed else _NOT_DISPLAYED_MARK
-    return f"{mark}{session.title}  {state_label(session.state)}  {display_path(session.cwd, home)}"
+    return (
+        f"{mark}{printable(session.title)}  {state_label(session.state)}  "
+        f"{printable(display_path(session.cwd, home))}"
+    )
 
 
 def repo_line(repo: Repo) -> str:
     """Return the board line of a repository: its name and, when known, its kind."""
-    return repo.name if repo.kind is None else f"{repo.name} ({repo.kind})"
+    name = printable(repo.name)
+    return name if repo.kind is None else f"{name} ({printable(repo.kind)})"
+
+
+def outside_line(agent: AgentInfo, home: Path | None) -> str:
+    """Return the board line of a Claude session started outside meute (read-only)."""
+    return (
+        f"{printable(agent.name)}  {printable(agent.status)}  "
+        f"{printable(display_path(Path(agent.cwd), home))}"
+    )
 
 
 def confirm_stop_text(title: str) -> str:
     """Return the confirmation prompt shown before stopping a session."""
-    return f'Stop "{title}"? y: yes · any other key: no'
+    return f'Stop "{printable(title)}"? y: yes · any other key: no'
 
 
 def error_text(message: str) -> str:
     """Return the footer text for an error."""
-    return f"Error: {message}"
+    return f"Error: {printable(message)}"
 
 
 def board_layout(data: BoardData) -> tuple[list[str], tuple[int, ...]]:
@@ -164,8 +194,10 @@ def board_layout(data: BoardData) -> tuple[list[str], tuple[int, ...]]:
     lines += ["", REPOS_HEADING]
     first_repo = len(lines)
     lines += [repo_line(repo) for repo in data.repos]
+    if data.outside:
+        lines += ["", OUTSIDE_HEADING, *(outside_line(agent, data.home) for agent in data.outside)]
     if data.orphans:
-        lines += ["", ORPHANS_HEADING, *data.orphans]
+        lines += ["", ORPHANS_HEADING, *(printable(orphan) for orphan in data.orphans)]
     sessions = range(first_session, first_session + len(data.sessions))
     repos = range(first_repo, first_repo + len(data.repos))
     return lines, (*sessions, *repos)

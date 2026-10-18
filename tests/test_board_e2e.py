@@ -25,7 +25,9 @@ def test_enter_in_the_board_shows_the_session(sandbox: Sandbox) -> None:
     (board,) = (pane for pane, role, _ in _main_panes(sandbox) if role == "board")
     folder = sandbox.root / "w"
     folder.mkdir()
-    result = sandbox.run("session", "new", "--cwd", str(folder), "--title", "trial")
+    result = sandbox.run(
+        "session", "new", "--kind", "bash", "--cwd", str(folder), "--title", "trial"
+    )
     assert result.returncode == 0, result.stderr
     with sandbox.db() as db:
         (session,) = list_sessions(db)

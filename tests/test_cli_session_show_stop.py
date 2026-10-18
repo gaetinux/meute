@@ -34,7 +34,9 @@ def _layout(sandbox: Sandbox) -> Tmux:
 def _new(sandbox: Sandbox, title: str, env: dict[str, str] | None = None) -> SessionId:
     folder = sandbox.root / "w"
     folder.mkdir(exist_ok=True)
-    result = sandbox.run("session", "new", "--cwd", str(folder), "--title", title, env=env)
+    result = sandbox.run(
+        "session", "new", "--kind", "bash", "--cwd", str(folder), "--title", title, env=env
+    )
     assert result.returncode == 0, result.stderr
     with sandbox.db() as db:
         (session,) = (s for s in list_sessions(db) if s.title == title)

@@ -1,0 +1,11 @@
+{
+  "session_id": "7393e221-2a26-44ab-ae9c-fc905efac6e6",
+  "transcript_path": "/home/user/.claude/projects/x/7393e221-2a26-44ab-ae9c-fc905efac6e6.jsonl",
+  "cwd": "/home/user/git/poc-app-rust",
+  "scratchpad_dir": "/tmp/claude-1000/-home-user-git-poc-app-rust/7393e221-2a26-44ab-ae9c-fc905efac6e6/scratchpad",
+  "prompt_id": "63553c8d-288b-40ec-97ea-717f77d183e9",
+  "permission_mode": "default",
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "Reply with the single word pong.",
+  "session_title": "meute-capture"
+}

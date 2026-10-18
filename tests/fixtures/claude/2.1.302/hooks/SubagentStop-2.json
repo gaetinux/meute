@@ -1,0 +1,18 @@
+{
+  "session_id": "7393e221-2a26-44ab-ae9c-fc905efac6e6",
+  "transcript_path": "/home/user/.claude/projects/x/7393e221-2a26-44ab-ae9c-fc905efac6e6.jsonl",
+  "cwd": "/home/user/git/poc-app-rust",
+  "scratchpad_dir": "/tmp/claude-1000/-home-user-git-poc-app-rust/7393e221-2a26-44ab-ae9c-fc905efac6e6/scratchpad",
+  "prompt_id": "ea9fb301-bb22-462b-bf78-d9871b78ab3b",
+  "permission_mode": "default",
+  "agent_id": "acf104c1f25b5f82f",
+  "agent_type": "",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "SubagentStop",
+  "stop_hook_active": false,
+  "agent_transcript_path": "/home/user/.claude/projects/x/7393e221-2a26-44ab-ae9c-fc905efac6e6/subagents/agent-acf104c1f25b5f82f.jsonl",
+  "background_tasks": [],
+  "session_crons": []
+}

@@ -16,7 +16,7 @@ def _new(sandbox: Sandbox, name: str = "w") -> str:
     """Start a Bash session in a fresh folder and return its full identifier."""
     folder = (sandbox.root / name).resolve()
     folder.mkdir()
-    assert sandbox.run("session", "new", "--cwd", str(folder)).returncode == 0
+    assert sandbox.run("session", "new", "--kind", "bash", "--cwd", str(folder)).returncode == 0
     with sandbox.db() as db:
         return next(s.id for s in list_sessions(db) if s.cwd == folder)
 

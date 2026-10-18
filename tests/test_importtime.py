@@ -52,3 +52,17 @@ def test_cli_path_loads_typer() -> None:
 
 def test_cli_path_never_loads_textual() -> None:
     assert "textual" not in imported_roots(["--version"], "")
+
+
+def test_ingest_hook_path_skips_migrations_and_config() -> None:
+    output = import_time_output(["ingest", "hook", "PostToolUse"], "{}")
+    assert "meute.ingest.hook" in output  # witness: the hook path really ran
+    for name in ("meute.core.db.migrations", "meute.core.config", "tomllib"):
+        assert name not in output
+
+
+def test_ingest_statusline_path_skips_migrations() -> None:
+    output = import_time_output(["ingest", "statusline"], "{}")
+    assert "meute.ingest.statusline" in output  # witness: the statusline path really ran
+    assert "meute.core.db.migrations" not in output
+    assert "meute.cli" not in output

@@ -9,6 +9,7 @@ from meute.cli.context import open_context
 from meute.cli.json_out import echo_json
 from meute.core.db.projects import create_project, list_projects
 from meute.core.project import project_to_json
+from meute.core.text import printable
 
 project_app = typer.Typer(no_args_is_help=True, help="Manage projects.")
 
@@ -21,7 +22,7 @@ def add(
     """Create a project."""
     with open_context(os.environ) as ctx:
         project = create_project(ctx.db, name, description)
-        typer.echo(f"Project created: {project.name}")
+        typer.echo(f"Project created: {printable(project.name)}")
 
 
 @project_app.command("list")
@@ -33,4 +34,4 @@ def list_(*, json_: Annotated[bool, typer.Option("--json", help="Print JSON.")] 
             echo_json([project_to_json(p) for p in projects])
         else:
             for project in projects:
-                typer.echo(project.name)
+                typer.echo(printable(project.name))

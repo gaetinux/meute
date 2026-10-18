@@ -10,7 +10,7 @@ from meute.cli.tmux_env import TmuxEnv
 from meute.core.db.sessions import create_session
 from meute.core.errors import InvalidInput
 from meute.core.project import RepoId
-from meute.core.session import AgentKind, NewSession, Session, new_session_id
+from meute.core.session import AgentKind, NewSession, Session, SessionId, new_session_id
 from meute.core.session_state import Running
 from meute.tmux.errors import TmuxError
 from meute.tmux.names import BG_SESSION, ID_OPTION
@@ -28,6 +28,45 @@ class BashLaunch:
     repo_id: RepoId | None = None
 
 
+def resolve_folder(requested: Path) -> Path:
+    """Return the resolved folder `requested`.
+
+    Raises:
+        InvalidInput: the folder does not exist.
+    """
+    cwd = requested.resolve()
+    if not cwd.is_dir():
+        message = f"folder not found: {requested}"
+        raise InvalidInput(message)
+    return cwd
+
+
+def spawn_and_record(ctx: CliContext, env: TmuxEnv, spawn: Spawn, session: NewSession) -> Session:
+    """Start `spawn` in tmux then record `session`; kill the pane if recording fails.
+
+    Raises:
+        TmuxError: tmux failed.
+    """
+    pane = spawn_window(env.tmux, spawn)
+    try:
+        return create_session(ctx.db, session)
+    except BaseException:
+        with suppress(TmuxError):  # the pane may be gone already: the first error matters
+            kill_pane(env.tmux, pane)
+        raise
+
+
+def session_spawn(session_id: SessionId, cwd: Path, command: tuple[str, ...]) -> Spawn:
+    """Return the `meute-bg` window to start `command` for the session `session_id`."""
+    return Spawn(
+        session=BG_SESSION,
+        cwd=cwd,
+        command=command,
+        env=(("MEUTE_SESSION", session_id),),
+        pane_options=((ID_OPTION, session_id), ("remain-on-exit", "on")),
+    )
+
+
 def launch_bash(
     ctx: CliContext, env: TmuxEnv, request: BashLaunch, environ: Mapping[str, str]
 ) -> Session:
@@ -37,35 +76,19 @@ def launch_bash(
         InvalidInput: the folder does not exist; nothing was written or started.
         TmuxError: tmux failed.
     """
-    cwd = request.cwd.resolve()
-    if not cwd.is_dir():
-        message = f"folder not found: {request.cwd}"
-        raise InvalidInput(message)
+    cwd = resolve_folder(request.cwd)
     session_id = new_session_id()
     shell = environ.get("SHELL") or _DEFAULT_SHELL
-    pane = spawn_window(
-        env.tmux,
-        Spawn(
-            session=BG_SESSION,
+    return spawn_and_record(
+        ctx,
+        env,
+        session_spawn(session_id, cwd, (shell,)),
+        NewSession(
+            id=session_id,
+            agent=AgentKind.BASH,
+            title=request.title or cwd.name,
             cwd=cwd,
-            command=(shell,),
-            env=(("MEUTE_SESSION", session_id),),
-            pane_options=((ID_OPTION, session_id), ("remain-on-exit", "on")),
+            state=Running(),
+            repo_id=request.repo_id,
         ),
     )
-    try:
-        return create_session(
-            ctx.db,
-            NewSession(
-                id=session_id,
-                agent=AgentKind.BASH,
-                title=request.title or cwd.name,
-                cwd=cwd,
-                state=Running(),
-                repo_id=request.repo_id,
-            ),
-        )
-    except BaseException:
-        with suppress(TmuxError):  # the pane may be gone already: the first error matters
-            kill_pane(env.tmux, pane)
-        raise

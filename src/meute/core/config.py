@@ -36,8 +36,11 @@ roots = ["~/git"]
 
 [claude]
 # Permission mode of the Claude sessions launched by meute:
-# manual, acceptEdits, plan, auto, dontAsk, bypassPermissions.
-permission_mode = "manual"
+# auto (Claude Code's default since Opus 5.5), manual, acceptEdits, plan, dontAsk,
+# bypassPermissions.
+permission_mode = "auto"
+# Minutes without any hook before a running session is shown as stuck?
+stuck_after_minutes = 10
 
 [ui]
 # Dashboard width, in columns.
@@ -55,6 +58,10 @@ focus_main = "M-o"
 peak_timezone = "America/New_York"
 peak_start_hour = 8
 peak_end_hour = 14
+
+[statusline]
+# Optional command that receives the same JSON and replaces meute's status line.
+chain = ""
 """
 
 
@@ -69,6 +76,7 @@ def _flatten(config: Config) -> dict[str, object]:
     return {
         "repos.roots": config.repos.roots,
         "claude.permission_mode": config.claude.permission_mode,
+        "claude.stuck_after_minutes": config.claude.stuck_after_minutes,
         "ui.board_width": config.ui.board_width,
         "ui.narrow_threshold": config.ui.narrow_threshold,
         "keys.focus_board": config.keys.focus_board,
@@ -76,6 +84,7 @@ def _flatten(config: Config) -> dict[str, object]:
         "quotas.peak_timezone": config.quotas.peak_timezone,
         "quotas.peak_start_hour": config.quotas.peak_start_hour,
         "quotas.peak_end_hour": config.quotas.peak_end_hour,
+        "statusline.chain": config.statusline.chain,
     }
 
 

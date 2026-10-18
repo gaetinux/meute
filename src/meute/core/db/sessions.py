@@ -1,6 +1,7 @@
 """Creating, finding and updating sessions."""
 
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 from meute.core.db.connection import Database
@@ -84,8 +85,8 @@ def create_session(db: Database, new: NewSession) -> Session:
                 raise NotFound(entity, str(ident))
         conn.execute(
             "INSERT INTO sessions (id, agent, title, project_id, repo_id, task_id, cwd,"
-            " state, exit_code, last_activity_at, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " state, exit_code, last_activity_at, created_at, permission_mode)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 new.id,
                 new.agent.value,
@@ -98,6 +99,7 @@ def create_session(db: Database, new: NewSession) -> Session:
                 _exit_code(new.state),
                 now,
                 now,
+                new.permission_mode,
             ),
         )
         return _require(conn, new.id)
@@ -161,19 +163,50 @@ def set_session_state(db: Database, session_id: SessionId, state: SessionState) 
     Raises:
         NotFound: no such session.
     """
-    now = db.now()
     with db.transaction() as conn:
-        before = _require(conn, session_id)
-        ended_at = now if is_live(before.state) and not is_live(state) else before.ended_at
-        conn.execute(
-            "UPDATE sessions SET state = ?, exit_code = ?, last_activity_at = ?, ended_at = ?"
-            " WHERE id = ?",
+        write_state(conn, _require(conn, session_id), state, db.now())
+        return _require(conn, session_id)
+
+
+def write_state(
+    conn: sqlite3.Connection, before: Session, state: SessionState, now: datetime
+) -> None:
+    """Write `state` for the session `before` inside the caller's transaction.
+
+    Sets the last activity to `now`, and `ended_at` when the session leaves the live states.
+    """
+    ended_at = now if is_live(before.state) and not is_live(state) else before.ended_at
+    conn.execute(
+        "UPDATE sessions SET state = ?, exit_code = ?, last_activity_at = ?, ended_at = ?"
+        " WHERE id = ?",
+        (
+            state_id(state),
+            _exit_code(state),
+            to_db(now),
+            None if ended_at is None else to_db(ended_at),
+            before.id,
+        ),
+    )
+
+
+def set_assumed_state(db: Database, judged: Session, state: SessionState) -> bool:
+    """Record an assumed `state` unless the session changed since it was read as `judged`.
+
+    Meant for states guessed from silence or `claude agents`: a hook that landed in between
+    wins, and the last activity is kept, since nothing was heard from the session.
+    Returns whether the row was written.
+    """
+    with db.transaction() as conn:
+        cursor = conn.execute(
+            "UPDATE sessions SET state = ?, exit_code = ? WHERE id = ? AND state = ?"
+            " AND exit_code IS ? AND last_activity_at = ?",
             (
                 state_id(state),
                 _exit_code(state),
-                to_db(now),
-                None if ended_at is None else to_db(ended_at),
-                session_id,
+                judged.id,
+                state_id(judged.state),
+                _exit_code(judged.state),
+                to_db(judged.last_activity_at),
             ),
         )
-        return _require(conn, session_id)
+        return cursor.rowcount == 1

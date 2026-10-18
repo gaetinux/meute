@@ -1,0 +1,80 @@
+{
+  "session_id": "7393e221-2a26-44ab-ae9c-fc905efac6e6",
+  "transcript_path": "/home/user/.claude/projects/x/7393e221-2a26-44ab-ae9c-fc905efac6e6.jsonl",
+  "cwd": "/home/user/git/poc-app-rust",
+  "scratchpad_dir": "/tmp/claude-1000/-home-user-git-poc-app-rust/7393e221-2a26-44ab-ae9c-fc905efac6e6/scratchpad",
+  "prompt_id": "63553c8d-288b-40ec-97ea-717f77d183e9",
+  "effort": {
+    "level": "medium"
+  },
+  "session_name": "meute-capture",
+  "model": {
+    "id": "claude-opus-5-5",
+    "display_name": "Opus 5.5"
+  },
+  "workspace": {
+    "current_dir": "/home/user/git/poc-app-rust",
+    "project_dir": "/home/user/git/poc-app-rust",
+    "added_dirs": [],
+    "repo": {
+      "host": "github.com",
+      "owner": "user",
+      "name": "meute"
+    }
+  },
+  "version": "2.1.302",
+  "output_style": {
+    "name": "default"
+  },
+  "cost": {
+    "total_cost_usd": 0.1125694,
+    "total_duration_ms": 3830,
+    "total_api_duration_ms": 1629,
+    "total_lines_added": 0,
+    "total_lines_removed": 0
+  },
+  "context_window": {
+    "total_input_tokens": 41954,
+    "total_output_tokens": 4,
+    "context_window_size": 1000000,
+    "current_usage": {
+      "input_tokens": 2,
+      "output_tokens": 4,
+      "cache_creation_input_tokens": 13345,
+      "cache_read_input_tokens": 28607
+    },
+    "used_percentage": 4,
+    "remaining_percentage": 96
+  },
+  "exceeds_200k_tokens": false,
+  "prompt_cache": {
+    "warm": true,
+    "caching_observed": true,
+    "ttl": "1h",
+    "expires_at": 1792331499,
+    "requests": 1,
+    "misses": 0,
+    "expected_rebuilds": 0,
+    "hit_ratio": 0.6818658530771797,
+    "cache_write_tokens": 13345,
+    "miss_recache_tokens": 0,
+    "last_miss_at": null,
+    "last_miss_cause": null,
+    "miss_causes": {},
+    "recache_tokens_if_cold": 41954
+  },
+  "fast_mode": false,
+  "thinking": {
+    "enabled": true
+  },
+  "rate_limits": {
+    "five_hour": {
+      "used_percentage": 27,
+      "resets_at": 1792340400
+    },
+    "seven_day": {
+      "used_percentage": 42,
+      "resets_at": 1792717200
+    }
+  }
+}

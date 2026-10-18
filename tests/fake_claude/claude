@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""A fake `claude` for tests: replays captured hook payloads through the --settings commands.
+
+Usage: `claude --settings <file> --session-id <id> ...` or `claude agents --json`.
+MEUTE_FAKE_CLAUDE_SCRIPT picks the sequence (permission, done, exit);
+MEUTE_FAKE_CLAUDE_AGENTS names a file printed by `claude agents --json`.
+Standard library only.
+"""
+
+import json
+import os
+import shlex
+import signal
+import subprocess
+import sys
+from pathlib import Path
+
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures/claude/2.1.302"
+_START = ("hook:SessionStart-1", "statusline-1")
+SEQUENCES = {
+    "permission": (
+        *_START,
+        "hook:UserPromptSubmit-3",
+        "hook:PreToolUse-2",
+        "hook:PermissionRequest-1",
+    ),
+    "done": (
+        *_START,
+        "hook:UserPromptSubmit-2",
+        "hook:PreToolUse-1",
+        "hook:PostToolUse-1",
+        "hook:Stop-2",
+        "statusline-2",
+    ),
+    "exit": (*_START, "hook:UserPromptSubmit-1", "hook:Stop-1", "hook:SessionEnd-1"),
+}
+
+
+def option(args: list[str], name: str) -> str | None:
+    """The value following `name` in `args`, if any."""
+    return args[args.index(name) + 1] if name in args[:-1] else None
+
+
+def run_command(command: str, payload: dict[str, object]) -> None:
+    """Run a settings command with the payload on stdin, like Claude does."""
+    subprocess.run(
+        shlex.split(command),
+        input=json.dumps(payload),
+        text=True,
+        env=os.environ,
+        capture_output=True,
+        check=False,
+    )
+
+
+def replay(settings_path: str, session_id: str, script: str) -> None:
+    """Replay the sequence `script` through the commands of the settings file."""
+    settings = json.loads(Path(settings_path).read_text(encoding="utf-8"))
+    for step in SEQUENCES[script]:
+        if step.startswith("hook:"):
+            name = step.removeprefix("hook:")
+            event = name.rsplit("-", 1)[0]
+            command = settings["hooks"][event][0]["hooks"][0]["command"]
+            path = FIXTURES / "hooks" / f"{name}.json"
+        else:
+            command = settings["statusLine"]["command"]
+            path = FIXTURES / f"{step}.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["session_id"] = session_id
+        run_command(command, payload)
+
+
+def main(args: list[str]) -> int:
+    """Entry point."""
+    if args[:1] == ["agents"]:
+        agents = os.environ.get("MEUTE_FAKE_CLAUDE_AGENTS")
+        sys.stdout.write(Path(agents).read_text(encoding="utf-8") if agents else "[]\n")
+        return 0
+    settings, session_id = option(args, "--settings"), option(args, "--session-id")
+    if settings is None or session_id is None:
+        sys.stderr.write("fake claude: --settings and --session-id are required\n")
+        return 2
+    script = os.environ.get("MEUTE_FAKE_CLAUDE_SCRIPT", "permission")
+    replay(settings, session_id, script)
+    if script == "exit":
+        return 0
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    signal.signal(signal.SIGHUP, lambda *_: sys.exit(0))
+    while True:
+        signal.pause()
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

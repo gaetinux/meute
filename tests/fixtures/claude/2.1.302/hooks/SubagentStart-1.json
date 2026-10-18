@@ -1,0 +1,10 @@
+{
+  "session_id": "7393e221-2a26-44ab-ae9c-fc905efac6e6",
+  "transcript_path": "/home/user/.claude/projects/x/7393e221-2a26-44ab-ae9c-fc905efac6e6.jsonl",
+  "cwd": "/home/user/git/poc-app-rust",
+  "scratchpad_dir": "/tmp/claude-1000/-home-user-git-poc-app-rust/7393e221-2a26-44ab-ae9c-fc905efac6e6/scratchpad",
+  "prompt_id": "8c51775f-3d8d-4a99-afc6-e18cbc1c7ccf",
+  "agent_id": "aba6836016bc01043",
+  "agent_type": "general-purpose",
+  "hook_event_name": "SubagentStart"
+}

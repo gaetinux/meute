@@ -1,5 +1,6 @@
 """The SQLite connection: opening, pragmas, transactions and typed row access."""
 
+import os
 import re
 import sqlite3
 from collections.abc import Callable, Generator
@@ -10,9 +11,9 @@ from pathlib import Path
 from types import TracebackType
 from typing import Self
 
-from meute.core.db.migrations import migrate
 from meute.core.db.rows import fetch_one
-from meute.core.errors import InvalidInput
+from meute.core.db.schema import SCHEMA_VERSION, current_version
+from meute.core.errors import InvalidInput, MigrationError
 from meute.core.instants import utc_now
 
 Clock = Callable[[], datetime]
@@ -20,8 +21,16 @@ Clock = Callable[[], datetime]
 _PRAGMA_NAME = re.compile(r"[a-z_]+")
 
 
+# tests/test_mutants_db.py monkeypatches this name: keep it a module-level function.
+def migrate(conn: sqlite3.Connection, db_path: Path | None) -> None:
+    """Switch to WAL and migrate `conn`; loaded on first use, so `open_existing` never pays."""
+    from meute.core.db import migrations  # noqa: PLC0415 — keeps `open_existing` light
+
+    migrations.prepare(conn, db_path)
+
+
 def _connect(path: Path | None, pragmas: tuple[str, ...]) -> sqlite3.Connection:
-    """Connect to `path` (None: in memory), apply `pragmas` and migrate; close on failure."""
+    """Connect to `path` (None: in memory), apply `pragmas` and prepare it; close on failure."""
     conn = sqlite3.connect(":memory:" if path is None else path, autocommit=True)
     try:
         for pragma in pragmas:
@@ -31,6 +40,25 @@ def _connect(path: Path | None, pragmas: tuple[str, ...]) -> sqlite3.Connection:
         conn.close()
         raise
     return conn
+
+
+def _make_private_file(path: Path) -> None:
+    """Create `path` 0600 if missing, else make it 0600; SQLite gives its -wal and -shm its mode.
+
+    A symlink is followed, as SQLite does: the user may keep the database elsewhere.
+    """
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+    finally:
+        os.close(fd)
+
+
+def _require_current_schema(conn: sqlite3.Connection) -> None:
+    version = current_version(conn)
+    if version != SCHEMA_VERSION:
+        message = f"database schema version {version} does not match this meute ({SCHEMA_VERSION})"
+        raise MigrationError(message)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -44,16 +72,40 @@ class Database:
     def open(cls, path: Path, *, busy_timeout_ms: int, clock: Clock = utc_now) -> Self:
         """Open (creating it and its folders) and migrate the database file at `path`.
 
+        The file is made private (0600) before SQLite opens it.
+
         Raises:
             MigrationError: the schema cannot be brought up to date.
         """
-        path.parent.mkdir(parents=True, exist_ok=True)
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        _make_private_file(path)
         pragmas = (
             f"PRAGMA busy_timeout = {int(busy_timeout_ms)}",
-            "PRAGMA journal_mode = WAL",
             "PRAGMA foreign_keys = ON",
         )
         return cls(conn=_connect(path, pragmas), clock=clock)
+
+    @classmethod
+    def open_existing(cls, path: Path, *, busy_timeout_ms: int, clock: Clock = utc_now) -> Self:
+        """Open the database file at `path` as it is: never create, migrate or back it up.
+
+        Meant for hot paths (hooks) that must stay cheap and must not write the schema.
+
+        Raises:
+            FileNotFoundError: there is no database file at `path`.
+            MigrationError: the schema version is not the one this meute expects.
+        """
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        conn = sqlite3.connect(f"{path.resolve().as_uri()}?mode=rw", uri=True, autocommit=True)
+        try:
+            conn.execute(f"PRAGMA busy_timeout = {int(busy_timeout_ms)}")
+            conn.execute("PRAGMA foreign_keys = ON")
+            _require_current_schema(conn)
+        except BaseException:
+            conn.close()
+            raise
+        return cls(conn=conn, clock=clock)
 
     @classmethod
     def in_memory(cls, *, clock: Clock = utc_now) -> Self:

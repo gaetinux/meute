@@ -20,6 +20,7 @@ from meute.cli.task_app import task_app
 from meute.cli.tmux_env import open_tmux_env
 from meute.cli.welcome import wait_forever, welcome_text
 from meute.core.errors import MeuteError, VersionConflict
+from meute.core.text import printable
 
 app = typer.Typer(name="meute", add_completion=False, pretty_exceptions_enable=False)
 app.add_typer(task_app, name="task")
@@ -57,14 +58,19 @@ def _root(
 @app.command("board")
 def board() -> None:
     """Run the dashboard (the right-hand pane of the layout)."""
-    from meute.cli.board_backend import CliBoardBackend  # noqa: PLC0415 — keeps Textual out of every other command's start-up
+    from meute.cli.board_backend import CliBoardBackend, purge_old_samples  # noqa: PLC0415 — keeps Textual out of every other command's start-up
     from meute.cli.repo_scan import scan_repos  # noqa: PLC0415 — only the dashboard scans on start
     from meute.tui.board import BoardApp  # noqa: PLC0415 — keeps Textual out of every other command's start-up
 
     with open_context(os.environ) as ctx:
         env = open_tmux_env(ctx, os.environ)
         _ = scan_repos(ctx)
-        BoardApp(CliBoardBackend(ctx, env, os.environ)).run()
+        _ = purge_old_samples(ctx)
+        backend = CliBoardBackend(ctx, env, os.environ)
+        try:
+            BoardApp(backend).run()
+        finally:
+            backend.close()
 
 
 @app.command("welcome", hidden=True)
@@ -77,7 +83,7 @@ def welcome() -> None:
 
 
 def _fail(message: str) -> None:
-    print(f"meute: {message}", file=sys.stderr)
+    print(printable(f"meute: {message}"), file=sys.stderr)
 
 
 def _exit_code(code: object) -> int:

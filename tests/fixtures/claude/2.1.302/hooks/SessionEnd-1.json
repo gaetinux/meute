@@ -1,0 +1,9 @@
+{
+  "session_id": "da5617d5-a0f8-46e1-a5cf-7132e7db6a13",
+  "transcript_path": "/home/user/.claude/projects/x/da5617d5-a0f8-46e1-a5cf-7132e7db6a13.jsonl",
+  "cwd": "/home/user/git/poc-app-rust",
+  "scratchpad_dir": "/tmp/claude-1000/-home-user-git-poc-app-rust/da5617d5-a0f8-46e1-a5cf-7132e7db6a13/scratchpad",
+  "prompt_id": "d36ddf63-f130-4d44-b001-368c4d401aea",
+  "hook_event_name": "SessionEnd",
+  "reason": "prompt_input_exit"
+}
