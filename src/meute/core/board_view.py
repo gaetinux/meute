@@ -40,13 +40,18 @@ class SessionRow:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class BoardData:
-    """Everything the board draws; `now` is the clock the ages are measured by."""
+    """Everything the board draws; `now` is the clock the ages are measured by.
+
+    `sessions` are the live sessions and those that still have a pane; `ended` are the
+    other sessions that ended recently, shown only on demand.
+    """
 
     sessions: tuple[SessionRow, ...]
     repos: tuple[Repo, ...]
     orphans: tuple[str, ...]
     home: Path | None
     outside: tuple[AgentInfo, ...] = ()
+    ended: tuple[SessionRow, ...] = ()
     details: Mapping[SessionId, ClaudeDetails] = field(
         default_factory=dict[SessionId, ClaudeDetails]
     )

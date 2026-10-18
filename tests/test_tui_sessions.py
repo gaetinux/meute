@@ -162,6 +162,40 @@ def test_e_shows_the_ended_sessions() -> None:
     _ = _scenario(_rich_data(), steps)
 
 
+def test_e_shows_the_recently_ended_sessions_without_a_pane() -> None:
+    gone = SessionRow(
+        session=_row(_ID_C, "gone", Exited(code=1), 1).session,
+        has_pane=False,
+        displayed=False,
+    )
+    data = replace(_rich_data(), sessions=_rich_data().sessions[:2], ended=(gone,))
+
+    async def steps(pilot: Pilot[None], app: BoardApp) -> None:
+        assert "1 ended (e to show)" in _content(app, "board").plain
+        await pilot.press("e")
+        assert "gone  exited (1)" in _content(app, "board").plain
+
+    _ = _scenario(data, steps)
+
+
+def test_click_after_scrolling_hits_the_line_under_the_mouse() -> None:
+    many = tuple(
+        _row(SessionId(f"{n:08d}-1111-4111-8111-111111111111"), f"s{n}", Running(), None)
+        for n in range(40)
+    )
+    data = replace(board_data(), sessions=many, now=_NOW)
+    y = _line_y(data, _is_session(many[35].session.id))
+
+    async def steps(pilot: Pilot[None], app: BoardApp) -> None:
+        await pilot.press(*["down"] * 39)
+        await pilot.pause()
+        assert app.query_one("#sessions", VerticalScroll).scroll_y > 0
+        assert await pilot.click("#board", offset=(3, y))
+
+    actions = _scenario(data, steps).actions
+    assert actions == [ShowSession(session_id=many[35].session.id)]
+
+
 def test_space_folds_the_selected_group_then_unfolds_it() -> None:
     async def steps(pilot: Pilot[None], app: BoardApp) -> None:
         await pilot.press("space")

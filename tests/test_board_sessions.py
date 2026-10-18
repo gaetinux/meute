@@ -11,7 +11,6 @@ from meute.core.board_sessions import (
     line_info,
     risky_mode_span,
 )
-
 from meute.core.board_view import NO_SESSIONS, BoardData, RepoEntry, SessionEntry, SessionRow
 from meute.core.claude_session import ClaudeDetails
 from meute.core.project import ProjectId, RepoId
@@ -150,3 +149,17 @@ def test_ended_sessions_count_in_their_group() -> None:
     assert InfoLine("1 ended (e to show)") in model.view.lines
     shown = board_sessions(data, ViewState(show_ended=True))
     assert line_info(shown, _index(shown, SessionLine, 1)) is not None
+
+
+def test_recently_ended_sessions_show_only_with_e() -> None:
+    gone = replace(board_data().sessions[1].session, state=Exited(code=0))
+    row = SessionRow(session=gone, has_pane=False, displayed=False)
+    data = replace(board_data(), sessions=board_data().sessions[:1], ended=(row,))
+    hidden = board_sessions(data, ViewState())
+    assert InfoLine("1 ended (e to show)") in hidden.view.lines
+    lines = range(len(hidden.view.lines))
+    assert row not in [info.row for i in lines if (info := line_info(hidden, i)) is not None]
+    shown = board_sessions(data, ViewState(show_ended=True))
+    info = line_info(shown, _index(shown, SessionLine, 1))
+    assert info is not None
+    assert info.row == row

@@ -1,7 +1,7 @@
 """The dashboard's backend: tmux and the database, read and acted upon by the CLI code."""
 
 import time
-from collections.abc import Callable, Generator, Mapping
+from collections.abc import Callable, Collection, Generator, Mapping
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -22,6 +22,7 @@ from meute.core.board_view import (
     Detach,
     LaunchBash,
     LaunchClaude,
+    SessionRow,
     ShowSession,
     StopSession,
 )
@@ -30,8 +31,10 @@ from meute.core.db.claude_sessions import claude_details_by_session, purge_sampl
 from meute.core.db.projects import list_projects
 from meute.core.db.repos import list_repos
 from meute.core.db.samples import latest_metrics, latest_quota, quota_history
+from meute.core.db.sessions import list_sessions
 from meute.core.errors import MeuteError
 from meute.core.quota_view import QuotaLine, projected_limit
+from meute.core.session import SessionId
 from meute.core.session_state import is_live
 from meute.core.statusline_render import peak_text
 from meute.tmux.panes import detach_client
@@ -42,6 +45,7 @@ if TYPE_CHECKING:
 TMUX_REREAD_SECONDS = 2.0
 SAMPLE_RETENTION = timedelta(days=30)
 QUOTA_HISTORY = timedelta(minutes=30)
+RECENTLY_ENDED = timedelta(days=7)
 
 
 @contextmanager
@@ -64,6 +68,20 @@ def quota_line(ctx: CliContext, now: datetime, environ: Mapping[str, str]) -> Qu
         seven_day_resets_at=None if latest is None else latest.seven_day_resets_at,
         limit_at=projected_limit(history, resets_at=five_resets, now=now),
         peak=peak_text(now, ctx.config.quotas, local_zone(environ)),
+    )
+
+
+def recently_ended(
+    ctx: CliContext, shown: Collection[SessionId], now: datetime
+) -> tuple[SessionRow, ...]:
+    """Return the sessions ended within 7 days that `shown` lacks: they have no pane."""
+    since = now - RECENTLY_ENDED
+    return tuple(
+        SessionRow(session=session, has_pane=False, displayed=False)
+        for session in list_sessions(ctx.db, include_ended=True)
+        if not is_live(session.state)
+        and session.id not in shown
+        and (session.ended_at or session.last_activity_at) >= since
     )
 
 
@@ -131,6 +149,7 @@ class CliBoardBackend:
             orphans=snapshot.orphans,
             home=Path.home(),
             outside=snapshot.outside,
+            ended=recently_ended(self._ctx, {row.session.id for row in snapshot.sessions}, clock),
             details=claude_details_by_session(db),
             metrics={key: value for key, value in metrics.items() if value is not None},
             projects={project.id: project.name for project in list_projects(db)},

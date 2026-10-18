@@ -40,6 +40,7 @@ class BoardSessions:
 def board_sessions(data: BoardData, state: ViewState) -> BoardSessions:
     """Build the Sessions view of `data` as the user folded and filtered it.
 
+    Recently ended sessions without a pane count in their group and show with `show_ended`.
     Without `data.now`, ages are measured from the latest activity of the sessions. Without
     any session, the view starts with the hint to start one.
     """
@@ -51,7 +52,7 @@ def board_sessions(data: BoardData, state: ViewState) -> BoardSessions:
             metrics=data.metrics.get(row.session.id),
             group=group_name(row.session, projects=data.projects, repos=repos),
         )
-        for row in data.sessions
+        for row in (*data.sessions, *data.ended)
     }
     now = data.now or max(
         (row.session.last_activity_at for row in data.sessions), default=_NO_ACTIVITY

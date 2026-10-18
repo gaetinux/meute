@@ -4,6 +4,7 @@ import subprocess
 import time
 from datetime import timedelta
 from pathlib import Path
+from uuid import uuid4
 
 from meute.cli.board_backend import CliBoardBackend
 from meute.cli.context import CliContext
@@ -14,6 +15,9 @@ from meute.core.claude_session import ClaudeDetails
 from meute.core.db.connection import Database
 from meute.core.db.projects import create_project
 from meute.core.db.samples import record_metrics, record_quota
+from meute.core.db.sessions import create_session, set_session_state
+from meute.core.session import AgentKind, NewSession, SessionId
+from meute.core.session_state import Exited, Running
 from meute.core.statusline import StatuslineData
 from support import FIXED
 from test_board_backend import _ENVIRON, _Clock, ctx, env  # noqa: F401 — fixtures reused  # pyright: ignore[reportPrivateUsage, reportUnusedImport] — fixtures reused
@@ -110,3 +114,28 @@ def test_detach_detaches_the_client(
     finally:
         client.kill()
         _ = client.wait()
+
+
+def _ended_session(path: Path, title: str, days: int) -> SessionId:
+    with Database.open(
+        path / "meute.db", busy_timeout_ms=1000, clock=lambda: FIXED - timedelta(days=days)
+    ) as other:
+        new = NewSession(
+            id=SessionId(str(uuid4())), agent=AgentKind.BASH, title=title, cwd=path, state=Running()
+        )
+        session = create_session(other, new)
+        _ = set_session_state(other, session.id, Exited(code=0))
+    return session.id
+
+
+def test_load_brings_the_sessions_ended_in_the_last_seven_days(
+    ctx: CliContext,  # noqa: F811 — fixture
+    env: TmuxEnv,  # noqa: F811 — fixture
+    tmp_path: Path,
+) -> None:
+    recent = _ended_session(tmp_path, "recent", 2)
+    _ = _ended_session(tmp_path, "old", 10)
+    data = _loaded(CliBoardBackend(ctx, env, _ENVIRON, monotonic=_Clock()))
+    assert [row.session.id for row in data.ended] == [recent]
+    assert (data.ended[0].has_pane, data.ended[0].displayed) == (False, False)
+    assert data.sessions == ()
