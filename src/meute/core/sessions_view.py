@@ -53,6 +53,7 @@ class HeaderLine:
 
     group: str
     text: str
+    collapsed: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,7 +110,7 @@ def _group_lines(
 ) -> list[ViewLine]:
     folded = group in state.collapsed
     header = header_text(group, members) + (" (collapsed)" if folded else "")
-    lines: list[ViewLine] = [HeaderLine(group=group, text=header)]
+    lines: list[ViewLine] = [HeaderLine(group=group, text=header, collapsed=folded)]
     if folded:
         return lines
     ended = 0
@@ -168,11 +169,11 @@ def build_view(  # noqa: PLR0913 — everything the view draws, plus the clock a
         groups.setdefault(info.group, []).append(info)
     lines: list[ViewLine] = []
     for group in sorted(groups, key=_group_order):
-        group_lines = _group_lines(group, groups[group], state, now)
-        if state.attention_only and len(group_lines) == 1 and group not in state.collapsed:
+        members = groups[group]
+        if state.attention_only and not any(needs_attention(i.row.session.state) for i in members):
             continue
-        lines += group_lines
-    if state.attention_only and not any(isinstance(line, SessionLine) for line in lines):
+        lines += _group_lines(group, members, state, now)
+    if state.attention_only and not lines:
         lines = [InfoLine(NOTHING_TO_SHOW)]
     lines += _bottom_lines(infos, repos, outside, orphans, home)
     return SessionsView(lines=tuple(lines))
@@ -185,19 +186,26 @@ def line_key(line: ViewLine) -> str | None:
             return f"session:{line.session_id}"
         case RepoLine():
             return f"repo:{line.repo_id}"
-        case HeaderLine() | InfoLine():
+        case HeaderLine():
+            return f"group:{line.group}" if line.collapsed else None
+        case InfoLine():
             return None
         case _:
             assert_never(line)
 
 
 def selectable(view: SessionsView) -> tuple[int, ...]:
-    """Return the indexes of the lines that can be selected: sessions and repositories."""
+    """Return the indexes of the selectable lines: sessions, repositories, collapsed headers."""
     return tuple(i for i, line in enumerate(view.lines) if line_key(line) is not None)
 
 
-def keep_selection(old_key: str | None, view: SessionsView, fallback: int) -> int:
+def keep_selection(
+    old_key: str | None, view: SessionsView, fallback: int, *, old_group: str | None = None
+) -> int:
     """Return the line index to select: the line with `old_key`, else the `fallback`-th choice.
+
+    When the line is gone because its group `old_group` is now collapsed, that group's header
+    is selected.
 
     `fallback` is a position among the selectable lines, clamped to them. Returns -1 when
     nothing can be selected, so the selection never rests on a header or an information line.
@@ -208,4 +216,8 @@ def keep_selection(old_key: str | None, view: SessionsView, fallback: int) -> in
     for index in choices:
         if old_key is not None and line_key(view.lines[index]) == old_key:
             return index
+    if old_group is not None:
+        for index in choices:
+            if line_key(view.lines[index]) == f"group:{old_group}":
+                return index
     return choices[min(max(fallback, 0), len(choices) - 1)]

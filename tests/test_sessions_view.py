@@ -244,10 +244,22 @@ def test_untrusted_text_is_neutralised() -> None:
         Idle(),
         group="g\x1b[2J",
         details=ClaudeDetails(
-            last_message="m\x1b[2J", model="o\x1b[2J", pending_permission="p\x1b[2J"
+            last_message="m\x1b[2J",
+            model="o\x1b[2J",
+            pending_permission="p\x1b[2J",
+            permission_mode="pm\x1b[2J",
+            last_tool="lt\x1b[2J",
         ),
     )
-    view = _view([evil], repos=[board_repo(1, "r\x1b[2J", "k\x1b[2J")], orphans=["%\x1b[2J"])
+    agent = AgentInfo(
+        pid=1, cwd="/w\x1b[2J", kind="cli", session_id="s", name="n\x1b[2J", status="b\x1b[2J"
+    )
+    view = _view(
+        [evil],
+        repos=[board_repo(1, "r\x1b[2J", "k\x1b[2J")],
+        orphans=["%\x1b[2J"],
+        outside=[agent],
+    )
     for text in [*_texts(view), *details_lines(evil, now=_NOW, home=BOARD_HOME)]:
         assert "\x1b" not in text
 
@@ -276,7 +288,10 @@ def test_keep_selection_falls_back_into_selectable_list() -> None:
     infos = [_info(1, "a", Running()), _info(2, "b", PermissionRequested(), group="beta")]
     key = f"session:{_id(1)}"
     collapsed = _view(infos, ViewState(collapsed=frozenset({"alpha"})))
-    assert collapsed.lines[keep_selection(key, collapsed, 0)] == SessionLine(
+    assert collapsed.lines[keep_selection(key, collapsed, 0)] == HeaderLine(
+        group="alpha", text="alpha  1 live (collapsed)", collapsed=True
+    )
+    assert collapsed.lines[keep_selection(key, collapsed, 1)] == SessionLine(
         session_id=_id(2), text="  !b  permission  5m", attention=True
     )
     filtered = _view(infos, ViewState(attention_only=True))
@@ -289,8 +304,8 @@ def test_keep_selection_falls_back_into_selectable_list() -> None:
 
 def test_keep_selection_never_lands_on_a_header_or_info() -> None:
     view = _view([_info(1, "a", Running())], ViewState(collapsed=frozenset({"alpha"})))
-    assert selectable(view) == ()
-    assert keep_selection("session:x", view, 0) == -1
+    assert selectable(view) == (0,)  # R6: only the collapsed header can be selected
+    assert keep_selection("session:x", view, 0) == 0
     empty = _view([])
     assert empty.lines == ()
     assert keep_selection(None, empty, 0) == -1
@@ -329,3 +344,33 @@ def test_details_lines_without_permission_or_metrics() -> None:
 def test_view_line_union_members() -> None:
     lines: tuple[ViewLine, ...] = (HeaderLine(group="g", text="t"), InfoLine("i"))
     assert SessionsView(lines=lines).lines == lines
+
+
+def test_attention_filter_with_collapsed_groups() -> None:
+    infos = [
+        _info(1, "calm", Running(), group="a"),
+        _info(2, "ask", PermissionRequested(), group="b"),
+    ]
+    state = ViewState(attention_only=True, collapsed=frozenset({"a", "b"}))
+    view = _view(infos, state)
+    assert [line.group for line in view.lines if isinstance(line, HeaderLine)] == ["b"]
+    assert _texts(view) == ["b  1 live (collapsed)"]
+    calm_only = _view(infos[:1], state)
+    assert calm_only.lines == (InfoLine("Nothing needs your attention."),)
+
+
+def test_collapsed_headers_are_selectable() -> None:
+    infos = [_info(1, "a", Running(), group="a"), _info(2, "b", Idle(), group="b")]
+    view = _view(infos, ViewState(collapsed=frozenset({"a", "b"})))
+    assert [line_key(view.lines[i]) for i in selectable(view)] == ["group:a", "group:b"]
+    open_view = _view(infos, ViewState(collapsed=frozenset({"b"})))
+    assert line_key(open_view.lines[0]) is None
+    assert [line_key(open_view.lines[i]) for i in selectable(open_view)][-1] == "group:b"
+
+
+def test_collapsing_the_selected_group_selects_its_header() -> None:
+    infos = [_info(1, "a", Running(), group="a"), _info(2, "b", Idle(), group="b")]
+    view = _view(infos, ViewState(collapsed=frozenset({"b"})))
+    index = keep_selection(f"session:{_id(2)}", view, 0, old_group="b")
+    assert view.lines[index] == HeaderLine(group="b", text="b  1 live (collapsed)", collapsed=True)
+    assert keep_selection("group:b", view, 0) == index
