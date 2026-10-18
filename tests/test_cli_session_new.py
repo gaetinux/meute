@@ -103,6 +103,7 @@ def test_claude_kind_without_claude_is_refused(sandbox: Sandbox) -> None:
             " Bash sessions remain available with --kind bash\n"
         ),
     )
+    assert not sandbox.tmux().is_running()  # refused before tmux is ever started
 
 
 def test_missing_tmux_is_reported(sandbox: Sandbox) -> None:
