@@ -1,0 +1,21 @@
+# serializer version: 1
+# name: test_board_lines_with_outside
+  list([
+    'meute',
+    '',
+    'Sessions',
+    '▶ build  running  ~/git/meute',
+    '  tests  exited (2)  /srv/work',
+    '',
+    'Repositories',
+    'meute (rust)',
+    'notes',
+    '',
+    'Outside meute',
+    'review  busy  ~/git/meute',
+    'evil�[31m  idle  /srv/x',
+    '',
+    'Orphans',
+    '%7',
+  ])
+# ---

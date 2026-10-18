@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import assert_never
 
+from meute.core.agents import AgentInfo
 from meute.core.paths import display_path
 from meute.core.project import RepoId
 from meute.core.repo import Repo
@@ -15,6 +16,7 @@ BOARD_TITLE = "meute"
 SESSIONS_HEADING = "Sessions"
 REPOS_HEADING = "Repositories"
 ORPHANS_HEADING = "Orphans"
+OUTSIDE_HEADING = "Outside meute"
 NO_SESSIONS = "No sessions. Pick a repository and press n."
 FOOTER = "↑↓ select · Enter show · c Claude · n Bash · x stop"
 
@@ -39,6 +41,7 @@ class BoardData:
     repos: tuple[Repo, ...]
     orphans: tuple[str, ...]
     home: Path | None
+    outside: tuple[AgentInfo, ...] = ()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -165,6 +168,14 @@ def repo_line(repo: Repo) -> str:
     return name if repo.kind is None else f"{name} ({printable(repo.kind)})"
 
 
+def outside_line(agent: AgentInfo, home: Path | None) -> str:
+    """Return the board line of a Claude session started outside meute (read-only)."""
+    return (
+        f"{printable(agent.name)}  {printable(agent.status)}  "
+        f"{printable(display_path(Path(agent.cwd), home))}"
+    )
+
+
 def confirm_stop_text(title: str) -> str:
     """Return the confirmation prompt shown before stopping a session."""
     return f'Stop "{printable(title)}"? y: yes · any other key: no'
@@ -183,6 +194,8 @@ def board_layout(data: BoardData) -> tuple[list[str], tuple[int, ...]]:
     lines += ["", REPOS_HEADING]
     first_repo = len(lines)
     lines += [repo_line(repo) for repo in data.repos]
+    if data.outside:
+        lines += ["", OUTSIDE_HEADING, *(outside_line(agent, data.home) for agent in data.outside)]
     if data.orphans:
         lines += ["", ORPHANS_HEADING, *(printable(orphan) for orphan in data.orphans)]
     sessions = range(first_session, first_session + len(data.sessions))

@@ -8,6 +8,8 @@ from typing import Annotated, assert_never
 
 import typer
 
+from meute.claude.agents import run_agents
+from meute.claude.launch import find_claude
 from meute.cli.context import open_context
 from meute.cli.json_out import echo_json
 from meute.cli.session_launch import BashLaunch, launch_bash
@@ -16,6 +18,7 @@ from meute.cli.session_refresh import refresh
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.tmux_env import open_tmux_env
+from meute.core.agents import AgentInfo, parse_agents
 from meute.core.claude_session import ClaudeDetails, claude_details_to_json
 from meute.core.db.claude_sessions import get_claude_details
 from meute.core.db.sessions import find_session
@@ -68,6 +71,24 @@ def _session_json(session: Session, details: Mapping[SessionId, ClaudeDetails]) 
     return base if found is None else {**base, "claude": claude_details_to_json(found)}
 
 
+def _outside_json(agent: AgentInfo) -> JsonObject:
+    return {
+        "pid": agent.pid,
+        "cwd": agent.cwd,
+        "kind": agent.kind,
+        "session_id": agent.session_id,
+        "name": agent.name,
+        "status": agent.status,
+    }
+
+
+def _read_agents() -> tuple[AgentInfo, ...] | None:
+    """Ask `claude agents --json`; `None` when claude is absent or the command failed."""
+    claude = find_claude(os.environ)
+    text = None if claude is None else run_agents(claude)
+    return None if text is None else parse_agents(text)
+
+
 @session_app.command("list")
 def list_(
     *,
@@ -78,19 +99,22 @@ def list_(
 ) -> None:
     """List the sessions after reconciling them with tmux."""
     with open_context(os.environ) as ctx:
-        snapshot = refresh(ctx, open_tmux_env(ctx, os.environ), include_ended=all_)
+        snapshot = refresh(
+            ctx, open_tmux_env(ctx, os.environ), include_ended=all_, agents=_read_agents()
+        )
         details = {
             row.session.id: get_claude_details(ctx.db, row.session.id)
             for row in snapshot.sessions
             if row.session.agent is AgentKind.CLAUDE
         }
     if json_:
-        echo_json(
-            {
-                "sessions": [_session_json(row.session, details) for row in snapshot.sessions],
-                "orphans": list(snapshot.orphans),
-            }
-        )
+        payload: JsonObject = {
+            "sessions": [_session_json(row.session, details) for row in snapshot.sessions],
+            "orphans": list(snapshot.orphans),
+        }
+        if snapshot.outside:  # absent when empty: the shape pinned by test_list_json_shape
+            payload["outside"] = [_outside_json(agent) for agent in snapshot.outside]
+        echo_json(payload)
         return
     home = Path.home()
     for row in snapshot.sessions:
@@ -103,6 +127,11 @@ def list_(
         )
     for orphan in snapshot.orphans:
         typer.echo(f"orphan: {printable(orphan)}")
+    for agent in snapshot.outside:
+        typer.echo(
+            f"outside: {printable(agent.status)}  {printable(agent.name)}"
+            f"  {printable(display_path(Path(agent.cwd), home))}"
+        )
 
 
 @session_app.command("show")

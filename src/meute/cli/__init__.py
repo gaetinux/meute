@@ -58,13 +58,14 @@ def _root(
 @app.command("board")
 def board() -> None:
     """Run the dashboard (the right-hand pane of the layout)."""
-    from meute.cli.board_backend import CliBoardBackend  # noqa: PLC0415 — keeps Textual out of every other command's start-up
+    from meute.cli.board_backend import CliBoardBackend, purge_old_samples  # noqa: PLC0415 — keeps Textual out of every other command's start-up
     from meute.cli.repo_scan import scan_repos  # noqa: PLC0415 — only the dashboard scans on start
     from meute.tui.board import BoardApp  # noqa: PLC0415 — keeps Textual out of every other command's start-up
 
     with open_context(os.environ) as ctx:
         env = open_tmux_env(ctx, os.environ)
         _ = scan_repos(ctx)
+        _ = purge_old_samples(ctx)
         BoardApp(CliBoardBackend(ctx, env, os.environ)).run()
 
 
