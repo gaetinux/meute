@@ -50,3 +50,11 @@ def test_is_no_server() -> None:
 
 def test_unreadable_output_message() -> None:
     assert str(UnreadableOutput("x")) == "unreadable tmux output: x"
+
+
+def test_stop_removes_the_socket_file() -> None:
+    server = TestServer.start()
+    socket = Path(server.tmux.run("display-message", "-p", "#{socket_path}"))
+    assert socket.exists()
+    server.stop()
+    assert not socket.exists()

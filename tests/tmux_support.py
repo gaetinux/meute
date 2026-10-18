@@ -30,6 +30,12 @@ class TestServer:
         return server
 
     def stop(self) -> None:
-        """Kill the server; an already dead server is fine."""
+        """Kill the server and remove its socket file; an already dead server is fine."""
+        socket: Path | None = None
+        with suppress(TmuxError):
+            socket = Path(self.tmux.run("display-message", "-p", "#{socket_path}"))
         with suppress(TmuxError):
             self.tmux.kill_server()
+        if socket is not None:
+            with suppress(OSError):
+                socket.unlink(missing_ok=True)
