@@ -1,17 +1,20 @@
 """Test configuration: hypothesis profiles chosen by `HYPOTHESIS_PROFILE`."""
 
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Generator, Mapping
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, suppress
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from hypothesis import settings
 
 from meute.core.db.connection import Database
+from meute.tmux.client import Tmux
 from support import FIXED
 from tmux_support import TestServer
 
@@ -40,6 +43,7 @@ class Sandbox:
     """A throw-away home where `python -m meute` runs with a frozen clock."""
 
     root: Path
+    tmux_socket: str
 
     def run(
         self, *args: str, env: Mapping[str, str] | None = None, stdin: str = ""
@@ -52,6 +56,8 @@ class Sandbox:
             "XDG_DATA_HOME": str(self.root / "data"),
             "XDG_STATE_HOME": str(self.root / "state"),
             "MEUTE_NOW": "2026-10-14T10:30[Europe/Paris]",
+            "MEUTE_TMUX_SOCKET": self.tmux_socket,
+            "SHELL": "/bin/sh",
         }
         environ |= env or {}
         return subprocess.run(
@@ -63,6 +69,10 @@ class Sandbox:
             check=False,
         )
 
+    def tmux(self) -> Tmux:
+        """A client of the sandbox's throw-away tmux server."""
+        return Tmux(socket=self.tmux_socket, config_file=None)
+
     def db(self) -> AbstractContextManager[Database]:
         """Open the sandbox database with the fixed clock."""
         return Database.open(
@@ -70,10 +80,28 @@ class Sandbox:
         )
 
 
+def _kill_server(binary: str, socket: str) -> None:
+    """Kill the tmux server on `socket` and remove its socket file; no server is fine.
+
+    The file is removed even when the server already exited on its own (its last pane died).
+    """
+    subprocess.run([binary, "-L", socket, "kill-server"], capture_output=True, check=False)
+    parent = os.environ.get("TMUX_TMPDIR") or "/tmp"  # noqa: S108 — tmux's own default socket folder
+    folder = Path(parent) / f"tmux-{os.getuid()}"
+    with suppress(OSError):
+        (folder / socket).unlink(missing_ok=True)
+
+
 @pytest.fixture
-def sandbox(tmp_path: Path) -> Sandbox:
-    """A fresh sandbox below `tmp_path`."""
-    return Sandbox(root=tmp_path)
+def sandbox(tmp_path: Path) -> Generator[Sandbox]:
+    """A fresh sandbox below `tmp_path`; its tmux server is always killed at the end."""
+    binary = shutil.which("tmux")  # absolute, so teardown works even if a test empties PATH
+    box = Sandbox(root=tmp_path, tmux_socket=f"meute-test-{uuid4().hex}")
+    try:
+        yield box
+    finally:
+        if binary is not None:
+            _kill_server(binary, box.tmux_socket)
 
 
 @pytest.fixture

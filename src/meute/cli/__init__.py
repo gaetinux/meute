@@ -15,14 +15,17 @@ from meute.cli.context import current_time
 from meute.cli.project_commands import project_app
 from meute.cli.render import task_line
 from meute.cli.repo_commands import repo_app
+from meute.cli.session_commands import session_app
 from meute.cli.task_app import task_app
 from meute.core.errors import MeuteError, VersionConflict
+from meute.tmux.errors import TmuxError
 
 app = typer.Typer(name="meute", add_completion=False, pretty_exceptions_enable=False)
 app.add_typer(task_app, name="task")
 app.add_typer(project_app, name="project")
 app.add_typer(config_app, name="config")
 app.add_typer(repo_app, name="repo")
+app.add_typer(session_app, name="session")
 
 _FAILURE = 1
 
@@ -70,7 +73,7 @@ def run(argv: Sequence[str]) -> int:
         if isinstance(error, VersionConflict):
             print(task_line(error.current, current_time(os.environ)), file=sys.stderr)
         return error.exit_code
-    except (OSError, sqlite3.Error) as error:
+    except (OSError, sqlite3.Error, TmuxError) as error:
         _fail(str(error))
         return _FAILURE
     return 0

@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import tempfile
 import tomllib
 from collections.abc import Mapping
@@ -29,6 +30,11 @@ permission_mode = "manual"
 board_width = 60
 # Below this terminal width, the dashboard goes full screen.
 narrow_threshold = 120
+
+[keys]
+# Global shortcuts, without the tmux prefix (M- = Alt).
+focus_board = "M-p"
+focus_main = "M-o"
 
 [quotas]
 # Peak hours: weekdays, from peak_start_hour to peak_end_hour, in this time zone.
@@ -65,6 +71,14 @@ class UiConfig:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class KeysConfig:
+    """Global tmux shortcuts, as tmux key names."""
+
+    focus_board: str = "M-p"
+    focus_main: str = "M-o"
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class QuotasConfig:
     """Peak hours of the Claude quotas."""
 
@@ -80,6 +94,7 @@ class Config:
     repos: ReposConfig = field(default_factory=ReposConfig)
     claude: ClaudeConfig = field(default_factory=ClaudeConfig)
     ui: UiConfig = field(default_factory=UiConfig)
+    keys: KeysConfig = field(default_factory=KeysConfig)
     quotas: QuotasConfig = field(default_factory=QuotasConfig)
 
 
@@ -145,6 +160,18 @@ def _permission_mode(section: Mapping[str, object]) -> str:
     return value
 
 
+_TMUX_KEY = re.compile(r"[A-Za-z0-9-]{1,20}")
+
+
+def _key(section: Mapping[str, object], dotted: str, default: str) -> str:
+    """Return a tmux key name; it is copied into the generated tmux file, so it is strict."""
+    value = section.get(dotted.partition(".")[2], default)
+    if not isinstance(value, str) or _TMUX_KEY.fullmatch(value) is None:
+        message = f"{dotted}: expected a tmux key such as M-p"
+        raise InvalidInput(message)
+    return value
+
+
 def _timezone(section: Mapping[str, object]) -> str:
     value = section.get("peak_timezone", "America/New_York")
     message = "quotas.peak_timezone: expected an IANA time zone name"
@@ -164,6 +191,7 @@ def validate_config(data: Mapping[str, object]) -> Config:
         InvalidInput: a known key holds a value of the wrong type or range.
     """
     ui = _section(data, "ui")
+    keys = _section(data, "keys")
     quotas = _section(data, "quotas")
     return Config(
         repos=ReposConfig(roots=_roots(_section(data, "repos"))),
@@ -171,6 +199,10 @@ def validate_config(data: Mapping[str, object]) -> Config:
         ui=UiConfig(
             board_width=_int(ui, "ui.board_width", 60, 1),
             narrow_threshold=_int(ui, "ui.narrow_threshold", 120, 1),
+        ),
+        keys=KeysConfig(
+            focus_board=_key(keys, "keys.focus_board", "M-p"),
+            focus_main=_key(keys, "keys.focus_main", "M-o"),
         ),
         quotas=QuotasConfig(
             peak_timezone=_timezone(quotas),
@@ -186,6 +218,8 @@ def _flatten(config: Config) -> dict[str, object]:
         "claude.permission_mode": config.claude.permission_mode,
         "ui.board_width": config.ui.board_width,
         "ui.narrow_threshold": config.ui.narrow_threshold,
+        "keys.focus_board": config.keys.focus_board,
+        "keys.focus_main": config.keys.focus_main,
         "quotas.peak_timezone": config.quotas.peak_timezone,
         "quotas.peak_start_hour": config.quotas.peak_start_hour,
         "quotas.peak_end_hour": config.quotas.peak_end_hour,
