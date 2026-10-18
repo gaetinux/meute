@@ -20,3 +20,8 @@ def test_status_text(
     displayed: str | None, attention: int, five_hour: float | None, expected: str
 ) -> None:
     assert status_text(displayed, attention, five_hour) == expected
+
+
+def test_hashes_are_doubled_so_tmux_shows_them_literally() -> None:
+    title = "A #[fg=red,reverse]INJECT #{pane_id}"
+    assert status_text(title, 0, None) == "▶ A ##[fg=red,reverse]INJECT ##{pane_id}"
