@@ -1,6 +1,7 @@
 """Launching a Bash session in the background tmux session."""
 
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from meute.core.errors import InvalidInput
 from meute.core.project import RepoId
 from meute.core.session import AgentKind, NewSession, Session, new_session_id
 from meute.core.session_state import Running
+from meute.tmux.errors import TmuxError
 from meute.tmux.names import BG_SESSION, ID_OPTION
 from meute.tmux.panes import Spawn, kill_pane, spawn_window
 
@@ -64,5 +66,6 @@ def launch_bash(
             ),
         )
     except BaseException:
-        kill_pane(env.tmux, pane)
+        with suppress(TmuxError):  # the pane may be gone already: the first error matters
+            kill_pane(env.tmux, pane)
         raise

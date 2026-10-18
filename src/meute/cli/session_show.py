@@ -5,7 +5,7 @@ from meute.cli.tmux_env import TmuxEnv
 from meute.core.db.sessions import get_session
 from meute.core.errors import InvalidInput
 from meute.core.session import SessionId
-from meute.tmux.layout import find_layout
+from meute.tmux.layout import ensure_layout, find_layout
 from meute.tmux.names import MAIN_SESSION, MAIN_WINDOW, ROLE_WELCOME, STATUS_OPTION
 from meute.tmux.panes import (
     kill_pane,
@@ -21,6 +21,7 @@ def show_session(ctx: CliContext, env: TmuxEnv, session_id: SessionId) -> None:
     """Bring the pane of a session into the main area and give it the focus.
 
     The previous occupant goes back to `meute-bg`, except the welcome pane, which is killed.
+    A missing main area is repaired first.
 
     Raises:
         InvalidInput: meute is not open, or the session has no pane.
@@ -30,6 +31,8 @@ def show_session(ctx: CliContext, env: TmuxEnv, session_id: SessionId) -> None:
     if layout is None:
         message = 'meute is not open: run "meute" first'
         raise InvalidInput(message)
+    if layout.main is None:  # the main area was killed by hand: put the welcome pane back
+        layout = ensure_layout(env.tmux, env.spec)
     session = get_session(ctx.db, session_id)
     panes = list_panes(env.tmux)
     pane = next((p for p in panes if p.meute_id == session_id), None)
