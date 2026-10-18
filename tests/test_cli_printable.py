@@ -6,10 +6,12 @@ from uuid import uuid4
 from conftest import Sandbox
 from meute.core.db.sessions import create_session
 from meute.core.db.task_notes import add_note
+from meute.core.db.task_update import update_task
 from meute.core.db.tasks import create_task
 from meute.core.session import AgentKind, NewSession, SessionId
 from meute.core.session_state import Exited
-from meute.core.task import TaskId, task_to_json
+from meute.core.status import Blocked
+from meute.core.task import TaskId, TaskPatch, task_to_json
 from support import USER, load_json, new_task
 
 EVIL_TITLE = "ok\x1b]0;pwned\x07"
@@ -64,3 +66,18 @@ def test_session_list_emits_no_control_bytes(sandbox: Sandbox) -> None:
     assert result.returncode == 0, result.stderr
     assert _clean(result.stdout), result.stdout
     assert "t\ufffd[2J" in result.stdout
+
+
+def test_blocked_reason_is_sanitised_in_task_list(sandbox: Sandbox) -> None:
+    with sandbox.db() as db:
+        task = create_task(db, new_task("t"), USER)
+        update_task(db, task.id, task.version, TaskPatch(status=Blocked(reason="x\x1b[2J")), USER)
+    result = sandbox.run("task", "list")
+    assert _clean(result.stdout)
+    assert "blocked: x�[2J" in result.stdout
+
+
+def test_error_line_is_sanitised(sandbox: Sandbox) -> None:
+    result = sandbox.run("task", "list", "--project", "p\x1b[2J")
+    assert result.returncode == 1
+    assert result.stderr == "meute: unknown project: p\ufffd[2J (no projects)\n"

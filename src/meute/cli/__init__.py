@@ -20,6 +20,7 @@ from meute.cli.task_app import task_app
 from meute.cli.tmux_env import open_tmux_env
 from meute.cli.welcome import wait_forever, welcome_text
 from meute.core.errors import MeuteError, VersionConflict
+from meute.core.text import printable
 
 app = typer.Typer(name="meute", add_completion=False, pretty_exceptions_enable=False)
 app.add_typer(task_app, name="task")
@@ -77,7 +78,7 @@ def welcome() -> None:
 
 
 def _fail(message: str) -> None:
-    print(f"meute: {message}", file=sys.stderr)
+    print(printable(f"meute: {message}"), file=sys.stderr)
 
 
 def _exit_code(code: object) -> int:

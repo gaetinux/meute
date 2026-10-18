@@ -51,6 +51,7 @@ def _migration_lock(db_path: Path | None) -> Generator[None]:
         return
     fd = os.open(lock_path(db_path), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     try:
+        os.fchmod(fd, 0o600)
         fcntl.flock(fd, fcntl.LOCK_EX)
         yield
     finally:

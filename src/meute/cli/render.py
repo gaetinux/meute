@@ -24,7 +24,7 @@ _STAMP = "%Y-%m-%d %H:%M"
 def _line(lead: Sequence[str], title: str, project: str | None, tail: str | None) -> str:
     parts = [*lead, printable(title), f"@{printable(project)}" if project else ""]
     text = " ".join(part for part in parts if part)
-    return f"{text} · {tail}" if tail else text
+    return f"{text} · {printable(tail)}" if tail else text
 
 
 def task_line(task: Task, now: datetime) -> str:

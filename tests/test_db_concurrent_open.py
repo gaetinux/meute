@@ -1,5 +1,7 @@
 """Opening the database from several processes, and opening it without migrating."""
 
+import fcntl
+import os
 import sqlite3
 import subprocess
 import sys
@@ -106,6 +108,60 @@ def test_schema_version_matches_migrations() -> None:
 def test_open_existing_does_not_import_migrations() -> None:
     code = (
         "import sys; import meute.core.db.connection;"
+        " sys.exit('meute.core.db.migrations' in sys.modules)"
+    )
+    assert subprocess.run([sys.executable, "-c", code], check=False).returncode == 0
+
+
+def test_worker_waiting_on_the_lock_rereads_the_version_after_it(tmp_path: Path) -> None:
+    path = tmp_path / "meute.db"
+    _make_v1(path)
+    go = tmp_path / "go"
+    go.touch()
+    lock_fd = os.open(tmp_path / "meute.db.lock", os.O_RDWR | os.O_CREAT, 0o600)
+    fcntl.flock(lock_fd, fcntl.LOCK_EX)
+    try:
+        worker = subprocess.Popen(
+            [sys.executable, "-c", _WORKER, str(path), str(tmp_path / "ready"), str(go)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        time.sleep(1.5)  # long enough for the worker to start and reach the lock
+        assert worker.poll() is None
+        with closing(sqlite3.connect(path)) as conn:
+            assert conn.execute("PRAGMA user_version").fetchone() == (1,)
+            migrate(conn, None, MIGRATIONS)  # the lock is ours: no second lock, no backup
+        backup = tmp_path / "meute.db.bak-1"
+        with closing(sqlite3.connect(path)) as conn:
+            conn.execute("VACUUM INTO ?", (str(backup),))
+        mtime = backup.stat().st_mtime_ns
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)
+    out, err = worker.communicate(timeout=60)
+    assert (worker.returncode, err) == (0, "")
+    assert out.strip() == str(SCHEMA_VERSION)
+    assert backup.stat().st_mtime_ns == mtime
+
+
+def test_failed_migration_releases_the_lock(tmp_path: Path) -> None:
+    path = tmp_path / "meute.db"
+    with closing(sqlite3.connect(path, autocommit=True)) as conn, pytest.raises(MigrationError):
+        migrate(conn, path, ("CREATE TABLE a(x);", "NOT SQL"))
+    fd = os.open(tmp_path / "meute.db.lock", os.O_RDWR)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    finally:
+        os.close(fd)
+
+
+def test_open_existing_leaves_migrations_unloaded(tmp_path: Path) -> None:
+    path = tmp_path / "meute.db"
+    Database.open(path, busy_timeout_ms=1000).close()
+    code = (
+        "import sys; from pathlib import Path; from meute.core.db.connection import Database;"
+        f" Database.open_existing(Path({str(path)!r}), busy_timeout_ms=1000).close();"
         " sys.exit('meute.core.db.migrations' in sys.modules)"
     )
     assert subprocess.run([sys.executable, "-c", code], check=False).returncode == 0

@@ -20,6 +20,7 @@ Clock = Callable[[], datetime]
 _PRAGMA_NAME = re.compile(r"[a-z_]+")
 
 
+# tests/test_mutants_db.py monkeypatches this name: keep it a module-level function.
 def migrate(conn: sqlite3.Connection, db_path: Path | None) -> None:
     """Migrate `conn`; the migrations are loaded on first use, so `open_existing` never pays."""
     from meute.core.db import migrations  # noqa: PLC0415 — keeps `open_existing` light
