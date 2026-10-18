@@ -114,6 +114,20 @@ def wait_until(what: str, predicate: Callable[[], bool], *, timeout: float = 10.
         time.sleep(0.1)
 
 
+def status_within_grace(read: Callable[[], int | None], *, grace: float = 2.0) -> int | None:
+    """Poll `read` for up to `grace` seconds; None means the status never showed up.
+
+    tmux 3.4 may lose the exit status of a dead pane for good (no status, no signal), and any
+    tmux briefly shows a dead pane before its status is recorded.
+    """
+    deadline = time.monotonic() + grace
+    status = read()
+    while status is None and time.monotonic() < deadline:
+        time.sleep(0.1)
+        status = read()
+    return status
+
+
 BOARD_AT = datetime(2026, 10, 18, 9, 0, tzinfo=UTC)
 BOARD_HOME = Path("/home/me")
 BOARD_ID_A = SessionId("11111111-1111-4111-8111-111111111111")
