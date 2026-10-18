@@ -46,12 +46,13 @@ def _make_private_file(path: Path) -> None:
     """Create `path` 0600 if missing, else make it 0600; SQLite gives its -wal and -shm its mode.
 
     A symlink is followed, as SQLite does: the user may keep the database elsewhere.
+    An existing file is only chmod-ed: closing a descriptor of it would drop the POSIX locks that
+    other connections of this process hold on it (the board opens a second one in a worker).
     """
-    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
     try:
-        os.fchmod(fd, 0o600)
-    finally:
-        os.close(fd)
+        path.chmod(0o600)
+    except FileNotFoundError:
+        os.close(os.open(path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600))
 
 
 def _require_current_schema(conn: sqlite3.Connection) -> None:
