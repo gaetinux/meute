@@ -4,15 +4,20 @@ import json
 import time
 from collections.abc import Callable
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 from meute.core.actor import Actor, Author, Channel
+from meute.core.board_view import BoardData, SessionRow
 from meute.core.db.connection import Database
 from meute.core.db.projects import create_project
 from meute.core.db.task_update import update_task
 from meute.core.db.tasks import create_task
 from meute.core.instants import parse_zoned
 from meute.core.json_types import JsonValue
-from meute.core.project import ProjectId
+from meute.core.project import ProjectId, RepoId
+from meute.core.repo import Repo
+from meute.core.session import AgentKind, Session, SessionId
+from meute.core.session_state import Exited, Running
 from meute.core.status import Blocked, InProgress, Priority, Review, TaskStatus, Todo
 from meute.core.status import Done as DoneStatus
 from meute.core.task import Due, DueAt, DueDate, NewTask, Task, TaskId, TaskPatch
@@ -107,3 +112,60 @@ def wait_until(what: str, predicate: Callable[[], bool], *, timeout: float = 10.
             msg = f"timed out waiting for {what}"
             raise AssertionError(msg)
         time.sleep(0.1)
+
+
+BOARD_AT = datetime(2026, 10, 18, 9, 0, tzinfo=UTC)
+BOARD_HOME = Path("/home/me")
+BOARD_ID_A = SessionId("11111111-1111-4111-8111-111111111111")
+BOARD_ID_B = SessionId("22222222-2222-4222-8222-222222222222")
+
+
+def board_session(
+    session_id: SessionId, title: str, cwd: Path, repo_id: RepoId | None, *, exited: bool
+) -> Session:
+    """Build a Bash session for the board tests, running or exited with code 2."""
+    return Session(
+        id=session_id,
+        agent=AgentKind.BASH,
+        title=title,
+        project_id=None,
+        repo_id=repo_id,
+        task_id=None,
+        cwd=cwd,
+        state=Exited(code=2) if exited else Running(),
+        last_activity_at=BOARD_AT,
+        created_at=BOARD_AT,
+        ended_at=None,
+    )
+
+
+def board_repo(repo_id: int, name: str, kind: str | None) -> Repo:
+    """Build a repository under `~/git` for the board tests."""
+    return Repo(
+        id=RepoId(repo_id),
+        path=BOARD_HOME / "git" / name,
+        name=name,
+        kind=kind,
+        discovered_at=BOARD_AT,
+    )
+
+
+BOARD_SESSION_A = board_session(
+    BOARD_ID_A, "build", BOARD_HOME / "git" / "meute", RepoId(1), exited=False
+)
+BOARD_SESSION_B = board_session(BOARD_ID_B, "tests", Path("/srv/work"), None, exited=True)
+BOARD_REPO_1 = board_repo(1, "meute", "rust")
+BOARD_REPO_2 = board_repo(2, "notes", None)
+
+
+def board_data() -> BoardData:
+    """Return two sessions (the first displayed), two repositories and one orphan pane."""
+    return BoardData(
+        sessions=(
+            SessionRow(session=BOARD_SESSION_A, has_pane=True, displayed=True),
+            SessionRow(session=BOARD_SESSION_B, has_pane=True, displayed=False),
+        ),
+        repos=(BOARD_REPO_1, BOARD_REPO_2),
+        orphans=("%7",),
+        home=BOARD_HOME,
+    )
