@@ -48,3 +48,7 @@ def test_ingest_path_never_loads_the_cli() -> None:
 
 def test_cli_path_loads_typer() -> None:
     assert "typer" in imported_roots(["--version"], "")
+
+
+def test_cli_path_never_loads_textual() -> None:
+    assert "textual" not in imported_roots(["--version"], "")
