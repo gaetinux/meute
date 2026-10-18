@@ -2,6 +2,7 @@
 
 import os
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Annotated, assert_never
 
@@ -10,14 +11,18 @@ import typer
 from meute.cli.context import open_context
 from meute.cli.json_out import echo_json
 from meute.cli.session_launch import BashLaunch, launch_bash
+from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
 from meute.cli.session_refresh import refresh
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.tmux_env import open_tmux_env
+from meute.core.claude_session import ClaudeDetails, claude_details_to_json
+from meute.core.db.claude_sessions import get_claude_details
 from meute.core.db.sessions import find_session
 from meute.core.errors import InvalidInput
+from meute.core.json_types import JsonObject
 from meute.core.paths import display_path
-from meute.core.session import AgentKind, session_to_json, short_id
+from meute.core.session import AgentKind, Session, SessionId, session_to_json, short_id
 from meute.core.session_state import state_label
 from meute.core.text import printable
 
@@ -30,25 +35,37 @@ def new(
         Path | None, typer.Option("--cwd", help="Folder to start in (default: here).")
     ] = None,
     title: Annotated[str | None, typer.Option("--title", help="Session title.")] = None,
-    kind: Annotated[AgentKind, typer.Option("--kind", help="What to run.")] = AgentKind.BASH,
+    kind: Annotated[AgentKind, typer.Option("--kind", help="What to run.")] = AgentKind.CLAUDE,
+    permission_mode: Annotated[
+        str | None,
+        typer.Option("--permission-mode", help="Claude permission mode (Claude sessions only)."),
+    ] = None,
 ) -> None:
     """Start a session in the background."""
-    match kind:
-        case AgentKind.CLAUDE:
-            message = "only bash sessions are available for now"
-            raise InvalidInput(message)
-        case AgentKind.BASH:
-            pass
-        case _:
-            assert_never(kind)
+    if kind is AgentKind.BASH and permission_mode is not None:
+        message = "--permission-mode only applies to Claude sessions"
+        raise InvalidInput(message)
+    folder = cwd or Path.cwd()
     with open_context(os.environ) as ctx:
         env = open_tmux_env(ctx, os.environ)
-        request = BashLaunch(cwd=cwd or Path.cwd(), title=title)
-        session = launch_bash(ctx, env, request, os.environ)
+        match kind:
+            case AgentKind.CLAUDE:
+                claude = ClaudeLaunch(cwd=folder, title=title, permission_mode=permission_mode)
+                session = launch_claude(ctx, env, claude, os.environ)
+            case AgentKind.BASH:
+                session = launch_bash(ctx, env, BashLaunch(cwd=folder, title=title), os.environ)
+            case _:
+                assert_never(kind)
     typer.echo(
         f"Launched: {short_id(session.id)} {printable(session.title)} "
         f"({printable(display_path(session.cwd, Path.home()))})"
     )
+
+
+def _session_json(session: Session, details: Mapping[SessionId, ClaudeDetails]) -> JsonObject:
+    found = details.get(session.id)
+    base = session_to_json(session)
+    return base if found is None else {**base, "claude": claude_details_to_json(found)}
 
 
 @session_app.command("list")
@@ -62,10 +79,15 @@ def list_(
     """List the sessions after reconciling them with tmux."""
     with open_context(os.environ) as ctx:
         snapshot = refresh(ctx, open_tmux_env(ctx, os.environ), include_ended=all_)
+        details = {
+            row.session.id: get_claude_details(ctx.db, row.session.id)
+            for row in snapshot.sessions
+            if row.session.agent is AgentKind.CLAUDE
+        }
     if json_:
         echo_json(
             {
-                "sessions": [session_to_json(row.session) for row in snapshot.sessions],
+                "sessions": [_session_json(row.session, details) for row in snapshot.sessions],
                 "orphans": list(snapshot.orphans),
             }
         )
@@ -73,9 +95,11 @@ def list_(
     home = Path.home()
     for row in snapshot.sessions:
         session = row.session
+        mode = details[session.id].permission_mode if session.id in details else None
         typer.echo(
             f"{short_id(session.id)}  {printable(session.title)}  {state_label(session.state)}"
             f"  {printable(display_path(session.cwd, home))}"
+            + ("" if mode is None else f"  [{printable(mode)}]")
         )
     for orphan in snapshot.orphans:
         typer.echo(f"orphan: {printable(orphan)}")

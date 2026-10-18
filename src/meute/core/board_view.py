@@ -16,7 +16,7 @@ SESSIONS_HEADING = "Sessions"
 REPOS_HEADING = "Repositories"
 ORPHANS_HEADING = "Orphans"
 NO_SESSIONS = "No sessions. Pick a repository and press n."
-FOOTER = "↑↓ select · Enter show · n new Bash · x stop"
+FOOTER = "↑↓ select · Enter show · c Claude · n Bash · x stop"
 
 _DISPLAYED_MARK = "▶ "
 _NOT_DISPLAYED_MARK = "  "
@@ -57,13 +57,21 @@ class LaunchBash:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class LaunchClaude:
+    """Start a Claude session in `cwd`."""
+
+    cwd: Path
+    repo_id: RepoId | None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class StopSession:
     """Stop a session."""
 
     session_id: SessionId
 
 
-BoardAction = ShowSession | LaunchBash | StopSession
+BoardAction = ShowSession | LaunchBash | LaunchClaude | StopSession
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -122,6 +130,12 @@ def new_action(entry: BoardEntry) -> LaunchBash:
             return LaunchBash(cwd=entry.repo.path, repo_id=entry.repo.id)
         case _:
             assert_never(entry)
+
+
+def claude_action(entry: BoardEntry) -> LaunchClaude:
+    """Return what `c` does: launch Claude where `n` would launch Bash."""
+    launch = new_action(entry)
+    return LaunchClaude(cwd=launch.cwd, repo_id=launch.repo_id)
 
 
 def stop_target(entry: BoardEntry) -> Session | None:

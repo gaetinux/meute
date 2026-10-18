@@ -8,11 +8,19 @@ from typing import assert_never
 
 from meute.cli.context import ENVIRONMENT_ERRORS, CliContext
 from meute.cli.session_launch import BashLaunch, launch_bash
+from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
 from meute.cli.session_refresh import refresh
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.tmux_env import TmuxEnv
-from meute.core.board_view import BoardAction, BoardData, LaunchBash, ShowSession, StopSession
+from meute.core.board_view import (
+    BoardAction,
+    BoardData,
+    LaunchBash,
+    LaunchClaude,
+    ShowSession,
+    StopSession,
+)
 from meute.core.db.repos import list_repos
 from meute.core.errors import MeuteError
 
@@ -90,6 +98,10 @@ class CliBoardBackend:
             case LaunchBash():
                 request = BashLaunch(cwd=action.cwd, repo_id=action.repo_id)
                 session = launch_bash(self._ctx, self._env, request, self._environ)
+                show_session(self._ctx, self._env, session.id)
+            case LaunchClaude():
+                claude = ClaudeLaunch(cwd=action.cwd, repo_id=action.repo_id)
+                session = launch_claude(self._ctx, self._env, claude, self._environ)
                 show_session(self._ctx, self._env, session.id)
             case StopSession():
                 _ = stop_session(self._ctx, self._env, action.session_id)

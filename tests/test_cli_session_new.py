@@ -1,6 +1,7 @@
 """End-to-end tests of `meute session new` on a throw-away tmux server."""
 
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -20,7 +21,9 @@ def _folder(sandbox: Sandbox, name: str = "w") -> Path:
 
 def test_new_launches_bash_in_bg_with_identity(sandbox: Sandbox) -> None:
     folder = _folder(sandbox)
-    result = sandbox.run("session", "new", "--cwd", str(folder), "--title", "trial")
+    result = sandbox.run(
+        "session", "new", "--kind", "bash", "--cwd", str(folder), "--title", "trial"
+    )
     assert result.returncode == 0, result.stderr
     match = re.fullmatch(rf"Launched: ({_ID}) trial \({re.escape(str(folder))}\)\n", result.stdout)
     assert match is not None, result.stdout
@@ -41,14 +44,14 @@ def test_new_launches_bash_in_bg_with_identity(sandbox: Sandbox) -> None:
 
 def test_pane_keeps_its_output_and_identity_environment(sandbox: Sandbox) -> None:
     folder = _folder(sandbox)
-    assert sandbox.run("session", "new", "--cwd", str(folder)).returncode == 0
+    assert sandbox.run("session", "new", "--kind", "bash", "--cwd", str(folder)).returncode == 0
     options = sandbox.tmux().run("show-options", "-p", "-t", "meute-bg:", "remain-on-exit")
     assert options == "remain-on-exit on"
 
 
 def test_title_defaults_to_the_folder_name(sandbox: Sandbox) -> None:
     folder = _folder(sandbox, "my-project")
-    result = sandbox.run("session", "new", "--cwd", str(folder))
+    result = sandbox.run("session", "new", "--kind", "bash", "--cwd", str(folder))
     assert result.returncode == 0, result.stderr
     assert re.fullmatch(rf"Launched: {_ID} my-project \(.*\)\n", result.stdout)
     with sandbox.db() as db:
@@ -58,7 +61,7 @@ def test_title_defaults_to_the_folder_name(sandbox: Sandbox) -> None:
 
 def test_cwd_defaults_to_the_current_folder(sandbox: Sandbox) -> None:
     # The subprocess inherits the test's working directory.
-    result = sandbox.run("session", "new", "--title", "here")
+    result = sandbox.run("session", "new", "--kind", "bash", "--title", "here")
     assert result.returncode == 0, result.stderr
     with sandbox.db() as db:
         (session,) = list_sessions(db)
@@ -67,7 +70,7 @@ def test_cwd_defaults_to_the_current_folder(sandbox: Sandbox) -> None:
 
 def test_missing_cwd_fails_and_writes_nothing(sandbox: Sandbox) -> None:
     missing = sandbox.root / "nope"
-    result = sandbox.run("session", "new", "--cwd", str(missing))
+    result = sandbox.run("session", "new", "--kind", "bash", "--cwd", str(missing))
     assert (result.returncode, result.stdout) == (1, "")
     assert result.stderr == f"meute: folder not found: {missing}\n"
     with sandbox.db() as db:
@@ -78,27 +81,40 @@ def test_missing_cwd_fails_and_writes_nothing(sandbox: Sandbox) -> None:
 def test_cwd_that_is_a_file_fails_and_writes_nothing(sandbox: Sandbox) -> None:
     file = sandbox.root / "file.txt"
     file.write_text("")
-    result = sandbox.run("session", "new", "--cwd", str(file))
+    result = sandbox.run("session", "new", "--kind", "bash", "--cwd", str(file))
     assert (result.returncode, result.stderr) == (1, f"meute: folder not found: {file}\n")
     with sandbox.db() as db:
         assert list_sessions(db) == []
     assert not sandbox.tmux().is_running()
 
 
-def test_claude_kind_is_refused(sandbox: Sandbox) -> None:
+def test_claude_kind_without_claude_is_refused(sandbox: Sandbox) -> None:
     folder = _folder(sandbox)
-    result = sandbox.run("session", "new", "--cwd", str(folder), "--kind", "claude")
+    env = {
+        "PATH": str(Path(sys.executable).parent)
+        + ":"
+        + str(Path(shutil.which("tmux") or "").parent)
+    }
+    result = sandbox.run("session", "new", "--kind", "claude", "--cwd", str(folder), env=env)
     assert (result.returncode, result.stderr) == (
         1,
-        "meute: only bash sessions are available for now\n",
+        (
+            "meute: claude not found: Claude sessions are disabled;"
+            " Bash sessions remain available with --kind bash\n"
+        ),
     )
-    assert not sandbox.tmux().is_running()
 
 
 def test_missing_tmux_is_reported(sandbox: Sandbox) -> None:
     folder = _folder(sandbox)
     result = sandbox.run(
-        "session", "new", "--cwd", str(folder), env={"PATH": str(Path(sys.executable).parent)}
+        "session",
+        "new",
+        "--kind",
+        "bash",
+        "--cwd",
+        str(folder),
+        env={"PATH": str(Path(sys.executable).parent)},
     )
     assert (result.returncode, result.stderr) == (
         1,
@@ -111,14 +127,14 @@ def test_missing_tmux_is_reported(sandbox: Sandbox) -> None:
 
 def test_generated_conf_is_written_to_state_dir(sandbox: Sandbox) -> None:
     folder = _folder(sandbox)
-    assert sandbox.run("session", "new", "--cwd", str(folder)).returncode == 0
+    assert sandbox.run("session", "new", "--kind", "bash", "--cwd", str(folder)).returncode == 0
     conf = sandbox.root / "state/meute/tmux.conf"
     assert conf.read_text(encoding="utf-8").startswith("# Generated by meute")
 
 
 def test_database_failure_kills_the_started_pane(sandbox: Sandbox) -> None:
     # The root folder has an empty name, so the session cannot be recorded.
-    result = sandbox.run("session", "new", "--cwd", "/")
+    result = sandbox.run("session", "new", "--kind", "bash", "--cwd", "/")
     assert (result.returncode, result.stderr) == (1, "meute: title cannot be empty\n")
     with sandbox.db() as db:
         assert list_sessions(db) == []

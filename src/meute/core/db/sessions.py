@@ -85,8 +85,8 @@ def create_session(db: Database, new: NewSession) -> Session:
                 raise NotFound(entity, str(ident))
         conn.execute(
             "INSERT INTO sessions (id, agent, title, project_id, repo_id, task_id, cwd,"
-            " state, exit_code, last_activity_at, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " state, exit_code, last_activity_at, created_at, permission_mode)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 new.id,
                 new.agent.value,
@@ -99,6 +99,7 @@ def create_session(db: Database, new: NewSession) -> Session:
                 _exit_code(new.state),
                 now,
                 now,
+                new.permission_mode,
             ),
         )
         return _require(conn, new.id)

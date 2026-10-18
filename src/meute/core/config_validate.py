@@ -25,6 +25,7 @@ class ClaudeConfig:
     """How Claude sessions are launched."""
 
     permission_mode: str = "manual"
+    stuck_after_minutes: int = 10
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -164,6 +165,7 @@ def validate_config(data: Mapping[str, object]) -> Config:
     Raises:
         InvalidInput: a known key holds a value of the wrong type or range.
     """
+    claude = _section(data, "claude")
     ui = _section(data, "ui")
     keys = _section(data, "keys")
     quotas = _section(data, "quotas")
@@ -171,7 +173,10 @@ def validate_config(data: Mapping[str, object]) -> Config:
     default_keys = KeysConfig()
     return Config(
         repos=ReposConfig(roots=_roots(_section(data, "repos"))),
-        claude=ClaudeConfig(permission_mode=_permission_mode(_section(data, "claude"))),
+        claude=ClaudeConfig(
+            permission_mode=_permission_mode(claude),
+            stuck_after_minutes=_int(claude, "claude.stuck_after_minutes", 10, 1),
+        ),
         ui=UiConfig(
             board_width=_int(ui, "ui.board_width", 60, 1),
             narrow_threshold=_int(ui, "ui.narrow_threshold", 120, 1),
