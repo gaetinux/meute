@@ -53,14 +53,21 @@ def recently_ended(
 
 
 def load_board_data(
-    ctx: CliContext, env: TmuxEnv, environ: Mapping[str, str], agents: Sequence[AgentInfo] | None
+    ctx: CliContext,
+    env: TmuxEnv,
+    environ: Mapping[str, str],
+    agents: Sequence[AgentInfo] | None,
+    *,
+    assume: bool = True,
 ) -> BoardData:
     """Reconcile the sessions with tmux, then gather everything the board shows.
+
+    `agents` and `assume` are passed to `refresh`.
 
     Raises:
         TmuxError: tmux failed.
     """
-    snapshot = refresh(ctx, env, agents=agents)
+    snapshot = refresh(ctx, env, agents=agents, assume=assume)
     db = ctx.db
     clock = db.now()
     live = [row.session.id for row in snapshot.sessions if is_live(row.session.state)]

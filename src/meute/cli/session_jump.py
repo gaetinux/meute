@@ -36,7 +36,9 @@ def jump_to_attention(
         InvalidInput: meute is not open.
         TmuxError: tmux failed.
     """
-    board = board_sessions(load_board_data(ctx, env, environ, None), ViewState())
+    # No `claude agents` here: assumed states stay the board's, which has its readings.
+    data = load_board_data(ctx, env, environ, None, assume=False)
+    board = board_sessions(data, ViewState())
     order = [
         board.infos[line.session_id].row.session
         for line in board.view.lines

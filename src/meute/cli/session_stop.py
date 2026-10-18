@@ -65,7 +65,7 @@ def stop_session(
         NotFound: no such session.
         TmuxError: tmux failed.
     """
-    refresh(ctx, env)
+    refresh(ctx, env, assume=False)  # assumed states need `claude agents`: left to the board
     claude = get_session(ctx.db, session_id).agent is AgentKind.CLAUDE
     pane = _interrupt(env, session_id, grace, twice=claude)
     code = None

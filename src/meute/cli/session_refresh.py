@@ -49,12 +49,15 @@ def refresh(
     *,
     include_ended: bool = False,
     agents: Sequence[AgentInfo] | None = None,
+    assume: bool = True,
 ) -> Snapshot:
     """Read the panes, then reconcile; a tmux failure stops everything before any write.
 
     With `agents` (from `claude agents --json`), silent Claude sessions get their assumed state
     and the agents outside meute are returned. Without `agents` (not consulted, or failed) only
-    the silence rule applies: a silent running session is `stuck?`.
+    the silence rule applies: a silent running session is `stuck?`. With `assume` false, no
+    assumed state is recorded at all: for callers without `claude agents`, which would otherwise
+    overwrite what the board learnt from it.
 
     Raises:
         TmuxError: tmux could not be read.
@@ -71,7 +74,9 @@ def refresh(
             agents=() if agents is None else agents,
             now=ctx.db.now(),  # live: the context's own clock stops when the board starts
             stuck_after=timedelta(minutes=ctx.config.claude.stuck_after_minutes),
-        ),
+        )
+        if assume
+        else None,
     )
 
 
