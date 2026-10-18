@@ -40,3 +40,11 @@ class Paths:
         """Create the folders holding the configuration, the database and the state."""
         for folder in (self.config_file.parent, self.db_file.parent, self.state_dir):
             folder.mkdir(parents=True, exist_ok=True)
+
+
+def display_path(path: Path, home: Path | None) -> str:
+    """Return `path` as `~` or `~/…` when it is `home` or below it, else unchanged."""
+    if home is None or not path.is_relative_to(home):
+        return str(path)
+    relative = path.relative_to(home)
+    return "~" if relative == Path() else f"~/{relative}"

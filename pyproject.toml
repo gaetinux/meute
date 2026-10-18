@@ -165,7 +165,7 @@ also_copy = ["tests/", "src/meute/"]
 pytest_add_cli_args = ["-n", "0"]
 pytest_add_cli_args_test_selection = [
     "tests/test_config.py", "tests/test_config_edit.py", "tests/test_db_open.py",
-    "tests/test_db_projects.py", "tests/test_db_task_notes.py", "tests/test_db_tasks.py",
+    "tests/test_db_projects.py", "tests/test_db_repos.py", "tests/test_db_task_notes.py", "tests/test_db_tasks.py",
     "tests/test_db_task_update.py", "tests/test_due_parse.py", "tests/test_instants.py",
     "tests/test_migrations.py", "tests/test_paths.py", "tests/test_quick_add.py",
     "tests/test_render.py", "tests/test_status.py", "tests/test_task_model.py",
