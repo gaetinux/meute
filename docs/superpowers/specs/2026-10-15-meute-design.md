@@ -183,7 +183,7 @@ On évite ainsi un protocole de socket, la gestion des versions entre clients, u
   - `M-o` : focus sur la zone principale ;
   - `M-n` / `M-N` : session suivante / précédente parmi celles « needs attention ».
 - **La barre d'état tmux** affiche la session affichée et le nombre de sessions « needs attention ». Elle est remplacée par une ligne meute (§ 5.6).
-- **Se détacher** (`prefix d` ou fermeture du terminal) laisse tout tourner. Relancer `meute` permet de se rattacher.
+- **Se détacher** (`q` dans le tableau de bord, `M-q` partout, `prefix d` ou fermeture du terminal, voir § 5.6) laisse tout tourner. Relancer `meute` permet de se rattacher.
 
 ### 5.2 Mode étroit
 
