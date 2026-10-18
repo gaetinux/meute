@@ -7,11 +7,13 @@ import pytest
 from meute.tmux.client import Tmux
 from meute.tmux.conf import Keys, LayoutSpec, render_config
 from meute.tmux.panes import Spawn, list_panes, spawn_window
+from meute.tmux.parse import PaneId
 from meute.tmux.quote import format_literal
 from support import wait_until
 from tmux_support import TestServer
 
 SLEEP = ("sh", "-c", "sleep 3600")
+PWD_TO_OUT = ("sh", "-c", 'pwd -P > "$OUT.tmp" && mv "$OUT.tmp" "$OUT"; sleep 3600')
 INJECTION = '#(touch "$MEUTE_MARKER")'
 
 
@@ -26,6 +28,16 @@ def arm_marker(tmux: Tmux, tmp_path: Path) -> Path:
     marker = tmp_path / "pwned"
     tmux.run("set-environment", "-g", "MEUTE_MARKER", str(marker))
     return marker
+
+
+def spawn_reporting_cwd(tmux: Tmux, tmp_path: Path, cwd: Path) -> tuple[PaneId, str]:
+    """Spawn a pane whose process writes its own working directory; return it as read."""
+    out = tmp_path / "pane-cwd"
+    pane = spawn_window(
+        tmux, Spawn(session="bg", cwd=cwd, command=PWD_TO_OUT, env=(("OUT", str(out)),))
+    )
+    wait_until("the pane's working directory", out.exists)
+    return pane, out.read_text().rstrip("\n")
 
 
 def settle(tmux: Tmux, tmp_path: Path) -> None:
@@ -46,8 +58,7 @@ def test_spawn_cwd_is_taken_literally(tmux_server: TestServer, tmp_path: Path, f
     marker = arm_marker(tmux, tmp_path)
     cwd = tmp_path / folder
     cwd.mkdir()
-    pane = spawn_window(tmux, Spawn(session="bg", cwd=cwd, command=SLEEP))
-    path = tmux.run("display-message", "-p", "-t", pane, "#{pane_current_path}")
+    pane, path = spawn_reporting_cwd(tmux, tmp_path, cwd)
     settle(tmux, tmp_path)
     assert path == str(cwd.resolve())
     assert not marker.exists()
@@ -90,9 +101,8 @@ def test_spawn_hands_the_folder_over_as_argv_data(
     marker = arm_marker(tmux, tmp_path)
     cwd = tmp_path / folder
     cwd.mkdir()
-    pane = spawn_window(tmux, Spawn(session="bg", cwd=cwd, command=SLEEP))
+    pane, path = spawn_reporting_cwd(tmux, tmp_path, cwd)
     start = tmux.run("display-message", "-p", "-t", pane, "#{pane_start_command}")
-    path = tmux.run("display-message", "-p", "-t", pane, "#{pane_current_path}")
     settle(tmux, tmp_path)
     assert "cd --" in start
     assert path == str(cwd.resolve())
