@@ -51,7 +51,14 @@ def open_tmux_env(ctx: CliContext, environ: Mapping[str, str]) -> TmuxEnv:
         board_command=(*command, "board"),
         welcome_command=(*command, "welcome"),
         sync_command=(*command, "layout", "sync"),
-        keys=Keys(focus_board=ctx.config.keys.focus_board, focus_main=ctx.config.keys.focus_main),
+        attention_command=command,
+        keys=Keys(
+            focus_board=ctx.config.keys.focus_board,
+            focus_main=ctx.config.keys.focus_main,
+            next_attention=ctx.config.keys.next_attention,
+            previous_attention=ctx.config.keys.previous_attention,
+            detach=ctx.config.keys.detach,
+        ),
     )
     config_file = ctx.paths.state_dir / "tmux.conf"
     _write_if_changed(config_file, render_config(spec))

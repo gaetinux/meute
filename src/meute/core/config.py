@@ -54,6 +54,10 @@ show_details = true
 # Global shortcuts, without the tmux prefix (M- = Alt).
 focus_board = "M-p"
 focus_main = "M-o"
+# Next / previous session that needs attention, and detach without stopping anything.
+next_attention = "M-n"
+previous_attention = "M-N"
+detach = "M-q"
 
 [quotas]
 # Peak hours: weekdays, from peak_start_hour to peak_end_hour, in this time zone.
@@ -84,6 +88,9 @@ def _flatten(config: Config) -> dict[str, object]:
         "ui.show_details": config.ui.show_details,
         "keys.focus_board": config.keys.focus_board,
         "keys.focus_main": config.keys.focus_main,
+        "keys.next_attention": config.keys.next_attention,
+        "keys.previous_attention": config.keys.previous_attention,
+        "keys.detach": config.keys.detach,
         "quotas.peak_timezone": config.quotas.peak_timezone,
         "quotas.peak_start_hour": config.quotas.peak_start_hour,
         "quotas.peak_end_hour": config.quotas.peak_end_hour,

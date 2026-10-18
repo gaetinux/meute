@@ -43,6 +43,9 @@ class KeysConfig:
 
     focus_board: str = "M-p"
     focus_main: str = "M-o"
+    next_attention: str = "M-n"
+    previous_attention: str = "M-N"
+    detach: str = "M-q"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -194,6 +197,9 @@ def validate_config(data: Mapping[str, object]) -> Config:
         keys=KeysConfig(
             focus_board=_key(keys, "focus_board", default_keys.focus_board),
             focus_main=_key(keys, "focus_main", default_keys.focus_main),
+            next_attention=_key(keys, "next_attention", default_keys.next_attention),
+            previous_attention=_key(keys, "previous_attention", default_keys.previous_attention),
+            detach=_key(keys, "detach", default_keys.detach),
         ),
         quotas=QuotasConfig(
             peak_timezone=_timezone(quotas),

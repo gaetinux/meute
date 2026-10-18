@@ -17,6 +17,7 @@ from meute.cli.session_refresh import refresh
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.tmux_env import TmuxEnv
+from meute.core.attention import attention_count
 from meute.core.board_view import (
     BoardAction,
     BoardData,
@@ -38,8 +39,10 @@ from meute.core.errors import MeuteError
 from meute.core.quota_view import QuotaLine, projected_limit
 from meute.core.session import SessionId
 from meute.core.session_state import is_live
+from meute.core.status_line import status_text
 from meute.core.statusline_render import peak_text
-from meute.tmux.panes import detach_client
+from meute.tmux.names import STATUS_OPTION
+from meute.tmux.panes import detach_client, set_global_option
 
 if TYPE_CHECKING:
     from meute.core.agents import AgentInfo
@@ -114,6 +117,7 @@ class CliBoardBackend:
         claude = find_claude(environ) if "PATH" in environ else None
         self._agents = agents or AgentsPoller(claude, monotonic=monotonic)
         self._known: tuple[AgentInfo, ...] | None = None  # last result of `claude agents`
+        self._status: str | None = None  # last text written to the tmux status line
 
     def load(self) -> BoardData | None:
         """Return the reconciled data, or `None` when nothing can have changed.
@@ -145,6 +149,8 @@ class CliBoardBackend:
         live = [row.session.id for row in snapshot.sessions if is_live(row.session.state)]
         metrics = {session_id: latest_metrics(db, session_id) for session_id in live}
         self._data_version, self._read_at = version, now
+        quota = quota_line(self._ctx, clock, self._environ)
+        self._publish_status(snapshot.sessions, quota)
         return BoardData(
             sessions=snapshot.sessions,
             repos=tuple(list_repos(db)),
@@ -155,9 +161,18 @@ class CliBoardBackend:
             details=claude_details_by_session(db),
             metrics={key: value for key, value in metrics.items() if value is not None},
             projects={project.id: project.name for project in list_projects(db)},
-            quota=quota_line(self._ctx, clock, self._environ),
+            quota=quota,
             now=clock,
         )
+
+    def _publish_status(self, rows: tuple[SessionRow, ...], quota: QuotaLine) -> None:
+        """Write the tmux status line when its text changed since the last write."""
+        title = next((row.session.title for row in rows if row.displayed), None)
+        attention = attention_count([row.session for row in rows])
+        text = status_text(title, attention, quota.five_hour_pct)
+        if text != self._status:
+            set_global_option(self._env.tmux, STATUS_OPTION, text)
+            self._status = text
 
     def close(self) -> None:
         """Stop the background `claude agents` run, if any."""

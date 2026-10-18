@@ -2,10 +2,13 @@
 
 from meute.cli.context import CliContext
 from meute.cli.tmux_env import TmuxEnv
-from meute.core.db.sessions import get_session
+from meute.core.attention import attention_count
+from meute.core.db.samples import latest_quota
+from meute.core.db.sessions import get_session, list_sessions
 from meute.core.errors import InvalidInput
 from meute.core.session import SessionId
-from meute.core.text import printable
+from meute.core.session_state import is_live
+from meute.core.status_line import status_text
 from meute.tmux.layout import ensure_layout, find_layout
 from meute.tmux.names import MAIN_SESSION, MAIN_WINDOW, ROLE_WELCOME, STATUS_OPTION
 from meute.tmux.panes import (
@@ -52,4 +55,10 @@ def show_session(ctx: CliContext, env: TmuxEnv, session_id: SessionId) -> None:
         if previous is not None and previous.role == ROLE_WELCOME:
             kill_pane(env.tmux, previous.id)
     select_pane(env.tmux, pane.id)
-    set_global_option(env.tmux, STATUS_OPTION, f"▶ {printable(session.title)}")
+    quota = latest_quota(ctx.db)
+    text = status_text(
+        session.title,
+        attention_count([row for row in list_sessions(ctx.db) if is_live(row.state)]),
+        None if quota is None else quota.five_hour_pct,
+    )
+    set_global_option(env.tmux, STATUS_OPTION, text)
