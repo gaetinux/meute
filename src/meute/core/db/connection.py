@@ -11,7 +11,7 @@ from types import TracebackType
 from typing import Self
 
 from meute.core.db.rows import fetch_one
-from meute.core.db.schema import SCHEMA_VERSION
+from meute.core.db.schema import SCHEMA_VERSION, current_version
 from meute.core.errors import InvalidInput, MigrationError
 from meute.core.instants import utc_now
 
@@ -42,8 +42,7 @@ def _connect(path: Path | None, pragmas: tuple[str, ...]) -> sqlite3.Connection:
 
 
 def _require_current_schema(conn: sqlite3.Connection) -> None:
-    row = fetch_one(conn, "PRAGMA user_version")
-    version = int(str(row[0])) if row else 0
+    version = current_version(conn)
     if version != SCHEMA_VERSION:
         message = f"database schema version {version} does not match this meute ({SCHEMA_VERSION})"
         raise MigrationError(message)

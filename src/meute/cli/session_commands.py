@@ -20,7 +20,7 @@ from meute.cli.session_stop import stop_session
 from meute.cli.tmux_env import open_tmux_env
 from meute.core.agents import AgentInfo, parse_agents
 from meute.core.claude_session import ClaudeDetails, claude_details_to_json
-from meute.core.db.claude_sessions import get_claude_details
+from meute.core.db.claude_sessions import claude_details_by_session
 from meute.core.db.sessions import find_session
 from meute.core.errors import InvalidInput
 from meute.core.json_types import JsonObject
@@ -102,11 +102,7 @@ def list_(
         snapshot = refresh(
             ctx, open_tmux_env(ctx, os.environ), include_ended=all_, agents=_read_agents()
         )
-        details = {
-            row.session.id: get_claude_details(ctx.db, row.session.id)
-            for row in snapshot.sessions
-            if row.session.agent is AgentKind.CLAUDE
-        }
+        details = claude_details_by_session(ctx.db)
     if json_:
         payload: JsonObject = {
             "sessions": [_session_json(row.session, details) for row in snapshot.sessions],

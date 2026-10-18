@@ -24,3 +24,15 @@ def _safe(char: str, *, keep_newlines: bool) -> str:
     if char in _BIDI_CONTROLS or unicodedata.category(char) == "Cc":
         return _REPLACEMENT
     return char
+
+
+def one_line(text: str, limit: int, *, ellipsis: bool = False) -> str:
+    """Return `text` on one printable line of at most `limit` characters.
+
+    Whitespace runs collapse to one space. A longer text is cut; with `ellipsis` the cut
+    keeps room for a final "…".
+    """
+    line = printable(" ".join(text.split()))
+    if len(line) <= limit:
+        return line
+    return line[: limit - 1] + "…" if ellipsis else line[:limit]

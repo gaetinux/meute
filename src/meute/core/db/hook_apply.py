@@ -1,7 +1,7 @@
 """Recording an interpreted hook: history always, session fields only when it still applies."""
 
+from meute.core.db.claude_sessions import get_claude_details
 from meute.core.db.connection import Database
-from meute.core.db.rows import as_text, fetch_one, optional
 from meute.core.db.sessions import get_session, write_state
 from meute.core.hooks import HookEffect
 from meute.core.instants import to_db
@@ -26,8 +26,7 @@ def apply_hook(db: Database, session_id: SessionId, event: str, effect: HookEffe
             " VALUES (?, ?, ?, ?)",
             (session_id, event, effect.history, to_db(now)),
         )
-        row = fetch_one(conn, "SELECT native_id FROM sessions WHERE id = ?", (session_id,))
-        known = optional(as_text, row[0]) if row else None
+        known = get_claude_details(db, session_id).native_id
         if not is_live(session.state) or (
             effect.native_id is not None and known is not None and effect.native_id != known
         ):

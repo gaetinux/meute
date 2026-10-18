@@ -1,57 +1,42 @@
 """`meute ingest statusline`: record the samples, then print a status line."""
 
 import contextlib
-import json
 import os
 import pwd
-import signal
-import subprocess
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import datetime, tzinfo
 from pathlib import Path
-from typing import TextIO, TypeGuard
+from typing import TYPE_CHECKING, TextIO
 
 from meute.core.clock import local_zone
 from meute.core.config import load_config
 from meute.core.config_validate import Config
-from meute.core.db.connection import Database
 from meute.core.db.samples import record_metrics, record_quota
 from meute.core.db.sessions import get_session
 from meute.core.errors import InvalidInput, NotFound
 from meute.core.instants import parse_zoned
+from meute.core.json_types import parse_json_object
 from meute.core.paths import Paths
-from meute.core.session import parse_session_id
 from meute.core.statusline import StatuslineData, parse_statusline
 from meute.core.statusline_render import render_statusline, statusline_width
 from meute.ingest import drain
-from meute.ingest.hook import BUSY_TIMEOUT_MS, MAX_STDIN_CHARS
+from meute.ingest.hook import MAX_STDIN_CHARS, open_ingest_database, session_from_env
 from meute.ingest.log import log_error
+
+if TYPE_CHECKING:
+    import subprocess
 
 _CHAIN_TIMEOUT_SECONDS = 1
 _REAP_TIMEOUT_SECONDS = 0.2
 _COMMAND = "ingest statusline"
 
 
-def _is_object(value: object) -> TypeGuard[dict[object, object]]:
-    return isinstance(value, dict)
-
-
-def _parse(text: str) -> StatuslineData:
-    loaded: object = json.loads(text)  # pyright: ignore[reportAny] — json.loads returns Any
-    if not _is_object(loaded):
-        message = "statusline payload is not a JSON object"
-        raise ValueError(message)
-    return parse_statusline({key: value for key, value in loaded.items() if isinstance(key, str)})
-
-
 def _record(data: StatuslineData, paths: Paths, environ: Mapping[str, str]) -> None:
-    try:
-        session_id = parse_session_id(environ.get("MEUTE_SESSION", ""))
-    except InvalidInput:
+    session_id = session_from_env(environ)
+    if session_id is None:
         return
-    try:
-        database = Database.open_existing(paths.db_file, busy_timeout_ms=BUSY_TIMEOUT_MS)
-    except FileNotFoundError:
+    database = open_ingest_database(environ, paths)
+    if database is None:
         return
     with database:
         try:
@@ -62,12 +47,12 @@ def _record(data: StatuslineData, paths: Paths, environ: Mapping[str, str]) -> N
         record_quota(database, data)
 
 
-def _now(environ: Mapping[str, str]) -> datetime:
+def _now(environ: Mapping[str, str], zone: tzinfo) -> datetime:
     frozen = environ.get("MEUTE_NOW")
     if frozen is not None:
         with contextlib.suppress(InvalidInput):
             return parse_zoned(frozen)
-    return datetime.now(local_zone(environ))
+    return datetime.now(zone)
 
 
 def _tty_columns() -> int | None:
@@ -94,6 +79,9 @@ def _encode(payload: str) -> bytes:
 
 def _abandon(process: "subprocess.Popen[bytes]") -> None:
     """Kill the chain and let go of it at once, whatever descendants still hold its pipes."""
+    import signal  # noqa: PLC0415 — only the chain path pays
+    import subprocess  # noqa: PLC0415 — only the chain path pays
+
     with contextlib.suppress(ProcessLookupError, PermissionError):
         os.killpg(process.pid, signal.SIGKILL)
     for pipe in (process.stdin, process.stdout):
@@ -109,6 +97,8 @@ def _run_chain(chain: str, payload: str) -> str | None:
 
     Takes about a second at most, whatever the command and its descendants do.
     """
+    import subprocess  # noqa: PLC0415 — only the chain path pays
+
     data = _encode(payload)  # before the child exists: nothing here can orphan it
     process = subprocess.Popen(  # noqa: S603 — the command is the user's own configuration
         ["/bin/sh", "-c", chain],
@@ -153,7 +143,7 @@ def run_statusline(stdin: TextIO, stdout: TextIO, environ: Mapping[str, str]) ->
             drain(stdin)
             message = "statusline payload larger than 1 MiB"
             raise ValueError(message)  # noqa: TRY301 — logged below like any other failure
-        data = _parse(raw)
+        data = parse_statusline(parse_json_object(raw))
     except ValueError as error:  # not a statusline call: nothing sensible to print
         _log(paths, error)
         return
@@ -173,12 +163,13 @@ def run_statusline(stdin: TextIO, stdout: TextIO, environ: Mapping[str, str]) ->
         except Exception as error:  # noqa: BLE001 — a broken chain falls back to meute's line
             _log(paths, error)
     if line is None:
+        zone = local_zone(environ)
         line = render_statusline(
             data,
             user=_user(),
-            now=_now(environ),
+            now=_now(environ, zone),
             quotas=config.quotas,
-            local=local_zone(environ),
+            local=zone,
             width=statusline_width(environ, _tty_columns),
         )
     stdout.write(line)

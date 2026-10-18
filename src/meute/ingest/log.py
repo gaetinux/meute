@@ -5,15 +5,11 @@ from datetime import datetime
 from pathlib import Path
 
 from meute.core.instants import to_db, utc_now
-from meute.core.text import printable
+from meute.core.text import one_line
 
 _MAX_BYTES = 1024 * 1024
 _MESSAGE_MAX = 200
 _NAME = "ingest.log"
-
-
-def _one_line(text: str, limit: int) -> str:
-    return printable(" ".join(text.split()))[:limit]
 
 
 def log_failure(state_dir: Path, command: str, error: BaseException, now: datetime) -> None:
@@ -23,8 +19,8 @@ def log_failure(state_dir: Path, command: str, error: BaseException, now: dateti
     `ingest.log.1` once it exceeds 1 MiB. Any failure to write is swallowed.
     """
     line = (
-        f"{to_db(now)} {_one_line(command, _MESSAGE_MAX)} "
-        f"{type(error).__name__}: {_one_line(str(error), _MESSAGE_MAX)}\n"
+        f"{to_db(now)} {one_line(command, _MESSAGE_MAX)} "
+        f"{type(error).__name__}: {one_line(str(error), _MESSAGE_MAX)}\n"
     )
     try:
         state_dir.mkdir(parents=True, exist_ok=True)

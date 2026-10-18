@@ -3,27 +3,35 @@
 from datetime import datetime, timedelta
 
 from meute.core.db.connection import Database
-from meute.core.db.rows import as_instant, as_integer, as_text, fetch_one, optional
+from meute.core.db.rows import as_instant, as_integer, as_real, as_text, fetch_one, optional
 from meute.core.instants import to_db
 from meute.core.session import SessionId
 from meute.core.statusline import StatuslineData
 
 DEFAULT_MIN_INTERVAL = timedelta(seconds=30)
 
-_METRIC_COLUMNS = (
-    "model, effort, context_pct, cost_usd, duration_ms, lines_added, lines_removed,"
-    " worktree_name, worktree_branch, worktree_path, repo_host, repo_owner, repo_name"
+_METRIC_FIELDS = (
+    "model",
+    "effort",
+    "context_pct",
+    "cost_usd",
+    "duration_ms",
+    "lines_added",
+    "lines_removed",
+    "worktree_name",
+    "worktree_branch",
+    "worktree_path",
+    "repo_host",
+    "repo_owner",
+    "repo_name",
 )
-_QUOTA_COLUMNS = "five_hour_pct, five_hour_resets_at, seven_day_pct, seven_day_resets_at"
+_QUOTA_FIELDS = ("five_hour_pct", "five_hour_resets_at", "seven_day_pct", "seven_day_resets_at")
+_METRIC_COLUMNS = ", ".join(_METRIC_FIELDS)
+_QUOTA_COLUMNS = ", ".join(_QUOTA_FIELDS)
+_METRIC_MARKS = ", ".join("?" * len(_METRIC_FIELDS))
+_QUOTA_MARKS = ", ".join("?" * len(_QUOTA_FIELDS))
 
 type _Values = tuple[str | float | int | None, ...]
-
-
-def _as_real(value: object) -> float:
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        message = f"corrupt row: expected number, got {value!r}"
-        raise ValueError(message)  # noqa: TRY004 — a corrupt database, not a caller error
-    return float(value)
 
 
 def _metric_values(data: StatuslineData) -> _Values:
@@ -76,23 +84,24 @@ def record_metrics(
     """
     values = _metric_values(data)
     now = db.now()
+    # Read before taking the write lock: a race may add one extra sample, which is harmless.
+    if fetch_one(db.conn, "SELECT 1 FROM sessions WHERE id = ?", (session_id,)) is None:
+        return False
+    last = fetch_one(
+        db.conn,
+        f"SELECT created_at, {_METRIC_COLUMNS} FROM metric_samples"  # noqa: S608 — fixed column names
+        " WHERE session_id = ? ORDER BY id DESC LIMIT 1",
+        (session_id,),
+    )
+    if not _should_write(last, values, now, min_interval):
+        return False
     with db.transaction() as conn:
-        if fetch_one(conn, "SELECT 1 FROM sessions WHERE id = ?", (session_id,)) is None:
-            return False
-        last = fetch_one(
-            conn,
-            f"SELECT created_at, {_METRIC_COLUMNS} FROM metric_samples"  # noqa: S608 — fixed column names
-            " WHERE session_id = ? ORDER BY id DESC LIMIT 1",
-            (session_id,),
-        )
-        if not _should_write(last, values, now, min_interval):
-            return False
         conn.execute(
             f"INSERT INTO metric_samples (session_id, created_at, {_METRIC_COLUMNS})"  # noqa: S608 — fixed column names
-            f" VALUES (?, ?{', ?' * len(values)})",
+            f" VALUES (?, ?, {_METRIC_MARKS})",
             (session_id, to_db(now), *values),
         )
-        return True
+    return True
 
 
 def record_quota(
@@ -110,19 +119,20 @@ def record_quota(
         return False
     values = _quota_values(data)
     now = db.now()
+    last = fetch_one(
+        db.conn,
+        f"SELECT created_at, {_QUOTA_COLUMNS} FROM quota_samples"  # noqa: S608 — fixed column names
+        " ORDER BY id DESC LIMIT 1",
+    )
+    if not _should_write(last, values, now, min_interval):
+        return False
     with db.transaction() as conn:
-        last = fetch_one(
-            conn,
-            f"SELECT created_at, {_QUOTA_COLUMNS} FROM quota_samples"  # noqa: S608 — fixed column names
-            " ORDER BY id DESC LIMIT 1",
-        )
-        if not _should_write(last, values, now, min_interval):
-            return False
         conn.execute(
-            f"INSERT INTO quota_samples (created_at, {_QUOTA_COLUMNS}) VALUES (?, ?, ?, ?, ?)",  # noqa: S608 — fixed column names
+            f"INSERT INTO quota_samples (created_at, {_QUOTA_COLUMNS})"  # noqa: S608 — fixed column names
+            f" VALUES (?, {_QUOTA_MARKS})",
             (to_db(now), *values),
         )
-        return True
+    return True
 
 
 def latest_metrics(db: Database, session_id: SessionId) -> StatuslineData | None:
@@ -138,8 +148,8 @@ def latest_metrics(db: Database, session_id: SessionId) -> StatuslineData | None
     return StatuslineData(
         model_name=optional(as_text, row[0]),
         effort=optional(as_text, row[1]),
-        context_pct=optional(_as_real, row[2]),
-        cost_usd=optional(_as_real, row[3]),
+        context_pct=optional(as_real, row[2]),
+        cost_usd=optional(as_real, row[3]),
         duration_ms=optional(as_integer, row[4]),
         lines_added=optional(as_integer, row[5]),
         lines_removed=optional(as_integer, row[6]),
@@ -161,8 +171,8 @@ def latest_quota(db: Database) -> StatuslineData | None:
     if row is None:
         return None
     return StatuslineData(
-        five_hour_pct=optional(_as_real, row[0]),
+        five_hour_pct=optional(as_real, row[0]),
         five_hour_resets_at=optional(as_instant, row[1]),
-        seven_day_pct=optional(_as_real, row[2]),
+        seven_day_pct=optional(as_real, row[2]),
         seven_day_resets_at=optional(as_instant, row[3]),
     )

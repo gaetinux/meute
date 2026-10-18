@@ -9,11 +9,11 @@ from meute.cli.context import CliContext
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.agents import AgentInfo, assumed_state, outside_agents
 from meute.core.board_view import SessionRow
-from meute.core.db.claude_sessions import get_claude_details
+from meute.core.db.claude_sessions import claude_details_by_session
 from meute.core.db.connection import Database
 from meute.core.db.sessions import list_sessions, set_session_state
 from meute.core.reconcile import PaneObservation, first_by_id, reconcile
-from meute.core.session import AgentKind, Session
+from meute.core.session import Session
 from meute.core.session_state import is_live
 from meute.tmux.client import Tmux
 from meute.tmux.errors import CommandFailed
@@ -162,11 +162,11 @@ def _apply_agents(
     reading: AgentsReading,
 ) -> tuple[tuple[AgentInfo, ...], bool]:
     """Record the assumed states; return the agents outside meute and whether a state changed."""
+    details = claude_details_by_session(db)
     native = {
-        session.id: details.native_id
+        session.id: found.native_id
         for session in sessions
-        if session.agent is AgentKind.CLAUDE
-        and (details := get_claude_details(db, session.id)).native_id
+        if (found := details.get(session.id)) is not None and found.native_id
     }
     by_id = {agent.session_id: agent for agent in reading.agents}
     changed = False

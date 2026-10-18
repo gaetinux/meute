@@ -14,7 +14,7 @@ from meute.core.session_state import (
     SubagentRunning,
     WaitingInput,
 )
-from meute.core.text import printable
+from meute.core.text import one_line, printable
 
 type _Handler = Callable[[Mapping[str, object]], HookEffect | None]
 
@@ -64,15 +64,7 @@ def _text(payload: Mapping[str, object], key: str) -> str | None:
 
 def _capped(payload: Mapping[str, object], key: str, limit: int) -> str | None:
     value = _text(payload, key)
-    return None if value is None else _one_line(value, limit)
-
-
-def _cut(text: str, limit: int) -> str:
-    return text if len(text) <= limit else text[: limit - 1] + "…"
-
-
-def _one_line(text: str, limit: int) -> str:
-    return _cut(printable(" ".join(text.split())), limit)
+    return None if value is None else one_line(value, limit, ellipsis=True)
 
 
 def tool_excerpt(tool_name: str, tool_input: object) -> str:
@@ -85,7 +77,7 @@ def tool_excerpt(tool_name: str, tool_input: object) -> str:
     chosen = fields.get(_PATH_KEYS.get(tool_name, ""))
     if not isinstance(chosen, str):
         chosen = next((item for item in fields.values() if isinstance(item, str)), "")
-    excerpt = _one_line(chosen, _EXCERPT_MAX)
+    excerpt = one_line(chosen, _EXCERPT_MAX, ellipsis=True)
     return f"{tool_name} {excerpt}" if excerpt else tool_name
 
 
@@ -96,7 +88,7 @@ def _tool(payload: Mapping[str, object]) -> str:
 def _model(payload: Mapping[str, object]) -> str | None:
     model = payload.get("model")
     identifier = model if isinstance(model, str) else _fields(model).get("id")
-    return _one_line(identifier, _NOTE_MAX) if isinstance(identifier, str) else None
+    return one_line(identifier, _NOTE_MAX, ellipsis=True) if isinstance(identifier, str) else None
 
 
 def _mode(payload: Mapping[str, object]) -> str | None:
@@ -109,7 +101,7 @@ def _start(payload: Mapping[str, object]) -> HookEffect:
         state=Idle(),
         transcript_path=_capped(payload, "transcript_path", _ID_MAX),
         model=_model(payload),
-        history=_one_line(_text(payload, "source") or "", _NOTE_MAX),
+        history=one_line(_text(payload, "source") or "", _NOTE_MAX, ellipsis=True),
     )
 
 
@@ -129,7 +121,7 @@ def _subagent(event: str, payload: Mapping[str, object]) -> HookEffect | None:
     if not agent_type:  # /compact sends SubagentStop with an empty type, without a start
         return None
     state = SubagentRunning() if event == "SubagentStart" else Running()
-    return HookEffect(state=state, history=_one_line(agent_type, _NOTE_MAX))
+    return HookEffect(state=state, history=one_line(agent_type, _NOTE_MAX, ellipsis=True))
 
 
 def _simple(state: SessionState) -> _Handler:
@@ -152,7 +144,7 @@ def _prompt(payload: Mapping[str, object]) -> HookEffect:
 
 def _noted(state: SessionState | None, key: str) -> _Handler:
     return lambda payload: HookEffect(
-        state=state, history=_one_line(_text(payload, key) or "", _NOTE_MAX)
+        state=state, history=one_line(_text(payload, key) or "", _NOTE_MAX, ellipsis=True)
     )
 
 
@@ -175,7 +167,7 @@ def interpret_hook(event: str, payload: Mapping[str, object]) -> HookEffect | No
     """Interpret one hook; None means the hook is ignored. Never raises."""
     handler = _HANDLERS.get(event)
     effect = (
-        HookEffect(state=None, history=_one_line(event, _NOTE_MAX))
+        HookEffect(state=None, history=one_line(event, _NOTE_MAX, ellipsis=True))
         if handler is None
         else handler(payload)
     )

@@ -9,22 +9,13 @@ from meute.core.errors import NotFound
 from meute.core.instants import to_db
 from meute.core.session import SessionId
 
+_DETAILS_COLUMNS = (
+    "native_id, transcript_path, model, permission_mode, last_tool, pending_permission,"
+    " last_message"
+)
 
-def get_claude_details(db: Database, session_id: SessionId) -> ClaudeDetails:
-    """Return the Claude columns of the session `session_id`.
 
-    Raises:
-        NotFound: no such session.
-    """
-    row = fetch_one(
-        db.conn,
-        "SELECT native_id, transcript_path, model, permission_mode, last_tool,"
-        " pending_permission, last_message FROM sessions WHERE id = ?",
-        (session_id,),
-    )
-    if row is None:
-        entity = "session"
-        raise NotFound(entity, session_id)
+def _row_to_details(row: tuple[object, ...]) -> ClaudeDetails:
     native_id, transcript_path, model, permission_mode, last_tool, pending, message = (
         optional(as_text, value) for value in row
     )
@@ -37,6 +28,32 @@ def get_claude_details(db: Database, session_id: SessionId) -> ClaudeDetails:
         pending_permission=pending,
         last_message=message,
     )
+
+
+def get_claude_details(db: Database, session_id: SessionId) -> ClaudeDetails:
+    """Return the Claude columns of the session `session_id`.
+
+    Raises:
+        NotFound: no such session.
+    """
+    row = fetch_one(
+        db.conn,
+        f"SELECT {_DETAILS_COLUMNS} FROM sessions WHERE id = ?",  # noqa: S608 — fixed column names
+        (session_id,),
+    )
+    if row is None:
+        entity = "session"
+        raise NotFound(entity, session_id)
+    return _row_to_details(row)
+
+
+def claude_details_by_session(db: Database) -> dict[SessionId, ClaudeDetails]:
+    """Return the Claude columns of every Claude session, in one query."""
+    rows = fetch_all(
+        db.conn,
+        f"SELECT id, {_DETAILS_COLUMNS} FROM sessions WHERE agent = 'claude'",  # noqa: S608 — fixed column names
+    )
+    return {SessionId(as_text(row[0])): _row_to_details(row[1:]) for row in rows}
 
 
 def session_events(db: Database, session_id: SessionId, *, limit: int = 50) -> list[SessionEvent]:
