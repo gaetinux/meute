@@ -4,6 +4,8 @@ from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 
+import pytest
+
 from meute.core.db.connection import Database
 from meute.core.db.samples import latest_metrics, latest_metrics_by_session, record_metrics
 from meute.core.db.sessions import create_session
@@ -54,14 +56,28 @@ def _vm_steps(db: Database, session_ids: list[SessionId]) -> int:
     return steps
 
 
-def test_the_cost_does_not_grow_with_the_history_of_a_session() -> None:
+# Far below `_HISTORY`: each wanted session costs a few index seeks, whatever was written.
+_MAX_STEPS = 500
+
+
+@pytest.mark.parametrize(
+    ("writes", "wanted"),
+    [
+        pytest.param(((OLD, _HISTORY), (NEW, 3)), [OLD, NEW], id="long-history-first"),
+        pytest.param(((NEW, 3), (OLD, _HISTORY)), [OLD, NEW], id="long-history-last"),
+        pytest.param(((OLD, 1), (NEW, _HISTORY)), [OLD], id="idle-session"),
+    ],
+)
+def test_the_cost_does_not_grow_with_the_samples_written(
+    writes: tuple[tuple[SessionId, int], ...], wanted: list[SessionId]
+) -> None:
     with Database.in_memory(clock=lambda: FIXED) as db:
         _session(db, OLD)
         _session(db, NEW)
-        _bulk_samples(db, OLD, _HISTORY)
-        _bulk_samples(db, NEW, 3)
-        steps = _vm_steps(db, [OLD, NEW])
-    assert steps < _HISTORY // 10
+        for session_id, count in writes:
+            _bulk_samples(db, session_id, count)
+        steps = _vm_steps(db, wanted)
+    assert steps < _MAX_STEPS
 
 
 def test_the_latest_sample_is_the_last_written_even_when_the_clock_went_back() -> None:

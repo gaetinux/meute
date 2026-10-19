@@ -145,6 +145,6 @@ def test_migrating_a_v2_file_keeps_the_session_and_backs_it_up(tmp_path: Path) -
             (SID,),
         )
     with Database.open(path, busy_timeout_ms=1000) as db:
-        assert db.schema_version() == 3
+        assert db.schema_version() == 4
         assert fetch_one(db.conn, "SELECT title, model FROM sessions") == ("keep", None)
     assert (tmp_path / "meute.db.bak-2").exists()

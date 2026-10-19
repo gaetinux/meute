@@ -178,23 +178,17 @@ def latest_metrics_by_session(
 ) -> dict[SessionId, StatuslineData]:
     """Return the latest metric sample of each given session that has one, in one query.
 
-    The cost does not grow with a session's history: the newest sample by date, found
-    through the `(session_id, created_at)` index, bounds a scan of the rows written since,
-    which still finds the last one written if the clock went back.
+    Each session costs one seek in the `(session_id, id)` index, whatever its history.
     """
     if not session_ids:
         return {}
-    marks = ", ".join("(?)" for _ in session_ids)
-    # `+x.session_id` keeps that term off the index, so the scan runs on the rowid range.
+    latest = ", ".join(
+        "(SELECT MAX(id) FROM metric_samples WHERE session_id = ?)" for _ in session_ids
+    )
     rows = fetch_all(
         db.conn,
-        f"WITH wanted(sid) AS (VALUES {marks})"  # noqa: S608 — fixed column names and placeholders; values are bound
-        f" SELECT session_id, {_METRIC_COLUMNS} FROM metric_samples WHERE id IN ("
-        "  SELECT (SELECT MAX(x.id) FROM metric_samples x"
-        "   WHERE +x.session_id = w.sid AND x.id >= ("
-        "    SELECT n.id FROM metric_samples n WHERE n.session_id = w.sid"
-        "    ORDER BY n.created_at DESC, n.id DESC LIMIT 1))"
-        "  FROM wanted w)",
+        f"SELECT session_id, {_METRIC_COLUMNS} FROM metric_samples"  # noqa: S608 — fixed column names and subqueries; values are bound
+        f" WHERE id IN ({latest})",
         tuple(session_ids),
     )
     return {SessionId(as_text(row[0])): _metrics_from(row[1:]) for row in rows}
