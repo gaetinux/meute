@@ -173,7 +173,7 @@ On évite ainsi un protocole de socket, la gestion des versions entre clients, u
 
 - `meute` utilise son propre serveur, `tmux -L meute`, avec un fichier de configuration généré par l'application. Le tmux personnel de l'utilisateur n'est jamais touché.
 - Ce serveur contient deux sessions tmux :
-  - `meute` : une fenêtre avec deux panneaux, la zone principale et le tableau de bord. Le tableau est à droite par défaut, sur 60 colonnes, réglable ;
+  - `meute` : une fenêtre avec deux panneaux, la zone principale et le tableau de bord. Le tableau est à droite par défaut, sur 72 colonnes (60 jusqu'au plan 4, élargi pour les fiches de session, décision de l'auteur du 2026-10-19), réglable ;
   - `meute-bg` : une fenêtre par session gérée.
 - **L'identité d'une session est portée par son panneau, pas par sa fenêtre.** `@meute_id=<uuid>` et `remain-on-exit on` sont posés comme **options de pane** (`set-option -p`). Lors d'un `swap-pane`, une option de fenêtre reste sur la fenêtre et ne suit pas le panneau. Pour la même raison, aucune option `@meute_*` n'est posée sur une fenêtre, puisqu'une option de pane hérite de celle de sa fenêtre (spike S4).
 - **Afficher une session** consiste à échanger, avec `swap-pane`, le panneau de la zone principale avec celui de la session. La session précédemment affichée retourne dans la fenêtre de `meute-bg` que l'autre panneau vient de libérer.

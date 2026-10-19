@@ -13,6 +13,21 @@ Décision de l'auteur, 2026-10-19 : le tableau est jugé fonctionnel mais peu ag
 
 Modèle (décision de l'auteur, 2026-10-19) : le mod de l'auteur sert de base, chaque élément étant rediscuté sur maquette. Ce qui le rend plus lisible que le tableau du plan 4 : un bloc par projet (`▼ nom`, type en couleur `◆ fastapi`, temps et coût, `+ session` à droite) ; une fiche de deux à trois lignes par session (état, il y a combien de temps, durée, coût, contexte en couleur ; titre de la tâche ; `└ branche · PR · modèle · dernier outil`) ; les sessions terminées repliées en une ligne ; les projets sans session dans une section en bas ; un en-tête `Sessions · Tasks` avec les totaux et le quota rédigé en phrase. Capture de référence fournie par l'auteur le 2026-10-19.
 
+### Maquettes validées (2026-10-19)
+
+Maquettes : https://claude.ai/artifact/Fj3aTuYiaTyfhJLEbY4ib3 (privées ; artboards « C2 — Hybride avec les fiches de A », « Onglet Tâches », « Fenêtre M-t »). L'auteur a retenu la direction C2.
+
+- **Largeur** : le tableau passe de 60 à 72 colonnes par défaut (`[ui] board_width = 72`).
+- **En-tête** : onglets `Sessions · Tasks 2!` (onglet actif en inverse sur l'accent bleu, nombre de retards en rouge), totaux à droite (`4 live · 1 h 19 · $4.40` ; `12 open · 2 overdue` dans l'onglet Tâches).
+- **Quotas** : une ligne par fenêtre avec une barre de dix cases colorée selon le niveau (§ 7.4), `resets …`, `limit ~HH:MM` en orange, heures creuses en vert.
+- **Needs you** : un encadré au fond rouge sombre en haut de l'onglet Sessions, avec la fiche complète de chaque session à traiter et la raison précise (`waiting for your reply`, `permission: Bash(rm -rf build)`, `stuck?`). Dans son projet, la session n'apparaît plus que sur une ligne de renvoi `! titre  ↑ needs you`.
+- **Blocs de projet** : `▼ nom ◆ type · N live · coût` en gras, type en couleur, `+ session` à droite ; repliables.
+- **Fiche de session** (trois lignes) : symbole et couleur d'état (`●` running vert, `○` idle gris, `!` rouge), titre en gras, état, il y a combien de temps ; durée, coût, contexte coloré, modèle, mode (risqué en orange) ; `└ branche · dernier outil`. La branche n'est affichée que lorsqu'elle est connue (aujourd'hui : branche de worktree de la statusline) ; l'état Git complet (§ 11) arrive au plan 6, l'état des PR en V1.1.
+- **Repliés en bas** : `+ 9 ended (e to show)` dans chaque projet ; `▶ Without session (17)` ; `▼ Outside meute (1)`.
+- **Détail** de la session choisie, sous un filet à l'accent : seulement ce qui n'est pas dans la fiche (dernière réponse, dossier, attente précise).
+- **Onglet Tâches** : ligne de filtres (filtre actif en inverse) ; groupes par urgence, « Overdue » dans un encadré rouge sombre comme « Needs you », « No due date » et « Done today » repliés par défaut ; ligne de tâche `symbole !/!! titre @projet` et, alignée à droite, l'échéance (retard en rouge) ou la raison du blocage (orange) ; détail d'environ sept lignes (statut, priorité, échéance, projet et dépôt, description, deux dernières notes, sessions liées) ; pied propre à l'onglet.
+- **Fenêtre `M-t`** : cadre à bordure accent au-dessus de l'écran, en-tête `New task … in <projet>`, champ de saisie, aperçu champ par champ (titre, projet avec la mention `displayed session · @none: floating`, priorité, échéance), `Enter create · Esc cancel`. En cas d'erreur, bordure rouge et ligne d'erreur ; un projet inconnu propose le projet le plus proche (`(infra?)`, ajout validé par l'auteur).
+
 ## Décisions de l'auteur
 
 | Question | Décision |
