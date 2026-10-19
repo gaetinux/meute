@@ -13,6 +13,7 @@ from meute.core.project import ProjectId, RepoId
 from meute.core.quota_view import QuotaLine
 from meute.core.repo import Repo
 from meute.core.session import Session, SessionId
+from meute.core.session_state import is_live
 from meute.core.statusline import StatuslineData
 from meute.core.text import printable
 
@@ -146,6 +147,28 @@ def claude_action(entry: BoardEntry) -> LaunchClaude:
     """Return what `c` does: launch Claude where `n` would launch Bash."""
     launch = new_action(entry)
     return LaunchClaude(cwd=launch.cwd, repo_id=launch.repo_id)
+
+
+def ended_text(title: str) -> str:
+    """Return the footer notice for an ended session that has no pane left to show."""
+    return f'"{printable(title)}" has ended: c starts a new Claude session here'
+
+
+def ended_notice(entry: BoardEntry) -> str | None:
+    """Return what Enter says instead of showing an ended session without a pane, else None.
+
+    An ended session that kept its dead pane still shows: the pane holds its last output.
+    """
+    match entry:
+        case SessionEntry():
+            row = entry.row
+            if row.has_pane or is_live(row.session.state):
+                return None
+            return ended_text(row.session.title)
+        case RepoEntry():
+            return None
+        case _:
+            assert_never(entry)
 
 
 def stop_target(entry: BoardEntry) -> Session | None:

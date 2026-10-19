@@ -20,11 +20,12 @@ from meute.core.board_view import (
     KEYS_HELP,
     BoardAction,
     BoardData,
+    BoardEntry,
     Detach,
-    ShowSession,
     StopSession,
     claude_action,
     confirm_stop_text,
+    ended_notice,
     enter_action,
     error_text,
     new_action,
@@ -94,6 +95,7 @@ class BoardApp(App[None]):
         self._cursor = SessionsCursor()
         self._confirming: Session | None = None
         self._error: str | None = None
+        self._notice: str | None = None  # shown in the footer until the next key or click
         self._stopping: dict[SessionId, str] = {}  # sessions being stopped: id -> title
         self._keys_help = False
         # Held, not queried: at quit the timer may still tick after the widgets left the DOM.
@@ -118,7 +120,7 @@ class BoardApp(App[None]):
     # Every key comes here, not through bindings, so that a pending stop confirmation
     # swallows any key; ctrl+q stays Textual's own priority binding and quits.
     def on_key(self, event: events.Key) -> None:
-        self._error = None
+        self._error = self._notice = None
         confirming, self._confirming = self._confirming, None
         if confirming is not None:
             if event.key == "y":
@@ -149,7 +151,7 @@ class BoardApp(App[None]):
             if key == "enter" and group is not None:
                 self._cursor.fold(group, fold=False)
         elif key == "enter":
-            self._perform(enter_action(entry))
+            self._show(entry)
         elif key == "c":
             self._perform(claude_action(entry))
         elif key == "n":
@@ -161,7 +163,7 @@ class BoardApp(App[None]):
     def on_click(self, event: events.Click) -> None:
         if event.widget is not self._board:
             return
-        self._error = None
+        self._error = self._notice = None
         if self._confirming is not None:  # like a key, a click only cancels the stop
             self._confirming = None
         else:
@@ -173,7 +175,9 @@ class BoardApp(App[None]):
         match line:
             case SessionLine():
                 self._cursor.selected = index
-                self._perform(ShowSession(session_id=line.session_id))
+                entry = line_entry(self._cursor.model, index)
+                if entry is not None:
+                    self._show(entry)
             case RepoLine():
                 self._cursor.selected = index
             case HeaderLine():
@@ -182,6 +186,12 @@ class BoardApp(App[None]):
                 pass
             case _:
                 assert_never(line)
+
+    def _show(self, entry: BoardEntry) -> None:
+        """Do what Enter does on `entry`, or say why an ended session cannot show."""
+        self._notice = ended_notice(entry)
+        if self._notice is None:
+            self._perform(enter_action(entry))
 
     def _reload(self) -> None:
         error_before = self._error
@@ -251,4 +261,6 @@ class BoardApp(App[None]):
             return confirm_stop_text(self._confirming.title)
         if self._stopping:
             return stopping_text(next(reversed(self._stopping.values())))
+        if self._notice is not None:
+            return self._notice
         return KEYS_HELP if self._keys_help else FOOTER
