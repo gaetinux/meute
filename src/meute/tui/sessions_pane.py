@@ -9,13 +9,22 @@ from meute.core.quota_view import QuotaLine, quota_level, quota_lines
 from meute.core.sessions_view import SessionInfo, details_lines
 
 SELECTED_STYLE = "reverse"
+BLURRED_SELECTED_STYLE = "on #444444"
+TITLE_STYLE = "bold reverse"
 RISKY_MODE_STYLE = "darkorange"
 _LEVEL_STYLES = {"ok": "green", "warn": "yellow", "high": "bold red"}
 _LABEL = len("5h ")
 
 
-def view_content(board: BoardSessions, selected: int) -> Content:
-    """Return the view lines, the selected one reversed and risky permission modes in orange."""
+def title_content(title: str, *, focused: bool) -> Content:
+    """Return the board's title, reversed while the board has the focus."""
+    content = Content(f" {title} ")
+    return content.stylize(TITLE_STYLE) if focused else content
+
+
+def view_content(board: BoardSessions, selected: int, *, focused: bool = True) -> Content:
+    """Return the view lines, risky permission modes in orange and the selected one
+    reversed, or on grey while the board does not have the focus."""
     lines: list[Content] = []
     for index, line in enumerate(board.view.lines):
         content = Content(line.text)
@@ -23,7 +32,7 @@ def view_content(board: BoardSessions, selected: int) -> Content:
         if span is not None:
             content = content.stylize(RISKY_MODE_STYLE, *span)
         if index == selected:
-            content = content.stylize(SELECTED_STYLE)
+            content = content.stylize(SELECTED_STYLE if focused else BLURRED_SELECTED_STYLE)
         lines.append(content)
     return Content("\n").join(lines)
 

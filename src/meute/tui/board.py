@@ -40,7 +40,7 @@ from meute.core.sessions_view import (
     SessionLine,
 )
 from meute.tui.sessions_cursor import SessionsCursor
-from meute.tui.sessions_pane import details_content, quota_content, view_content
+from meute.tui.sessions_pane import details_content, quota_content, title_content, view_content
 
 
 class BoardBackend(Protocol):
@@ -71,6 +71,7 @@ class BoardApp(App[None]):
 
     TITLE = BOARD_TITLE
     CSS: ClassVar[str] = """
+    #title { color: $text-muted; }
     #quota { height: auto; }
     #sessions { height: 1fr; }
     #board { text-wrap: nowrap; text-overflow: ellipsis; }
@@ -96,6 +97,7 @@ class BoardApp(App[None]):
         self._stopping: dict[SessionId, str] = {}  # sessions being stopped: id -> title
         self._keys_help = False
         # Held, not queried: at quit the timer may still tick after the widgets left the DOM.
+        self._title = Static(id="title")
         self._quota = Static(id="quota")
         self._board = Static(id="board")
         self._sessions = VerticalScroll(self._board, id="sessions")
@@ -103,6 +105,7 @@ class BoardApp(App[None]):
         self._footer = Static(id="footer")
 
     def compose(self) -> ComposeResult:
+        yield self._title
         yield self._quota
         yield self._sessions
         yield self._details
@@ -222,12 +225,19 @@ class BoardApp(App[None]):
         self._reload()
         self._draw()
 
+    def watch_app_focus(self) -> None:
+        """Redraw when the terminal says the board gained or lost the focus."""
+        self._draw()
+
     def _draw(self) -> None:
+        focused = self.app_focus
+        self._title.update(title_content(f"{BOARD_TITLE} · Sessions", focused=focused))
         quota = self._cursor.model.data.quota
         self._quota.display = quota is not None
         if quota is not None:
             self._quota.update(quota_content(quota, self._local))
-        self._board.update(view_content(self._cursor.model, self._cursor.selected))
+        board, selected = self._cursor.model, self._cursor.selected
+        self._board.update(view_content(board, selected, focused=focused))
         info = line_info(self._cursor.model, self._cursor.selected) if self._show_details else None
         self._details.display = info is not None
         if info is not None:

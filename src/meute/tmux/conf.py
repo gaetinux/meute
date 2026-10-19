@@ -53,6 +53,10 @@ _INTERFACE = (
     "set -g pane-border-lines single",
     'set -g pane-border-style "fg=colour238"',
     'set -g pane-active-border-style "fg=colour238"',
+    # Where the focus is: the board dims itself (focus events), tmux greys the other pane.
+    "set -g focus-events on",
+    'set -g window-style "bg=colour234"',
+    'set -g window-active-style "default"',
     "set -g visual-activity off",
     "set -g visual-bell off",
     "set -g visual-silence off",

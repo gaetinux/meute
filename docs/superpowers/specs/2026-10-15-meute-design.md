@@ -226,6 +226,7 @@ Décision de l'auteur, 2026-10-18. Le but est que l'utilisateur n'ait pas à con
 - **Ligne d'état meute** : la barre d'état de tmux est remplacée par une ligne meute, qui affiche la session affichée, le nombre de sessions « needs attention » et le quota 5 h. Elle n'apparaît que là où le tableau de bord est masqué (mode étroit, session affichée en plein écran) : à côté du tableau, elle répéterait ce qu'il montre (précision de l'auteur, 2026-10-19).
 - **Pied du tableau** : une seule ligne avec les touches essentielles (`↑↓ select · Enter show · c/n new · x stop · ? keys`) ; `?` affiche la liste complète des touches, `?` ou `Échap` la referme.
 - **Bordures** réduites à une ligne discrète.
+- **Focus visible** (précision de l'auteur, 2026-10-19) : le tableau affiche en haut un titre (`meute · Sessions`) en inverse et sa sélection en inverse quand il a le focus, le titre en gris et la sélection sur fond gris sinon (tmux lui transmet le focus, `focus-events`) ; tmux grise légèrement le fond du panneau qui n'a pas le focus (`window-style`). La passe visuelle complète du tableau est faite au début du plan 4b, pour les deux onglets.
 - **Détacher sans rien arrêter** : `q` dans le tableau et `M-q` partout.
 - **Messages et alertes de tmux masqués.**
 - **Le préfixe tmux** reste utilisable, mais n'est plus nécessaire.
