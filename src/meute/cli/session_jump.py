@@ -29,6 +29,7 @@ def _jump_lock(state_dir: Path) -> Generator[None]:
         state_dir / _LOCK_NAME, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600
     )
     try:
+        os.fchmod(fd, 0o600)  # the mode of `os.open` applies to a new file only
         fcntl.flock(fd, fcntl.LOCK_EX)
         yield
     finally:

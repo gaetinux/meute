@@ -1,5 +1,6 @@
 """Two quick jumps (M-n M-n) land on two sessions, not twice on the same one."""
 
+import stat
 import threading
 from dataclasses import replace
 from pathlib import Path
@@ -77,3 +78,16 @@ def test_a_jump_started_during_another_sees_its_result(
     second.join(timeout=30)
     assert errors == []
     assert set(shown) == waiting
+
+
+def test_an_existing_jump_lock_is_made_private(
+    ctx: CliContext,  # noqa: F811 — fixture
+    env: TmuxEnv,  # noqa: F811 — fixture
+) -> None:
+    ensure_layout(env.tmux, _SPEC)
+    lock = ctx.paths.state_dir / "jump.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.touch(mode=0o644)
+    lock.chmod(0o644)
+    assert session_jump.jump_to_attention(ctx, env, _ENVIRON, backwards=False) is None
+    assert stat.S_IMODE(lock.stat().st_mode) == 0o600
