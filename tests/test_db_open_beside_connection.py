@@ -7,6 +7,7 @@ the board opens a second connection in a worker thread (to stop a session) while
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 from meute.core.db.connection import Database
@@ -36,7 +37,9 @@ def test_opening_beside_an_open_connection_keeps_it_healthy(tmp_path: Path) -> N
                     errors.append(f"other: {error}")
 
         thread = threading.Thread(target=reopen)
-        writer = subprocess.Popen([sys.executable, "-c", _WRITER, str(path)])
+        writer = subprocess.Popen(
+            [sys.executable, "-c", _WRITER, str(path)], stderr=subprocess.PIPE, text=True
+        )
         thread.start()
         while thread.is_alive() or writer.poll() is None:
             try:
@@ -44,5 +47,9 @@ def test_opening_beside_an_open_connection_keeps_it_healthy(tmp_path: Path) -> N
             except Exception as error:  # noqa: BLE001 — collected, then asserted empty
                 errors.append(f"main: {error}")
                 break
+            time.sleep(0.001)  # leave the write lock to the others: SQLite's busy handler is no queue
         thread.join()
+        _, stderr = writer.communicate()
+        if writer.returncode != 0:
+            errors.append(f"writer: {stderr.strip().splitlines()[-1:]}")
     assert errors == []
