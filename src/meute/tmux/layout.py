@@ -136,6 +136,9 @@ def ensure_layout(tmux: Tmux, spec: LayoutSpec) -> Layout:
         _repair(tmux, spec)
     else:
         _create_session(tmux, spec)
+    # The dashboard already shows what the status line says: keep it for the other
+    # sessions, where a session is displayed full screen in narrow mode (spec 5.6).
+    tmux.run("set-option", "-t", f"={MAIN_SESSION}:", "status", "off")
     layout = _require_layout(tmux)
     narrow = is_narrow(layout.width, spec.narrow_threshold)
     if narrow == layout.zoomed and narrow:

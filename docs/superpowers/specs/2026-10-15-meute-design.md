@@ -223,7 +223,8 @@ Décision de l'auteur, 2026-10-18. Le but est que l'utilisateur n'ait pas à con
   - un clic sur un panneau lui donne le focus ;
   - la molette fait défiler ;
   - la sélection de texte se fait en maintenant `Shift`.
-- **Ligne d'état meute** : la barre d'état de tmux est remplacée par une ligne meute, qui affiche la session affichée, le nombre de sessions « needs attention » et le quota 5 h.
+- **Ligne d'état meute** : la barre d'état de tmux est remplacée par une ligne meute, qui affiche la session affichée, le nombre de sessions « needs attention » et le quota 5 h. Elle n'apparaît que là où le tableau de bord est masqué (mode étroit, session affichée en plein écran) : à côté du tableau, elle répéterait ce qu'il montre (précision de l'auteur, 2026-10-19).
+- **Pied du tableau** : une seule ligne avec les touches essentielles (`↑↓ select · Enter show · c/n new · x stop · ? keys`) ; `?` affiche la liste complète des touches, `?` ou `Échap` la referme.
 - **Bordures** réduites à une ligne discrète.
 - **Détacher sans rien arrêter** : `q` dans le tableau et `M-q` partout.
 - **Messages et alertes de tmux masqués.**
