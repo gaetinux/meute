@@ -47,7 +47,8 @@ def test_opening_beside_an_open_connection_keeps_it_healthy(tmp_path: Path) -> N
             except Exception as error:  # noqa: BLE001 — collected, then asserted empty
                 errors.append(f"main: {error}")
                 break
-            time.sleep(0.001)  # leave the write lock to the others: SQLite's busy handler is no queue
+            # Leave the write lock to the others: SQLite's busy handler is no queue.
+            time.sleep(0.001)
         thread.join()
         _, stderr = writer.communicate()
         if writer.returncode != 0:
