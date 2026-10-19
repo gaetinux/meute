@@ -11,6 +11,8 @@ L'usage principal est de noter vite une idée ou un rappel pendant que Claude tr
 
 Décision de l'auteur, 2026-10-19 : le tableau est jugé fonctionnel mais peu agréable à l'œil. Le plan 4b commence par une passe visuelle, conçue avec des maquettes et validée par l'auteur avant tout code, pour les deux onglets : en-tête et onglets, titres de groupe distincts des lignes, colonnes alignées, état en couleur, infos secondaires atténuées, palette cohérente avec les repères de focus de la PR #10.
 
+Modèle (décision de l'auteur, 2026-10-19) : le mod de l'auteur sert de base, chaque élément étant rediscuté sur maquette. Ce qui le rend plus lisible que le tableau du plan 4 : un bloc par projet (`▼ nom`, type en couleur `◆ fastapi`, temps et coût, `+ session` à droite) ; une fiche de deux à trois lignes par session (état, il y a combien de temps, durée, coût, contexte en couleur ; titre de la tâche ; `└ branche · PR · modèle · dernier outil`) ; les sessions terminées repliées en une ligne ; les projets sans session dans une section en bas ; un en-tête `Sessions · Tasks` avec les totaux et le quota rédigé en phrase. Capture de référence fournie par l'auteur le 2026-10-19.
+
 ## Décisions de l'auteur
 
 | Question | Décision |

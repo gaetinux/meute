@@ -16,9 +16,9 @@ La V1 est découpée en six plans ; le plan 4 est lui-même découpé en 4, 4b e
 | 3 | Adaptateur Claude — *fait en Python* : `docs/superpowers/plans/2026-10-18-meute-plan-3-python-adaptateur-claude.md` | Lancement de Claude (§ 6.2), `meute ingest hook` / `statusline`, rendu de la statusline, `claude agents --json` | § 5.5, 6.2, 7 |
 | 4 | Vue Sessions et interface transparente — *fait en Python* : `docs/superpowers/plans/2026-10-18-meute-plan-4-python-vue-sessions.md` | Vue Sessions (projets, « à traiter », quotas et projection, détails), mode étroit, interface transparente (souris, ligne d'état meute, détacher) | § 4.5, 5.2, 5.6, 7.4, 10 |
 | 4b | **Vue Tâches** | Onglet Tâches (filtres, regroupements, détail et ses actions, « launch Claude on this task »), saisie rapide globale `M-t` avec aperçu | § 9.5, 9.6 |
-| 4c | Lancement depuis le tableau | Formulaire `N`, « dernier type utilisé » de `n`, actions sur les panneaux orphelins (adopter, fermer) | § 5.4, 6.4 |
+| 4c | Lancement depuis le tableau | Formulaire `N`, « dernier type utilisé » de `n`, actions sur les panneaux orphelins (adopter, fermer), reprise d'une session Claude terminée (`claude --resume`, avancée du plan 6 par l'auteur le 2026-10-19) | § 5.4, 6.4, 6.5 |
 | 5 | MCP | `meute mcp` et les outils de tâches, contexte composé (§ 8) | § 8, 12 |
-| 6 | Finitions de la V1 | Worktrees, reprise, états sauvegardés, projets créés automatiquement, `meute doctor`, README | § 6.5, 6.6, 10, 11, 13 |
+| 6 | Finitions de la V1 | Worktrees, états sauvegardés, projets créés automatiquement, `meute doctor`, README | § 6.5, 6.6, 10, 11, 13 |
 
 Règles communes à tous les plans :
 
@@ -79,7 +79,7 @@ Limites connues, relevées pendant le plan 3 :
 Ce que le plan 4 laisse volontairement de côté, à traiter dans les plans indiqués :
 
 - **Plan 4b — vue Tâches** (§ 9.5, 9.6), avec les actions du détail.
-- **Plan 4c — lancement depuis le tableau** : formulaire `N`, « dernier type utilisé » de `n`, actions sur les panneaux orphelins (adopter, fermer).
+- **Plan 4c — lancement depuis le tableau** : formulaire `N`, « dernier type utilisé » de `n`, actions sur les panneaux orphelins (adopter, fermer), reprise d'une session Claude terminée (§ 6.5). En attendant, `Entrée` sur une session terminée sans panneau l'indique dans le pied du tableau (PR #10).
 - **Plan 5 — MCP** et contexte composé.
 - **Plan 6 — finitions** : état Git des sessions, worktrees, reprise et « recent sessions to resume », états sauvegardés, projets créés automatiquement (le regroupement se fait par projet, à défaut par dépôt, à défaut `Other`).
 
