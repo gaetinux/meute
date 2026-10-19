@@ -17,6 +17,7 @@ from meute.core.board_sessions import line_at, line_entry, line_group, line_info
 from meute.core.board_view import (
     BOARD_TITLE,
     FOOTER,
+    KEYS_HELP,
     BoardAction,
     BoardData,
     Detach,
@@ -93,6 +94,7 @@ class BoardApp(App[None]):
         self._confirming: Session | None = None
         self._error: str | None = None
         self._stopping: dict[SessionId, str] = {}  # sessions being stopped: id -> title
+        self._keys_help = False
         # Held, not queried: at quit the timer may still tick after the widgets left the DOM.
         self._quota = Static(id="quota")
         self._board = Static(id="board")
@@ -128,7 +130,11 @@ class BoardApp(App[None]):
     def _handle_key(self, key: str) -> None:
         if self._cursor.handle_key(key):
             return
-        if key == "q":
+        if key == "question_mark":
+            self._keys_help = not self._keys_help
+        elif key == "escape":
+            self._keys_help = False
+        elif key == "q":
             self._perform(Detach())
         else:
             self._act(key)
@@ -235,4 +241,4 @@ class BoardApp(App[None]):
             return confirm_stop_text(self._confirming.title)
         if self._stopping:
             return stopping_text(next(reversed(self._stopping.values())))
-        return FOOTER
+        return KEYS_HELP if self._keys_help else FOOTER

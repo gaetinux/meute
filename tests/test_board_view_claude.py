@@ -30,6 +30,4 @@ def test_c_on_session_launches_claude_where_it_runs() -> None:
 
 
 def test_footer_lists_both_launch_keys() -> None:
-    assert FOOTER == (
-        "↑↓ select · Enter show · c Claude · n Bash · x stop · a attention · e ended · q detach"
-    )
+    assert FOOTER == "↑↓ select · Enter show · c/n new · x stop · ? keys"

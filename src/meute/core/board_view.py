@@ -21,7 +21,13 @@ REPOS_HEADING = "Repositories"
 ORPHANS_HEADING = "Orphans"
 OUTSIDE_HEADING = "Outside meute"
 NO_SESSIONS = "No sessions. Pick a repository and press n."
-FOOTER = "↑↓ select · Enter show · c Claude · n Bash · x stop · a attention · e ended · q detach"
+FOOTER = "↑↓ select · Enter show · c/n new · x stop · ? keys"
+KEYS_HELP = (
+    "↑↓ select · Enter show · Space ←→ fold a group\n"
+    "c new Claude session · n new Bash session · x stop\n"
+    "a attention only · e ended sessions · q detach\n"
+    "? or Esc close this list"
+)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
