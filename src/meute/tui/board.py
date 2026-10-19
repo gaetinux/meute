@@ -1,7 +1,7 @@
 """The dashboard: a Textual app drawn from `meute.core.board_sessions`."""
 
 from contextlib import suppress
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, tzinfo
 from functools import partial
 from typing import ClassVar, Protocol, assert_never
@@ -13,13 +13,7 @@ from textual.content import Content
 from textual.geometry import Region
 from textual.widgets import Static
 
-from meute.core.board_sessions import (
-    board_sessions,
-    line_at,
-    line_entry,
-    line_group,
-    line_info,
-)
+from meute.core.board_sessions import line_at, line_entry, line_group, line_info
 from meute.core.board_view import (
     BOARD_TITLE,
     FOOTER,
@@ -43,14 +37,9 @@ from meute.core.sessions_view import (
     InfoLine,
     RepoLine,
     SessionLine,
-    ViewState,
-    keep_selection,
-    line_key,
-    selectable,
 )
+from meute.tui.sessions_cursor import SessionsCursor
 from meute.tui.sessions_pane import details_content, quota_content, view_content
-
-_EMPTY = BoardData(sessions=(), repos=(), orphans=(), home=None)
 
 
 class BoardBackend(Protocol):
@@ -100,9 +89,7 @@ class BoardApp(App[None]):
         self._poll_seconds = poll_seconds
         self._show_details = options.show_details
         self._local = options.local
-        self._state = ViewState()
-        self._model = board_sessions(_EMPTY, self._state)
-        self._selected = -1  # a line index of the view; -1: nothing selectable
+        self._cursor = SessionsCursor()
         self._confirming: Session | None = None
         self._error: str | None = None
         self._stopping: dict[SessionId, str] = {}  # sessions being stopped: id -> title
@@ -134,35 +121,24 @@ class BoardApp(App[None]):
         else:
             self._handle_key(event.key)
         self._draw()
-        if self._selected >= 0:
-            region = Region(0, self._selected, 1, 1)
+        if self._cursor.selected >= 0:
+            region = Region(0, self._cursor.selected, 1, 1)
             self.call_after_refresh(self._sessions.scroll_to_region, region, animate=False)
 
     def _handle_key(self, key: str) -> None:
-        if key in {"up", "k"}:
-            self._move(-1)
-        elif key in {"down", "j"}:
-            self._move(1)
-        elif key == "a":
-            self._set_state(replace(self._state, attention_only=not self._state.attention_only))
-        elif key == "e":
-            self._set_state(replace(self._state, show_ended=not self._state.show_ended))
-        elif key in {"space", "left", "right"}:
-            group = line_group(self._model, self._selected)
-            if group is not None:
-                folded = group in self._state.collapsed
-                self._fold(group, fold=not folded if key == "space" else key == "left")
-        elif key == "q":
+        if self._cursor.handle_key(key):
+            return
+        if key == "q":
             self._perform(Detach())
         else:
             self._act(key)
 
     def _act(self, key: str) -> None:
-        entry = line_entry(self._model, self._selected)
+        entry = line_entry(self._cursor.model, self._cursor.selected)
         if entry is None:
-            group = line_group(self._model, self._selected)  # a folded group's header
+            group = line_group(self._cursor.model, self._cursor.selected)  # a folded group's header
             if key == "enter" and group is not None:
-                self._fold(group, fold=False)
+                self._cursor.fold(group, fold=False)
         elif key == "enter":
             self._perform(enter_action(entry))
         elif key == "c":
@@ -184,57 +160,19 @@ class BoardApp(App[None]):
         self._draw()
 
     def _click(self, index: int) -> None:
-        line = line_at(self._model, index)
+        line = line_at(self._cursor.model, index)
         match line:
             case SessionLine():
-                self._selected = index
+                self._cursor.selected = index
                 self._perform(ShowSession(session_id=line.session_id))
             case RepoLine():
-                self._selected = index
+                self._cursor.selected = index
             case HeaderLine():
-                self._fold(line.group, fold=not line.collapsed)
+                self._cursor.fold(line.group, fold=not line.collapsed)
             case InfoLine() | None:
                 pass
             case _:
                 assert_never(line)
-
-    def _move(self, delta: int) -> None:
-        choices = selectable(self._model.view)
-        if choices:
-            position = choices.index(self._selected) if self._selected in choices else 0
-            self._selected = choices[min(max(position + delta, 0), len(choices) - 1)]
-
-    def _fold(self, group: str, *, fold: bool) -> None:
-        """Fold or unfold `group`; the selection moves to its header, or into it from there."""
-        if fold == (group in self._state.collapsed):
-            return
-        collapsed = self._state.collapsed
-        header_selected = self._selected_key() == f"group:{group}"
-        inside = line_group(self._model, self._selected) == group
-        self._set_state(
-            replace(self._state, collapsed=collapsed | {group} if fold else collapsed - {group}),
-            old_group=group if fold and inside else None,
-        )
-        if not fold and header_selected:
-            choices = selectable(self._model.view)
-            members = (i for i in choices if line_group(self._model, i) == group)
-            self._selected = next(members, self._selected)
-
-    def _selected_key(self) -> str | None:
-        line = line_at(self._model, self._selected)
-        return None if line is None else line_key(line)
-
-    def _set_state(self, state: ViewState, *, old_group: str | None = None) -> None:
-        self._state = state
-        self._rebuild(self._model.data, old_group=old_group)
-
-    def _rebuild(self, data: BoardData, *, old_group: str | None = None) -> None:
-        """Rebuild the view, keeping the selected line when it is still there."""
-        choices = selectable(self._model.view)
-        position = choices.index(self._selected) if self._selected in choices else 0
-        old_key = self._selected_key()
-        self._model = board_sessions(data, self._state)
-        self._selected = keep_selection(old_key, self._model.view, position, old_group=old_group)
 
     def _reload(self) -> None:
         error_before = self._error
@@ -245,7 +183,7 @@ class BoardApp(App[None]):
             data = None
         else:
             if data is not None:
-                self._rebuild(data)
+                self._cursor.rebuild(data)
         if data is not None or self._error != error_before:
             self._draw()
 
@@ -279,15 +217,15 @@ class BoardApp(App[None]):
         self._draw()
 
     def _draw(self) -> None:
-        quota = self._model.data.quota
+        quota = self._cursor.model.data.quota
         self._quota.display = quota is not None
         if quota is not None:
             self._quota.update(quota_content(quota, self._local))
-        self._board.update(view_content(self._model, self._selected))
-        info = line_info(self._model, self._selected) if self._show_details else None
+        self._board.update(view_content(self._cursor.model, self._cursor.selected))
+        info = line_info(self._cursor.model, self._cursor.selected) if self._show_details else None
         self._details.display = info is not None
         if info is not None:
-            self._details.update(details_content(self._model, info))
+            self._details.update(details_content(self._cursor.model, info))
         self._footer.update(Content(self._footer_text()))
 
     def _footer_text(self) -> str:
