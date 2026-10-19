@@ -223,7 +223,7 @@ Décision de l'auteur, 2026-10-18. Le but est que l'utilisateur n'ait pas à con
   - un clic sur un panneau lui donne le focus ;
   - la molette fait défiler ;
   - la sélection de texte se fait en maintenant `Shift`.
-- **Ligne d'état meute** : la barre d'état de tmux est remplacée par une ligne meute, qui affiche la session affichée, le nombre de sessions « needs attention » et le quota 5 h. Elle n'apparaît que là où le tableau de bord est masqué (mode étroit, session affichée en plein écran) : à côté du tableau, elle répéterait ce qu'il montre (précision de l'auteur, 2026-10-19).
+- **Ligne d'état meute** : la barre d'état de tmux est remplacée par une ligne meute, qui affiche la session affichée, le nombre de sessions « needs attention », le quota 5 h et, s'il y en a, le nombre de tâches en retard (`· 2 overdue`, § 9.5). Elle n'apparaît que là où le tableau de bord est masqué (mode étroit, session affichée en plein écran) : à côté du tableau, elle répéterait ce qu'il montre (précision de l'auteur, 2026-10-19).
 - **Pied du tableau** : une seule ligne avec les touches essentielles (`↑↓ select · Enter show · c/n new · x stop · ? keys`) ; `?` affiche la liste complète des touches, `?` ou `Échap` la referme.
 - **Bordures** réduites à une ligne discrète.
 - **Focus visible** (précision de l'auteur, 2026-10-19) : le tableau affiche en haut un titre (`meute · Sessions`) en inverse et sa sélection en inverse quand il a le focus, le titre en gris et la sélection sur fond gris sinon (tmux lui transmet le focus, `focus-events`) ; tmux grise légèrement le fond du panneau qui n'a pas le focus (`window-style`). La passe visuelle complète du tableau est faite au début du plan 4b, pour les deux onglets.
@@ -449,6 +449,22 @@ Fonctionnalités reprises du mod :
 - un détail avec l'édition des champs, des reports rapides (+1 h, tonight 6 pm, tomorrow 9 am, Monday 9 am, clear), les notes, les sessions liées et l'action « launch Claude on this task ».
 
 La suppression demande une confirmation et n'est possible que depuis le TUI ou la CLI.
+
+Précisions de l'auteur, 2026-10-19. L'usage principal est de noter vite une idée ou un rappel pendant que Claude travaille, et de voir ce qui est en retard ; le pilotage des tâches vient ensuite.
+
+- **Onglets** : le tableau de bord a deux onglets, Sessions et Tâches, dans le même panneau. Le titre affiche `Sessions · Tasks 2!` (nombre de tâches en retard) ; `Tab` ou un clic sur le nom change d'onglet.
+- **Contenu de l'onglet** : la ligne de filtres (`f` les fait défiler ; « this project » est le projet de la session affichée), les compteurs (`12 open · 2 overdue`), les groupes (urgence par défaut, `g` pour le regroupement par projet, repliables comme dans la vue Sessions), une ligne par tâche (les tâches en retard en rouge), puis le détail de la tâche sélectionnée sous la liste (description, dernières notes, sessions liées).
+- **Touches** : `a` ajoute une tâche par la saisie rapide, en bas du tableau ; sur une tâche, `s` statut, `p` priorité, `d` reports rapides, `e` titre, `D` description, `@` projet, `o` note, `L` « launch Claude on this task », `Del` supprimer ; `Entrée` sur une session liée l'affiche. Le texte se saisit dans une ligne en bas du tableau, les choix (statut, priorité, report) dans une courte liste.
+- **Launch Claude on this task** : la session est liée à la tâche et s'ouvre dans le dépôt de la tâche, à défaut celui de son projet ; sans l'un ni l'autre, rien n'est lancé et un message l'indique. Une fois Claude prêt (hook `SessionStart` reçu), meute colle dans sa saisie, sans l'envoyer, le texte de la tâche (`#12 Titre`, la description et les notes) ; l'utilisateur le relit et appuie sur `Entrée`. Si Claude n'est pas prêt au bout de 10 s, la session reste lancée et le tableau affiche « prompt not pasted ». Le statut de la tâche ne change pas (§ 9.4). Le contexte composé du § 8 remplace ce texte au plan 5.
+- **Erreurs** : un projet inconnu dans `@projet` est signalé dans l'aperçu et bloque la création ; un conflit de version affiche « modified in the meantime », recharge la tâche et garde la saisie en cours.
+
+### 9.6 Saisie rapide globale
+
+Décision de l'auteur, 2026-10-19.
+
+- `M-t` (configurable, `[keys] quick_task`) ouvre de partout une petite fenêtre tmux par-dessus l'écran (`display-popup`), avec le champ de saisie rapide (§ 9.3) et l'aperçu en direct.
+- Sans `@projet`, la tâche est rattachée au projet de la session affichée ; l'aperçu l'indique et `@none` force une tâche volante.
+- `Entrée` crée la tâche et ferme la fenêtre : l'utilisateur reste exactement où il était. `Échap` annule. En cas d'erreur (base verrouillée, projet inconnu), la fenêtre reste ouverte avec le texte et l'erreur.
 
 ## 10. Projets et dépôts
 
