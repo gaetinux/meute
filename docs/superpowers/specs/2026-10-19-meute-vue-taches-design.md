@@ -7,6 +7,10 @@
 
 L'usage principal est de noter vite une idée ou un rappel pendant que Claude travaille, sans quitter ce que l'on regarde, et de voir d'un coup d'œil ce qui est en retard. Le pilotage (lancer Claude sur une tâche, suivre ses sessions liées) vient ensuite. Hors périmètre, au plan 4c : formulaire `N`, « dernier type utilisé » de `n`, actions sur les panneaux orphelins.
 
+## Passe visuelle du tableau
+
+Décision de l'auteur, 2026-10-19 : le tableau est jugé fonctionnel mais peu agréable à l'œil. Le plan 4b commence par une passe visuelle, conçue avec des maquettes et validée par l'auteur avant tout code, pour les deux onglets : en-tête et onglets, titres de groupe distincts des lignes, colonnes alignées, état en couleur, infos secondaires atténuées, palette cohérente avec les repères de focus de la PR #10.
+
 ## Décisions de l'auteur
 
 | Question | Décision |
