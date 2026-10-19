@@ -158,6 +158,9 @@ def test_default_config_has_keys_section(tmp_path: Path) -> None:
     ensure_config(path)
     assert config_get(path, "keys.focus_board") == "M-p"
     assert config_get(path, "keys.focus_main") == "M-o"
+    assert config_get(path, "keys.next_attention") == "M-n"
+    assert config_get(path, "keys.previous_attention") == "M-N"
+    assert config_get(path, "keys.detach") == "M-q"
 
 
 @pytest.mark.parametrize("field", ["focus_board", "focus_main"])
@@ -193,3 +196,14 @@ def test_statusline_chain_is_a_string(tmp_path: Path) -> None:
     path.write_text("[statusline]\nchain = 3\n", encoding="utf-8")
     with pytest.raises(ConfigError, match=r"statusline\.chain"):
         load_config(path)
+
+
+@pytest.mark.parametrize("field", ["next_attention", "previous_attention", "detach"])
+def test_new_keys_are_validated_and_configurable(tmp_path: Path, field: str) -> None:
+    path = tmp_path / "config.toml"
+    path.write_text(f"[keys]\n{field} = 'M-n \\; kill-server'\n", encoding="utf-8")
+    with pytest.raises(ConfigError) as info:
+        load_config(path)
+    assert str(info.value).endswith(f"keys.{field}: expected a tmux key such as M-p")
+    path.write_text(f'[keys]\n{field} = "F9"\n', encoding="utf-8")
+    assert getattr(load_config(path).keys, field) == "F9"

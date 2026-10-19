@@ -1,27 +1,34 @@
 """The dashboard view model: what the board shows and decides, without any UI toolkit."""
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import assert_never
 
 from meute.core.agents import AgentInfo
+from meute.core.claude_session import ClaudeDetails
 from meute.core.paths import display_path
-from meute.core.project import RepoId
+from meute.core.project import ProjectId, RepoId
+from meute.core.quota_view import QuotaLine
 from meute.core.repo import Repo
 from meute.core.session import Session, SessionId
-from meute.core.session_state import state_label
+from meute.core.session_state import is_live
+from meute.core.statusline import StatuslineData
 from meute.core.text import printable
 
 BOARD_TITLE = "meute"
-SESSIONS_HEADING = "Sessions"
 REPOS_HEADING = "Repositories"
 ORPHANS_HEADING = "Orphans"
 OUTSIDE_HEADING = "Outside meute"
 NO_SESSIONS = "No sessions. Pick a repository and press n."
-FOOTER = "↑↓ select · Enter show · c Claude · n Bash · x stop"
-
-_DISPLAYED_MARK = "▶ "
-_NOT_DISPLAYED_MARK = "  "
+FOOTER = "↑↓ select · Enter show · c/n new · x stop · ? keys"
+KEYS_HELP = (
+    "↑↓ select · Enter show · Space ←→ fold a group\n"
+    "c new Claude session · n new Bash session · x stop\n"
+    "a attention only · e ended sessions · q detach\n"
+    "? or Esc close this list"
+)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -35,13 +42,27 @@ class SessionRow:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class BoardData:
-    """Everything the board draws."""
+    """Everything the board draws; `now` is the clock the ages are measured by.
+
+    `sessions` are the live sessions and those that still have a pane; `ended` are the
+    other sessions that ended recently, shown only on demand.
+    """
 
     sessions: tuple[SessionRow, ...]
     repos: tuple[Repo, ...]
     orphans: tuple[str, ...]
     home: Path | None
     outside: tuple[AgentInfo, ...] = ()
+    ended: tuple[SessionRow, ...] = ()
+    details: Mapping[SessionId, ClaudeDetails] = field(
+        default_factory=dict[SessionId, ClaudeDetails]
+    )
+    metrics: Mapping[SessionId, StatuslineData] = field(
+        default_factory=dict[SessionId, StatuslineData]
+    )
+    projects: Mapping[ProjectId, str] = field(default_factory=dict[ProjectId, str])
+    quota: QuotaLine | None = None
+    now: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -74,7 +95,12 @@ class StopSession:
     session_id: SessionId
 
 
-BoardAction = ShowSession | LaunchBash | LaunchClaude | StopSession
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Detach:
+    """Detach the terminal from meute, stopping nothing."""
+
+
+BoardAction = ShowSession | LaunchBash | LaunchClaude | StopSession | Detach
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -92,24 +118,6 @@ class RepoEntry:
 
 
 BoardEntry = SessionEntry | RepoEntry
-
-
-def board_entries(data: BoardData) -> tuple[BoardEntry, ...]:
-    """Return the selectable entries: the sessions in the order received, then the repositories."""
-    sessions: tuple[BoardEntry, ...] = tuple(SessionEntry(row=row) for row in data.sessions)
-    repos: tuple[BoardEntry, ...] = tuple(RepoEntry(repo=repo) for repo in data.repos)
-    return sessions + repos
-
-
-def entry_key(entry: BoardEntry) -> str:
-    """Return a key that identifies `entry` across data refreshes, to keep the selection."""
-    match entry:
-        case SessionEntry():
-            return f"session:{entry.row.session.id}"
-        case RepoEntry():
-            return f"repo:{entry.repo.id}"
-        case _:
-            assert_never(entry)
 
 
 def enter_action(entry: BoardEntry) -> ShowSession | LaunchBash:
@@ -141,6 +149,28 @@ def claude_action(entry: BoardEntry) -> LaunchClaude:
     return LaunchClaude(cwd=launch.cwd, repo_id=launch.repo_id)
 
 
+def ended_text(title: str) -> str:
+    """Return the footer notice for an ended session that has no pane left to show."""
+    return f'"{printable(title)}" has ended: c starts a new Claude session here'
+
+
+def ended_notice(entry: BoardEntry) -> str | None:
+    """Return what Enter says instead of showing an ended session without a pane, else None.
+
+    An ended session that kept its dead pane still shows: the pane holds its last output.
+    """
+    match entry:
+        case SessionEntry():
+            row = entry.row
+            if row.has_pane or is_live(row.session.state):
+                return None
+            return ended_text(row.session.title)
+        case RepoEntry():
+            return None
+        case _:
+            assert_never(entry)
+
+
 def stop_target(entry: BoardEntry) -> Session | None:
     """Return the session `x` would stop; a repository has none."""
     match entry:
@@ -150,16 +180,6 @@ def stop_target(entry: BoardEntry) -> Session | None:
             return None
         case _:
             assert_never(entry)
-
-
-def session_line(row: SessionRow, home: Path | None) -> str:
-    """Return the board line of a session; a leading mark shows the displayed one."""
-    session = row.session
-    mark = _DISPLAYED_MARK if row.displayed else _NOT_DISPLAYED_MARK
-    return (
-        f"{mark}{printable(session.title)}  {state_label(session.state)}  "
-        f"{printable(display_path(session.cwd, home))}"
-    )
 
 
 def repo_line(repo: Repo) -> str:
@@ -181,33 +201,11 @@ def confirm_stop_text(title: str) -> str:
     return f'Stop "{printable(title)}"? y: yes · any other key: no'
 
 
+def stopping_text(title: str) -> str:
+    """Return the footer text while a session is being stopped."""
+    return f'Stopping "{printable(title)}"…'
+
+
 def error_text(message: str) -> str:
     """Return the footer text for an error."""
     return f"Error: {printable(message)}"
-
-
-def board_layout(data: BoardData) -> tuple[list[str], tuple[int, ...]]:
-    """Return the board lines and, for each entry of `board_entries`, the index of its line."""
-    lines = [BOARD_TITLE, "", SESSIONS_HEADING]
-    first_session = len(lines)
-    lines += [session_line(row, data.home) for row in data.sessions] or [NO_SESSIONS]
-    lines += ["", REPOS_HEADING]
-    first_repo = len(lines)
-    lines += [repo_line(repo) for repo in data.repos]
-    if data.outside:
-        lines += ["", OUTSIDE_HEADING, *(outside_line(agent, data.home) for agent in data.outside)]
-    if data.orphans:
-        lines += ["", ORPHANS_HEADING, *(printable(orphan) for orphan in data.orphans)]
-    sessions = range(first_session, first_session + len(data.sessions))
-    repos = range(first_repo, first_repo + len(data.repos))
-    return lines, (*sessions, *repos)
-
-
-def board_lines(data: BoardData) -> list[str]:
-    """Return the board as text lines: the form the TUI reproduces and the snapshots capture."""
-    return board_layout(data)[0]
-
-
-def entry_line_indexes(data: BoardData) -> tuple[int, ...]:
-    """Return, for each entry of `board_entries(data)`, the index of its line in `board_lines`."""
-    return board_layout(data)[1]

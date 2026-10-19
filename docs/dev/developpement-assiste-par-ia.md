@@ -71,7 +71,7 @@ Le risque principal du TDD avec une IA, ce sont des tests qui passent sans rien 
 - **Tests de garde** (`tests/test_guards.py`) pour ce qu'aucun outil ne couvre : pas de `case _:` hors `assert_never`, raison sur chaque suppression, imports de `core`, `tmux`, `git`, `ingest` et de `_entry.py` limités à la stdlib et à `meute`, et `meute/core/__init__.py` sans aucun import (`test_core_init_has_no_imports`).
 - **Test `importtime`** (`tests/test_importtime.py`) : il lance `python -X importtime -m meute ingest …` dans un sous-processus et échoue si un module importé n'est ni de la stdlib ni de `meute` (hors modules de démarrage de l'interpréteur : `_virtualenv`, `sitecustomize`, `apport_python_hook`), ou si `ingest` charge la CLI. C'est un garde strict et obligatoire : il protège le budget de 50 ms de `meute ingest` (spécification § 7.3 ; le spike S6 mesure une médiane d'environ 47 ms).
 - **tmux** (à venir avec `meute.tmux`) : serveurs jetables `tmux -L meute-test-<uuid>`, avec une fixture qui fait toujours `kill-server`. Jamais les serveurs réels.
-- **TUI** en trois niveaux : modèle de vue pur (`meute.core.board_view`, testé en texte avec `syrupy`), comportement via `App.run_test` et `Pilot` (tests synchrones, `asyncio.run`), rendu via `pytest-textual-snapshot` (mise en page seulement, SVG sous `tests/__snapshots__/`, relus dans le rapport HTML).
+- **TUI** en trois niveaux : modèle de vue pur (`meute.core.board_view`, `meute.core.sessions_view`, testé en texte avec `syrupy`), comportement via `App.run_test` et `Pilot` (tests synchrones, `asyncio.run`), rendu via `pytest-textual-snapshot` (mise en page seulement, SVG sous `tests/__snapshots__/`, relus dans le rapport HTML).
 
 ## 5. Une boucle de rétroaction rapide et automatique
 

@@ -22,7 +22,7 @@ def test_open_creates_file_with_wal_and_latest_schema(tmp_path: Path) -> None:
     path = tmp_path / "sub/meute.db"
     with Database.open(path, busy_timeout_ms=5000) as db:
         assert path.exists()
-        assert db.schema_version() == len(MIGRATIONS) == 3
+        assert db.schema_version() == len(MIGRATIONS) == 4
         assert (
             db.pragma("journal_mode"),
             db.pragma("foreign_keys"),
@@ -53,14 +53,14 @@ def test_schema_has_plan_1_tables() -> None:
 def test_in_memory_is_migrated_with_foreign_keys_and_clock() -> None:
     fixed = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
     with Database.in_memory(clock=lambda: fixed) as db:
-        assert (db.schema_version(), db.pragma("foreign_keys"), db.now()) == (3, "1", fixed)
+        assert (db.schema_version(), db.pragma("foreign_keys"), db.now()) == (4, "1", fixed)
 
 
 def test_reopening_is_idempotent_and_makes_no_backup(tmp_path: Path) -> None:
     path = tmp_path / "meute.db"
     for _ in range(2):
         with Database.open(path, busy_timeout_ms=5000) as db:
-            assert db.schema_version() == 3
+            assert db.schema_version() == 4
     assert not [p for p in tmp_path.iterdir() if ".bak-" in p.name]
 
 

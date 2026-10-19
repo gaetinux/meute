@@ -1,9 +1,18 @@
 """Metric and quota samples taken from the statusline, written at most every few seconds."""
 
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 
 from meute.core.db.connection import Database
-from meute.core.db.rows import as_instant, as_integer, as_real, as_text, fetch_one, optional
+from meute.core.db.rows import (
+    as_instant,
+    as_integer,
+    as_real,
+    as_text,
+    fetch_all,
+    fetch_one,
+    optional,
+)
 from meute.core.instants import to_db
 from meute.core.session import SessionId
 from meute.core.statusline import StatuslineData
@@ -135,16 +144,7 @@ def record_quota(
     return True
 
 
-def latest_metrics(db: Database, session_id: SessionId) -> StatuslineData | None:
-    """Return the latest metric sample of a session, or None."""
-    row = fetch_one(
-        db.conn,
-        f"SELECT {_METRIC_COLUMNS} FROM metric_samples WHERE session_id = ?"  # noqa: S608 — fixed column names
-        " ORDER BY id DESC LIMIT 1",
-        (session_id,),
-    )
-    if row is None:
-        return None
+def _metrics_from(row: tuple[object, ...]) -> StatuslineData:
     return StatuslineData(
         model_name=optional(as_text, row[0]),
         effort=optional(as_text, row[1]),
@@ -162,6 +162,38 @@ def latest_metrics(db: Database, session_id: SessionId) -> StatuslineData | None
     )
 
 
+def latest_metrics(db: Database, session_id: SessionId) -> StatuslineData | None:
+    """Return the latest metric sample of a session, or None."""
+    row = fetch_one(
+        db.conn,
+        f"SELECT {_METRIC_COLUMNS} FROM metric_samples WHERE session_id = ?"  # noqa: S608 — fixed column names
+        " ORDER BY id DESC LIMIT 1",
+        (session_id,),
+    )
+    return None if row is None else _metrics_from(row)
+
+
+def latest_metrics_by_session(
+    db: Database, session_ids: Sequence[SessionId]
+) -> dict[SessionId, StatuslineData]:
+    """Return the latest metric sample of each given session that has one, in one query.
+
+    Each session costs one seek in the `(session_id, id)` index, whatever its history.
+    """
+    if not session_ids:
+        return {}
+    latest = ", ".join(
+        "(SELECT MAX(id) FROM metric_samples WHERE session_id = ?)" for _ in session_ids
+    )
+    rows = fetch_all(
+        db.conn,
+        f"SELECT session_id, {_METRIC_COLUMNS} FROM metric_samples"  # noqa: S608 — fixed column names and subqueries; values are bound
+        f" WHERE id IN ({latest})",
+        tuple(session_ids),
+    )
+    return {SessionId(as_text(row[0])): _metrics_from(row[1:]) for row in rows}
+
+
 def latest_quota(db: Database) -> StatuslineData | None:
     """Return the latest quota sample (any session) as quota fields only, or None."""
     row = fetch_one(
@@ -176,3 +208,17 @@ def latest_quota(db: Database) -> StatuslineData | None:
         seven_day_pct=optional(as_real, row[2]),
         seven_day_resets_at=optional(as_instant, row[3]),
     )
+
+
+def quota_history(db: Database, *, since: datetime) -> list[tuple[datetime, float]]:
+    """Return `(created_at, five_hour_pct)` of the quota samples from `since`, oldest first.
+
+    Samples without a known five-hour percentage are left out.
+    """
+    rows = fetch_all(
+        db.conn,
+        "SELECT created_at, five_hour_pct FROM quota_samples"
+        " WHERE created_at >= ? AND five_hour_pct IS NOT NULL ORDER BY id",
+        (to_db(since),),
+    )
+    return [(as_instant(created), as_real(pct)) for created, pct in rows]

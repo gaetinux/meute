@@ -36,3 +36,11 @@ def one_line(text: str, limit: int, *, ellipsis: bool = False) -> str:
     if len(line) <= limit:
         return line
     return line[: limit - 1] + "…" if ellipsis else line[:limit]
+
+
+_MIN_COST = 0.10
+
+
+def cost_text(cost: float | None) -> str:
+    """Return `$x.xx`, or "" when the cost is unknown or at most 10 cents (noise)."""
+    return f"${cost:.2f}" if cost is not None and cost > _MIN_COST else ""

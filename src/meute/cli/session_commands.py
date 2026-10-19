@@ -12,6 +12,7 @@ from meute.claude.agents import run_agents
 from meute.claude.launch import find_claude
 from meute.cli.context import open_context
 from meute.cli.json_out import echo_json
+from meute.cli.session_jump import jump_to_attention
 from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
 from meute.cli.session_refresh import refresh
@@ -136,6 +137,20 @@ def show(session_id: Annotated[str, typer.Argument(help="Session id or prefix.")
     with open_context(os.environ) as ctx:
         session = find_session(ctx.db, session_id)
         show_session(ctx, open_tmux_env(ctx, os.environ), session.id)
+
+
+@session_app.command("next", hidden=True)
+def next_() -> None:
+    """Show the next session that needs attention (bound to M-n)."""
+    with open_context(os.environ) as ctx:
+        _ = jump_to_attention(ctx, open_tmux_env(ctx, os.environ), os.environ, backwards=False)
+
+
+@session_app.command("previous", hidden=True)
+def previous() -> None:
+    """Show the previous session that needs attention (bound to M-N)."""
+    with open_context(os.environ) as ctx:
+        _ = jump_to_attention(ctx, open_tmux_env(ctx, os.environ), os.environ, backwards=True)
 
 
 def _confirmed(title: str) -> bool:

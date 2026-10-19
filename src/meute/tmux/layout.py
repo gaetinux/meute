@@ -34,7 +34,8 @@ def is_narrow(width: int, threshold: int) -> bool:
     return width < threshold
 
 
-def _window_panes(tmux: Tmux) -> list[PaneInfo]:
+def main_window_panes(tmux: Tmux) -> list[PaneInfo]:
+    """Return the panes of the main window of `meute:main`."""
     return [p for p in list_panes(tmux) if p.session == MAIN_SESSION and p.window == MAIN_WINDOW]
 
 
@@ -75,7 +76,7 @@ def find_layout(tmux: Tmux) -> Layout | None:
         CommandFailed: tmux failed.
         UnreadableOutput: tmux printed something unreadable.
     """
-    panes = _window_panes(tmux)
+    panes = main_window_panes(tmux)
     board = _live_board(panes)
     if board is None:
         return None
@@ -107,7 +108,7 @@ def _recreate_main_window(tmux: Tmux, spec: LayoutSpec) -> None:
 
 
 def _repair(tmux: Tmux, spec: LayoutSpec) -> None:
-    panes = _window_panes(tmux)
+    panes = main_window_panes(tmux)
     main = _main_pane(panes)
     board = _live_board(panes)
     if board is None:
@@ -135,6 +136,9 @@ def ensure_layout(tmux: Tmux, spec: LayoutSpec) -> Layout:
         _repair(tmux, spec)
     else:
         _create_session(tmux, spec)
+    # The dashboard already shows what the status line says: keep it for the other
+    # sessions, where a session is displayed full screen in narrow mode (spec 5.6).
+    tmux.run("set-option", "-t", f"={MAIN_SESSION}:", "status", "off")
     layout = _require_layout(tmux)
     narrow = is_narrow(layout.width, spec.narrow_threshold)
     if narrow == layout.zoomed and narrow:

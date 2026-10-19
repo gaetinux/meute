@@ -1,18 +1,19 @@
 """Showing a session in the main area of the `meute:main` window."""
 
 from meute.cli.context import CliContext
+from meute.cli.status_publish import publish_status
 from meute.cli.tmux_env import TmuxEnv
-from meute.core.db.sessions import get_session
+from meute.core.db.samples import latest_quota
+from meute.core.db.sessions import get_session, list_sessions
 from meute.core.errors import InvalidInput
+from meute.core.quota_view import current_quota
 from meute.core.session import SessionId
-from meute.core.text import printable
 from meute.tmux.layout import ensure_layout, find_layout
-from meute.tmux.names import MAIN_SESSION, MAIN_WINDOW, ROLE_WELCOME, STATUS_OPTION
+from meute.tmux.names import MAIN_SESSION, MAIN_WINDOW, ROLE_WELCOME
 from meute.tmux.panes import (
     kill_pane,
     list_panes,
     select_pane,
-    set_global_option,
     swap_panes,
     switch_client_to,
 )
@@ -52,4 +53,11 @@ def show_session(ctx: CliContext, env: TmuxEnv, session_id: SessionId) -> None:
         if previous is not None and previous.role == ROLE_WELCOME:
             kill_pane(env.tmux, previous.id)
     select_pane(env.tmux, pane.id)
-    set_global_option(env.tmux, STATUS_OPTION, f"▶ {printable(session.title)}")
+    sample = latest_quota(ctx.db)
+    quota = None if sample is None else current_quota(sample, now=ctx.db.now())
+    _ = publish_status(
+        env.tmux,
+        session.title,
+        list_sessions(ctx.db),
+        None if quota is None else quota.five_hour_pct,
+    )

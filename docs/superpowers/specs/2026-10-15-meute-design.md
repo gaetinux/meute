@@ -47,7 +47,7 @@ L'auteur travaille toute la journée en SSH sur un serveur de développement, da
 |---|---|
 | Disposition | Tableau de bord fixe dans un panneau tmux, session affichée dans la zone principale (§ 5) |
 | Sessions | Lancement Claude Code et Bash, avec ou sans worktree. Échange, rattachement, arrêt explicite |
-| Vue Sessions | Regroupement par projet, statut, dernière activité, durée, coût, contexte %, branche et état Git, filtre « needs attention », sessions terminées repliées |
+| Vue Sessions | Regroupement par projet, statut, dernière activité, durée, coût, contexte %, branche et état Git, filtre « needs attention » (permission demandée, réponse attendue, `stuck?`), sessions terminées repliées |
 | Quotas | Fenêtres 5 h et 7 j, reset, projection « limit around HH:MM », heures pleines/creuses |
 | Vue Tâches | Saisie rapide, filtres, regroupement par urgence ou par projet, détail, notes |
 | MCP | Outils de lecture et d'écriture des tâches pour Claude |
@@ -182,8 +182,8 @@ On évite ainsi un protocole de socket, la gestion des versions entre clients, u
   - `M-p` : focus sur le tableau de bord ;
   - `M-o` : focus sur la zone principale ;
   - `M-n` / `M-N` : session suivante / précédente parmi celles « needs attention ».
-- **La barre d'état tmux** affiche la session affichée et le nombre de sessions « needs attention ».
-- **Se détacher** (`prefix d` ou fermeture du terminal) laisse tout tourner. Relancer `meute` permet de se rattacher.
+- **La barre d'état tmux** affiche la session affichée et le nombre de sessions « needs attention ». Elle est remplacée par une ligne meute (§ 5.6).
+- **Se détacher** (`q` dans le tableau de bord, `M-q` partout, `prefix d` ou fermeture du terminal, voir § 5.6) laisse tout tourner. Relancer `meute` permet de se rattacher.
 
 ### 5.2 Mode étroit
 
@@ -213,6 +213,23 @@ Aucune relance n'est automatique.
   - les sessions qu'il ne gère pas sont affichées **en lecture seule** dans une section « outside meute », avec leur statut et leur dossier ;
   - pour les sessions qu'il gère, il sert de **source d'état de secours** quand aucun hook n'a été reçu depuis longtemps.
 - meute ne lance pas lui-même de sessions `claude --bg`. Avec `--bg`, `--session-id` est ignoré, un dossier non approuvé bloque le démarrage, et la session peut créer des worktrees d'elle-même (spike S1).
+
+### 5.6 Interface transparente
+
+Décision de l'auteur, 2026-10-18. Le but est que l'utilisateur n'ait pas à connaître tmux.
+
+- **Souris active** :
+  - un clic sur une ligne du tableau affiche la session ;
+  - un clic sur un panneau lui donne le focus ;
+  - la molette fait défiler ;
+  - la sélection de texte se fait en maintenant `Shift`.
+- **Ligne d'état meute** : la barre d'état de tmux est remplacée par une ligne meute, qui affiche la session affichée, le nombre de sessions « needs attention » et le quota 5 h. Elle n'apparaît que là où le tableau de bord est masqué (mode étroit, session affichée en plein écran) : à côté du tableau, elle répéterait ce qu'il montre (précision de l'auteur, 2026-10-19).
+- **Pied du tableau** : une seule ligne avec les touches essentielles (`↑↓ select · Enter show · c/n new · x stop · ? keys`) ; `?` affiche la liste complète des touches, `?` ou `Échap` la referme.
+- **Bordures** réduites à une ligne discrète.
+- **Focus visible** (précision de l'auteur, 2026-10-19) : le tableau affiche en haut un titre (`meute · Sessions`) en inverse et sa sélection en inverse quand il a le focus, le titre en gris et la sélection sur fond gris sinon (tmux lui transmet le focus, `focus-events`) ; tmux grise légèrement le fond du panneau qui n'a pas le focus (`window-style`). La passe visuelle complète du tableau est faite au début du plan 4b, pour les deux onglets.
+- **Détacher sans rien arrêter** : `q` dans le tableau et `M-q` partout.
+- **Messages et alertes de tmux masqués.**
+- **Le préfixe tmux** reste utilisable, mais n'est plus nécessaire.
 
 ## 6. Sessions
 
@@ -293,7 +310,7 @@ Si une autre session vivante travaille déjà dans le même répertoire, le form
 
 ### 6.5 Arrêt et reprise
 
-- **Arrêter** (`x`, avec confirmation) envoie `C-c` puis, après 5 s, tue le panneau. La session passe à l'état `Exited`.
+- **Arrêter** (`x`, avec confirmation) envoie `C-c` deux fois pour une session Claude (une fois pour une session Bash) puis, après 5 s, tue le panneau. La session passe à l'état `Exited`.
 - **Reprendre** n'est proposé que pour les sessions Claude dont le panneau a disparu ou dont le processus est terminé. Cette action ouvre un nouveau panneau avec `claude --resume <native_id>`, réutilise l'`id` interne et remplace l'état.
 - La liste « recent sessions to resume » affiche les sessions Claude terminées depuis moins de 7 jours (valeur réglable).
 
@@ -438,7 +455,7 @@ La suppression demande une confirmation et n'est possible que depuis le TUI ou l
 - **Dépôt** : découvert dans les racines configurées (par défaut `~/git`) par un parcours limité à une profondeur de 3. Les worktrees sont rattachés à leur dépôt principal et ne sont pas comptés en double. Le type de dépôt (fastapi, angular, node, python, rust…) est déduit par des règles simples sur les fichiers présents.
 - **Projet** : un nom, une description, des consignes, et un ou plusieurs dépôts. Au premier lancement d'une session dans un dépôt sans projet, un projet du même nom est créé automatiquement et lié à ce dépôt. Plusieurs dépôts peuvent ensuite être regroupés dans un même projet.
 - **Vue Sessions** :
-  - les sessions sont regroupées par projet ;
+  - les sessions sont regroupées par projet, à défaut par dépôt, à défaut sous `Other`, en attendant la création automatique des projets (plan 6) ;
   - l'en-tête de chaque projet affiche son nom, son type, son temps et son coût, et se replie en une ligne de résumé ;
   - les projets sans session vivante sont listés en bas, avec l'action « + session ».
 

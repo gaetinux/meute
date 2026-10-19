@@ -19,6 +19,7 @@ from meute.cli.session_commands import session_app
 from meute.cli.task_app import task_app
 from meute.cli.tmux_env import open_tmux_env
 from meute.cli.welcome import wait_forever, welcome_text
+from meute.core.clock import local_zone
 from meute.core.errors import MeuteError, VersionConflict
 from meute.core.text import printable
 
@@ -60,7 +61,7 @@ def board() -> None:
     """Run the dashboard (the right-hand pane of the layout)."""
     from meute.cli.board_backend import CliBoardBackend, purge_old_samples  # noqa: PLC0415 — keeps Textual out of every other command's start-up
     from meute.cli.repo_scan import scan_repos  # noqa: PLC0415 — only the dashboard scans on start
-    from meute.tui.board import BoardApp  # noqa: PLC0415 — keeps Textual out of every other command's start-up
+    from meute.tui.board import BoardApp, BoardOptions  # noqa: PLC0415 — keeps Textual out of every other command's start-up
 
     with open_context(os.environ) as ctx:
         env = open_tmux_env(ctx, os.environ)
@@ -68,7 +69,10 @@ def board() -> None:
         _ = purge_old_samples(ctx)
         backend = CliBoardBackend(ctx, env, os.environ)
         try:
-            BoardApp(backend).run()
+            options = BoardOptions(
+                show_details=ctx.config.ui.show_details, local=local_zone(os.environ)
+            )
+            BoardApp(backend, options).run()
         finally:
             backend.close()
 

@@ -11,6 +11,7 @@ from textual.content import Content
 from textual.pilot import Pilot
 from textual.widgets import Static
 
+from meute.core.board_sessions import board_sessions
 from meute.core.board_view import (
     FOOTER,
     BoardAction,
@@ -19,14 +20,15 @@ from meute.core.board_view import (
     SessionRow,
     ShowSession,
     StopSession,
-    board_lines,
     confirm_stop_text,
     error_text,
     repo_line,
-    session_line,
 )
 from meute.core.errors import MeuteError
 from meute.core.project import RepoId
+from meute.core.repo import Repo
+from meute.core.session import SessionId
+from meute.core.sessions_view import SessionLine, ViewState
 from meute.tui.board import BoardApp
 from support import (
     BOARD_HOME,
@@ -112,14 +114,27 @@ async def _reload(pilot: Pilot[None], backend: FakeBackend, data: BoardData) -> 
         await pilot.pause(0.01)
 
 
+def _view_texts(data: BoardData) -> list[str]:
+    return [line.text for line in board_sessions(data, ViewState()).view.lines]
+
+
+def _session_text(data: BoardData, session_id: SessionId) -> str:
+    lines = board_sessions(data, ViewState()).view.lines
+    return next(x.text for x in lines if isinstance(x, SessionLine) and x.session_id == session_id)
+
+
+def _repo_text(repo: Repo) -> str:
+    return f"{repo_line(repo)}  + session"
+
+
 def test_board_shows_the_view_model_lines_and_highlights_the_first_entry() -> None:
     data = board_data()
     app = BoardApp(FakeBackend(data), poll_seconds=_NO_POLL)
 
     async def scenario() -> None:
         async with app.run_test(size=_SIZE):
-            assert _content(app, "board").plain == "\n".join(board_lines(data))
-            assert _highlighted(app) == [session_line(data.sessions[0], BOARD_HOME)]
+            assert _content(app, "board").plain == "\n".join(_view_texts(data))
+            assert _highlighted(app) == [_session_text(data, BOARD_ID_A)]
             assert _content(app, "footer").plain == FOOTER
 
     asyncio.run(scenario())
@@ -193,7 +208,7 @@ def test_selection_survives_reordering() -> None:
             reordered = replace(first, sessions=(first.sessions[1], first.sessions[0]))
             await _reload(pilot, backend, reordered)
             await pilot.press("enter")
-            assert _highlighted(app) == [session_line(first.sessions[0], BOARD_HOME)]
+            assert _highlighted(app) == [_session_text(first, BOARD_ID_A)]
 
     asyncio.run(scenario())
     assert backend.actions == [ShowSession(session_id=BOARD_ID_A)]
@@ -241,14 +256,14 @@ def _highlighted_after(data: BoardData, *keys: str) -> list[str]:
 
 
 def test_highlight_reaches_each_repository() -> None:
-    assert _highlighted_after(board_data(), "j", "j") == [repo_line(BOARD_REPO_1)]
-    assert _highlighted_after(board_data(), "j", "j", "j") == [repo_line(BOARD_REPO_2)]
+    assert _highlighted_after(board_data(), "j", "j") == [_repo_text(BOARD_REPO_1)]
+    assert _highlighted_after(board_data(), "j", "j", "j") == [_repo_text(BOARD_REPO_2)]
 
 
 def test_highlight_skips_the_no_sessions_placeholder() -> None:
     data = replace(board_data(), sessions=())
-    assert _highlighted_after(data) == [repo_line(BOARD_REPO_1)]
-    assert _highlighted_after(data, "j") == [repo_line(BOARD_REPO_2)]
+    assert _highlighted_after(data) == [_repo_text(BOARD_REPO_1)]
+    assert _highlighted_after(data, "j") == [_repo_text(BOARD_REPO_2)]
 
 
 def test_enter_after_an_error_clears_it_and_acts_again() -> None:

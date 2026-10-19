@@ -47,11 +47,17 @@ stuck_after_minutes = 10
 board_width = 60
 # Below this terminal width, the dashboard goes full screen.
 narrow_threshold = 120
+# Show the details of the selected session under the list.
+show_details = true
 
 [keys]
 # Global shortcuts, without the tmux prefix (M- = Alt).
 focus_board = "M-p"
 focus_main = "M-o"
+# Next / previous session that needs attention, and detach without stopping anything.
+next_attention = "M-n"
+previous_attention = "M-N"
+detach = "M-q"
 
 [quotas]
 # Peak hours: weekdays, from peak_start_hour to peak_end_hour, in this time zone.
@@ -79,8 +85,12 @@ def _flatten(config: Config) -> dict[str, object]:
         "claude.stuck_after_minutes": config.claude.stuck_after_minutes,
         "ui.board_width": config.ui.board_width,
         "ui.narrow_threshold": config.ui.narrow_threshold,
+        "ui.show_details": config.ui.show_details,
         "keys.focus_board": config.keys.focus_board,
         "keys.focus_main": config.keys.focus_main,
+        "keys.next_attention": config.keys.next_attention,
+        "keys.previous_attention": config.keys.previous_attention,
+        "keys.detach": config.keys.detach,
         "quotas.peak_timezone": config.quotas.peak_timezone,
         "quotas.peak_start_hour": config.quotas.peak_start_hour,
         "quotas.peak_end_hour": config.quotas.peak_end_hour,
@@ -160,4 +170,6 @@ def config_get(path: Path, key: str) -> str:
     value = _flatten(load_config(path))[key]
     if _is_string_tuple(value):
         return json.dumps(list(value), ensure_ascii=False)
+    if isinstance(value, bool):
+        return "true" if value else "false"
     return str(value)

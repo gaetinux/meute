@@ -11,8 +11,12 @@ def welcome_text(keys: KeysConfig) -> str:
     return (
         "meute\n"
         "\n"
-        "Pick a session in the dashboard and press Enter.\n"
-        f"{keys.focus_board}: dashboard · {keys.focus_main}: main area"
+        "Pick a session in the dashboard and press Enter, or click it.\n"
+        f"{keys.focus_board}: dashboard · {keys.focus_main}: main area\n"
+        f"{keys.next_attention} / {keys.previous_attention}:"
+        " next / previous session that needs attention\n"
+        f"{keys.detach} or q in the dashboard: detach, everything keeps running\n"
+        "Hold Shift to select text with the mouse."
     )
 
 

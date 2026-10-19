@@ -34,6 +34,7 @@ class UiConfig:
 
     board_width: int = 60
     narrow_threshold: int = 120
+    show_details: bool = True
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -42,6 +43,9 @@ class KeysConfig:
 
     focus_board: str = "M-p"
     focus_main: str = "M-o"
+    next_attention: str = "M-n"
+    previous_attention: str = "M-N"
+    detach: str = "M-q"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -105,6 +109,14 @@ def _int(
             f"an integer >= {low}" if high is None else f"an integer between {low} and {high}"
         )
         message = f"{dotted}: expected {expected}"
+        raise InvalidInput(message)
+    return value
+
+
+def _bool(section: Mapping[str, object], dotted: str, *, default: bool) -> bool:
+    value = section.get(dotted.partition(".")[2], default)
+    if not isinstance(value, bool):
+        message = f"{dotted}: expected true or false"
         raise InvalidInput(message)
     return value
 
@@ -180,10 +192,14 @@ def validate_config(data: Mapping[str, object]) -> Config:
         ui=UiConfig(
             board_width=_int(ui, "ui.board_width", 60, 1),
             narrow_threshold=_int(ui, "ui.narrow_threshold", 120, 1),
+            show_details=_bool(ui, "ui.show_details", default=True),
         ),
         keys=KeysConfig(
             focus_board=_key(keys, "focus_board", default_keys.focus_board),
             focus_main=_key(keys, "focus_main", default_keys.focus_main),
+            next_attention=_key(keys, "next_attention", default_keys.next_attention),
+            previous_attention=_key(keys, "previous_attention", default_keys.previous_attention),
+            detach=_key(keys, "detach", default_keys.detach),
         ),
         quotas=QuotasConfig(
             peak_timezone=_timezone(quotas),

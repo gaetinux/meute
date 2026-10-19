@@ -6,16 +6,15 @@ from datetime import datetime, tzinfo
 from zoneinfo import ZoneInfo
 
 from meute.core.config_validate import QuotasConfig
+from meute.core.quota_view import quota_level
 from meute.core.statusline import StatuslineData
-from meute.core.text import printable
+from meute.core.text import cost_text, printable
 
 _SEP = " \033[90m│\033[0m "
 _RESET = "\033[0m"
 _ESCAPE = re.compile(r"\033\[[0-9;]*m")
 _BAR_CELLS = 5
 _WARN_PCT = 50
-_ALERT_PCT = 80
-_MIN_COST = 0.10
 _MIN_DURATION_MS = 600_000
 _LAST_WEEKDAY = 5  # Friday, in ISO numbering
 _NARROW = 80
@@ -34,19 +33,16 @@ def _bar(pct: int) -> str:
     return "█" * filled + "░" * (_BAR_CELLS - filled)
 
 
+_LEVEL_COLORS = {"high": "31", "warn": "33", "ok": "32"}
+
+
 def _color(pct: int) -> str:
-    if pct >= _ALERT_PCT:
-        return "31"
-    return "33" if pct >= _WARN_PCT else "32"
+    return _LEVEL_COLORS[quota_level(pct)]
 
 
 def _meter(pct: float, label: str) -> str:
     shown = round(pct)  # to the nearest even integer, like printf '%.0f'
     return f"\033[{_color(shown)}m{_bar(shown)}{_RESET} \033[90m{label}{_RESET} {shown}%"
-
-
-def _cost(cost: float | None) -> str:
-    return f"${cost:.2f}" if cost is not None and cost > _MIN_COST else ""
 
 
 def _duration(milliseconds: int | None) -> str:
@@ -73,20 +69,32 @@ def _name(name: str | None) -> str:
     return f"\033[36m{printable(name)}{_RESET}" if name else ""
 
 
-def _peak(now: datetime, quotas: QuotasConfig, local: tzinfo) -> str:
+def _peak_parts(now: datetime, quotas: QuotasConfig, local: tzinfo) -> tuple[bool, str, str]:
+    """Return whether it is peak, the label (`⚡ PEAK`, `✦ OFF-PEAK`) and its detail."""
     there = now.astimezone(ZoneInfo(quotas.peak_timezone))
     hour = there.hour
     weekday = there.isoweekday()
     start, end = quotas.peak_start_hour, quotas.peak_end_hour
     if weekday <= _LAST_WEEKDAY and start <= hour < end:
-        return f"\033[1;31m⚡ PEAK{_RESET} \033[90m(~{end - hour}h left){_RESET}"
-    off = f"\033[1;32m✦ OFF-PEAK{_RESET} \033[90m"
+        return True, "⚡ PEAK", f"(~{end - hour}h left)"
     if weekday > _LAST_WEEKDAY or (weekday == _LAST_WEEKDAY and hour >= end):
-        return f"{off}(weekend){_RESET}"
+        return False, "✦ OFF-PEAK", "(weekend)"
     if hour >= end:
         local_start = there.replace(hour=start % 24, minute=0, second=0).astimezone(local).hour
-        return f"{off}(until {local_start}h){_RESET}"
-    return f"{off}(peak in ~{start - hour}h){_RESET}"
+        return False, "✦ OFF-PEAK", f"(until {local_start}h)"
+    return False, "✦ OFF-PEAK", f"(peak in ~{start - hour}h)"
+
+
+def _peak(now: datetime, quotas: QuotasConfig, local: tzinfo) -> str:
+    peak, label, detail = _peak_parts(now, quotas, local)
+    color = "1;31" if peak else "1;32"
+    return f"\033[{color}m{label}{_RESET} \033[90m{detail}{_RESET}"
+
+
+def peak_text(now: datetime, quotas: QuotasConfig, local: tzinfo) -> str:
+    """Return the peak-hours text of the status line, without colour codes."""
+    _, label, detail = _peak_parts(now, quotas, local)
+    return f"{label} {detail}"
 
 
 def _visible_length(text: str) -> int:
@@ -129,7 +137,7 @@ def render_statusline(  # noqa: PLR0913 — every input is a keyword of the docu
     five = "" if data.five_hour_pct is None else _meter(data.five_hour_pct, "5h")
     always = [header, model, five, _peak(now, quotas, local)]
     context = "" if data.context_pct is None else _meter(data.context_pct, "ctx")
-    cost = _cost(data.cost_usd)
+    cost = cost_text(data.cost_usd)
     worktree = _name(data.worktree_name)
     agent = _name(data.agent_name)
     seven = ""

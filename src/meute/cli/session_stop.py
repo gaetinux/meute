@@ -1,4 +1,4 @@
-"""Stopping a session: Ctrl-C, then a kill after a grace period."""
+"""Stopping a session: Ctrl-C (twice for Claude), then a kill after a grace period."""
 
 import time
 
@@ -6,8 +6,8 @@ from meute.cli.context import CliContext
 from meute.cli.session_refresh import refresh
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.db.sessions import get_session, set_session_state
-from meute.core.session import Session, SessionId
-from meute.core.session_state import Exited, is_live
+from meute.core.session import AgentKind, Session, SessionId
+from meute.core.session_state import Exited, Unreachable, is_live
 from meute.tmux.errors import CommandFailed
 from meute.tmux.layout import ensure_layout, find_layout
 from meute.tmux.panes import kill_pane, list_panes, send_keys
@@ -15,18 +15,27 @@ from meute.tmux.parse import PaneInfo
 
 STOP_GRACE_SECONDS = 5.0
 _POLL_SECONDS = 0.1
+CLAUDE_SECOND_INTERRUPT_SECONDS = 0.3  # Claude quits on a second Ctrl-C shortly after the first
 
 
 def _pane_of(env: TmuxEnv, session_id: SessionId) -> PaneInfo | None:
     return next((p for p in list_panes(env.tmux) if p.meute_id == session_id), None)
 
 
-def _interrupt(env: TmuxEnv, session_id: SessionId, grace: float) -> PaneInfo | None:
-    """Send Ctrl-C and wait until the pane is dead or gone, `grace` seconds at most."""
+def _interrupt(
+    env: TmuxEnv, session_id: SessionId, grace: float, *, twice: bool
+) -> PaneInfo | None:
+    """Send Ctrl-C (twice for Claude) and wait until the pane is dead or gone, `grace` at most."""
     pane = _pane_of(env, session_id)
     if pane is None or pane.dead:
         return pane
     send_keys(env.tmux, pane.id, "C-c")
+    if twice:
+        time.sleep(CLAUDE_SECOND_INTERRUPT_SECONDS)
+        pane = _pane_of(env, session_id)
+        if pane is None or pane.dead:
+            return pane
+        send_keys(env.tmux, pane.id, "C-c")
     deadline = time.monotonic() + grace
     while True:
         pane = _pane_of(env, session_id)
@@ -47,7 +56,7 @@ def _kill(env: TmuxEnv, pane: PaneInfo, session_id: SessionId) -> None:
 def stop_session(
     ctx: CliContext, env: TmuxEnv, session_id: SessionId, *, grace: float = STOP_GRACE_SECONDS
 ) -> Session:
-    """Interrupt the session, kill it if it resists, and record it as exited.
+    """Interrupt the session (twice for Claude), kill it if it resists, and record it as exited.
 
     A session that already ended keeps its state. The layout is repaired afterwards, so that
     stopping the displayed session brings the welcome pane back.
@@ -56,14 +65,17 @@ def stop_session(
         NotFound: no such session.
         TmuxError: tmux failed.
     """
-    refresh(ctx, env)
-    pane = _interrupt(env, session_id, grace)
+    refresh(ctx, env, assume=False)  # assumed states need `claude agents`: left to the board
+    claude = get_session(ctx.db, session_id).agent is AgentKind.CLAUDE
+    pane = _interrupt(env, session_id, grace, twice=claude)
     code = None
     if pane is not None:
         code = pane.dead_status if pane.dead else None
         _kill(env, pane, session_id)
     session = get_session(ctx.db, session_id)
-    if is_live(session.state):
+    # A reread by the board (another thread) between the kill and here sees the pane gone.
+    killed = pane is not None and isinstance(session.state, Unreachable)
+    if is_live(session.state) or killed:
         session = set_session_state(ctx.db, session_id, Exited(code=code))
     if find_layout(env.tmux) is not None:
         ensure_layout(env.tmux, env.spec)

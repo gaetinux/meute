@@ -3,30 +3,33 @@
 import time
 from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import timedelta
-from pathlib import Path
 from typing import TYPE_CHECKING, assert_never
 
 from meute.claude.launch import find_claude
 from meute.cli.agents_poller import AgentsPoller
-from meute.cli.context import ENVIRONMENT_ERRORS, CliContext
+from meute.cli.board_data import load_board_data
+from meute.cli.context import ENVIRONMENT_ERRORS, CliContext, open_database
 from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
-from meute.cli.session_refresh import refresh
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
+from meute.cli.status_publish import publish_status
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import (
     BoardAction,
     BoardData,
+    Detach,
     LaunchBash,
     LaunchClaude,
     ShowSession,
     StopSession,
 )
 from meute.core.db.claude_sessions import purge_samples
-from meute.core.db.repos import list_repos
 from meute.core.errors import MeuteError
+from meute.core.session import SessionId
+from meute.tmux.panes import detach_client
 
 if TYPE_CHECKING:
     from meute.core.agents import AgentInfo
@@ -70,6 +73,7 @@ class CliBoardBackend:
         claude = find_claude(environ) if "PATH" in environ else None
         self._agents = agents or AgentsPoller(claude, monotonic=monotonic)
         self._known: tuple[AgentInfo, ...] | None = None  # last result of `claude agents`
+        self._status: str | None = None  # last text written to the tmux status line
 
     def load(self) -> BoardData | None:
         """Return the reconciled data, or `None` when nothing can have changed.
@@ -95,16 +99,17 @@ class CliBoardBackend:
             and now - self._read_at < TMUX_REREAD_SECONDS
         ):
             return None
-        snapshot = refresh(self._ctx, self._env, agents=self._known)
-        repos = list_repos(self._ctx.db)
+        data = load_board_data(self._ctx, self._env, self._environ, self._known)
         self._data_version, self._read_at = version, now
-        return BoardData(
-            sessions=snapshot.sessions,
-            repos=tuple(repos),
-            orphans=snapshot.orphans,
-            home=Path.home(),
-            outside=snapshot.outside,
-        )
+        self._publish_status(data)
+        return data
+
+    def _publish_status(self, data: BoardData) -> None:
+        """Write the tmux status line when its text changed since the last write."""
+        title = next((row.session.title for row in data.sessions if row.displayed), None)
+        sessions = [row.session for row in data.sessions]
+        pct = None if data.quota is None else data.quota.five_hour_pct
+        self._status = publish_status(self._env.tmux, title, sessions, pct, self._status)
 
     def close(self) -> None:
         """Stop the background `claude agents` run, if any."""
@@ -116,9 +121,12 @@ class CliBoardBackend:
         Raises:
             MeuteError: the action was refused, or tmux or the database failed.
         """
-        self._read_at = None
-        with _as_meute_error():
-            self._perform(action)
+        try:
+            with _as_meute_error():
+                self._perform(action)
+        finally:
+            # Reset on exit too: a slow action may end after a load that missed its effect.
+            self._read_at = None
 
     def _perform(self, action: BoardAction) -> None:
         match action:
@@ -133,6 +141,16 @@ class CliBoardBackend:
                 session = launch_claude(self._ctx, self._env, claude, self._environ)
                 show_session(self._ctx, self._env, session.id)
             case StopSession():
-                _ = stop_session(self._ctx, self._env, action.session_id)
+                self._stop(action.session_id)
+            case Detach():
+                detach_client(self._env.tmux)
             case _:
                 assert_never(action)
+
+    def _stop(self, session_id: SessionId) -> None:
+        """Stop a session on a connection of its own: the board runs this in a worker thread.
+
+        The main thread's connection is never touched here (sqlite3 connections are not shared).
+        """
+        with open_database(self._ctx.paths, self._ctx.db.clock) as db:
+            _ = stop_session(replace(self._ctx, db=db), self._env, session_id)
