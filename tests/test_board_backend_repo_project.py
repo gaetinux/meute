@@ -87,3 +87,9 @@ def test_a_stale_move_is_a_version_conflict(repo_ctx: CliContext, env: TmuxEnv) 
         )
     assert get_task(repo_ctx.db, task.id).project is None
     assert list_projects(repo_ctx.db) == []  # the version is checked before the project is made
+
+
+def test_a_stale_project_list_reuses_the_project_made_meanwhile(repo_ctx: CliContext) -> None:
+    first = create_quick_task(repo_ctx, "One @poc-app-rust", None, projects=())
+    second = create_quick_task(repo_ctx, "Two @poc-app-rust", None, projects=())
+    assert first.project == second.project == _project(repo_ctx)

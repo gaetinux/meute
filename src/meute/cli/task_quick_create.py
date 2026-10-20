@@ -33,6 +33,7 @@ def chosen_project_id(db: Database, choice: ProjectChoice) -> ProjectId | None:
 
     Raises:
         InvalidInput: the project is unknown (nothing is written).
+        sqlite3.Error: the database failed (locked, read-only…) while creating the project.
     """
     found = choice_project_id(choice)
     if isinstance(found, NewFromRepo):
@@ -54,6 +55,9 @@ def create_quick_task(
 
     Raises:
         InvalidInput: the title is empty, or the project is unknown (nothing is written).
+        NotFound: the project was deleted between its resolution and the task's creation.
+        sqlite3.Error: the database failed (locked, read-only…); a project made from a
+            repository may then remain, and is reused by the next attempt.
     """
     parsed = parse_quick_add(text, local_now(ctx))  # an empty title stops here
     # The rule the live preview shows.
@@ -74,7 +78,7 @@ def move_to_repo_project(db: Database, task_id: TaskId, version: int, name: str)
     Raises:
         VersionConflict: the task changed since `version` (no project is created).
         NotFound: no such task.
-        InvalidInput: a project of that name already exists.
+        sqlite3.Error: the database failed.
     """
     current = get_task(db, task_id)
     if current.version != version:

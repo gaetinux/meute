@@ -34,10 +34,15 @@ def test_the_project_takes_every_repository_of_that_name(db: Database) -> None:
     assert other.id not in project_repo_ids(db, project.id)
 
 
-def test_an_existing_project_name_is_refused_and_nothing_is_linked(db: Database) -> None:
-    create_project(db, "Poc")
-    sync_repos(db, [_repo("/g/poc", "poc")])
-    with pytest.raises(InvalidInput, match="already exists"):
-        create_repo_project(db, "poc")
-    (project,) = list_projects(db)
-    assert project_repo_ids(db, project.id) == []
+def test_an_existing_project_of_that_name_is_reused_and_linked(db: Database) -> None:
+    existing = create_project(db, "Poc")
+    (repo,) = sync_repos(db, [_repo("/g/poc", "poc")])
+    assert create_repo_project(db, " poc ") == existing
+    assert create_repo_project(db, "POC") == existing
+    assert list_projects(db) == [existing]
+    assert project_repo_ids(db, existing.id) == [repo.id]
+
+
+def test_an_empty_name_is_refused(db: Database) -> None:
+    with pytest.raises(InvalidInput, match="empty"):
+        create_repo_project(db, "  ")
