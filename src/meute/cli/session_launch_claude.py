@@ -14,6 +14,7 @@ from meute.core.errors import InvalidInput
 from meute.core.project import RepoId
 from meute.core.session import AgentKind, NewSession, Session, new_session_id
 from meute.core.session_state import Unknown
+from meute.core.task import TaskId
 
 CLAUDE_MISSING = (
     "claude not found: Claude sessions are disabled;"
@@ -23,12 +24,13 @@ CLAUDE_MISSING = (
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ClaudeLaunch:
-    """What to start: the folder, an optional title, repository and permission mode."""
+    """What to start: the folder, an optional title, repository, permission mode and task."""
 
     cwd: Path
     title: str | None = None
     repo_id: RepoId | None = None
     permission_mode: str | None = None
+    task_id: TaskId | None = None
 
 
 def launch_claude(
@@ -67,5 +69,6 @@ def launch_claude(
             state=Unknown(),
             repo_id=request.repo_id,
             permission_mode=mode,
+            task_id=request.task_id,
         ),
     )

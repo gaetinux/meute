@@ -3,7 +3,8 @@
 
 Usage: `claude --settings <file> --session-id <id> ...` or `claude agents --json`.
 A first Ctrl-C is ignored, a second within a second ends the session.
-MEUTE_FAKE_CLAUDE_SCRIPT picks the sequence (permission, done, exit);
+MEUTE_FAKE_CLAUDE_SCRIPT picks the sequence (permission, done, exit, end, paste); `paste`
+starts like a session, then appends every byte typed or pasted to MEUTE_FAKE_CLAUDE_INPUT.
 MEUTE_FAKE_CLAUDE_AGENTS names a file printed by `claude agents --json`.
 Standard library only.
 """
@@ -15,6 +16,7 @@ import signal
 import subprocess
 import sys
 import time
+import tty
 from collections.abc import Callable
 from pathlib import Path
 from types import FrameType
@@ -38,7 +40,9 @@ SEQUENCES = {
     ),
     "exit": (*_START, "hook:UserPromptSubmit-1", "hook:Stop-1", "hook:SessionEnd-1"),
     "end": ("hook:SessionEnd-1",),
+    "paste": _START,
 }
+BRACKETED_PASTE_ON = b"\x1b[?2004h"
 DOUBLE_INTERRUPT_SECONDS = 1.0
 
 
@@ -90,6 +94,19 @@ def interrupt_handler(settings: str, session_id: str) -> Callable[[int, FrameTyp
     return handle
 
 
+def raw_terminal() -> None:
+    """Ask for bracketed pastes; no line editing, no CR-to-LF: the bytes as tmux sends them."""
+    tty.setraw(sys.stdin.fileno())
+    os.write(sys.stdout.fileno(), BRACKETED_PASTE_ON)
+
+
+def record_input(path: str) -> None:
+    """Append every byte read from the terminal to `path` until it closes."""
+    with Path(path).open("ab", buffering=0) as recorded:
+        while chunk := os.read(sys.stdin.fileno(), 4096):
+            recorded.write(chunk)
+
+
 def main(args: list[str]) -> int:
     """Entry point."""
     if args[:1] == ["agents"]:
@@ -102,11 +119,16 @@ def main(args: list[str]) -> int:
         return 2
     script = os.environ.get("MEUTE_FAKE_CLAUDE_SCRIPT", "permission")
     signal.signal(signal.SIGINT, interrupt_handler(settings, session_id))
+    if script == "paste":
+        raw_terminal()  # ready before SessionStart tells meute it may paste
     replay(settings, session_id, script)
     if script == "exit":
         return 0
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     signal.signal(signal.SIGHUP, lambda *_: sys.exit(0))
+    if script == "paste":
+        record_input(os.environ["MEUTE_FAKE_CLAUDE_INPUT"])
+        return 0
     while True:
         signal.pause()
 

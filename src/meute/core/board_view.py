@@ -270,6 +270,11 @@ def stopping_text(title: str) -> str:
     return f'Stopping "{printable(title)}"…'
 
 
+def launching_text(task_id: TaskId) -> str:
+    """Return the footer text while Claude is being launched on a task."""
+    return f"Launching Claude on {task_label(task_id)}…"
+
+
 def error_text(message: str) -> str:
     """Return the footer text for an error."""
     return f"Error: {printable(message)}"

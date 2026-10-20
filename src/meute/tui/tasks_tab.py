@@ -29,19 +29,22 @@ from meute.tui.tasks_pane import rows_content, rule, tasks_content
 class TasksTab:
     """The Tasks view; the board gives it where to send actions, notices and errors.
 
-    `write` sends a task change and raises `MeuteError` when it is refused.
+    `write` sends a task change and raises `MeuteError` when it is refused; `launch` starts
+    Claude on a task in the background.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 — one callback per service the board gives the tab
         self,
         *,
         perform: Callable[[BoardAction], None],
         write: Callable[[TaskAction], None],
+        launch: Callable[[TaskId], None],
         notice: Callable[[str], None],
         fail: Callable[[str], None],
         local: tzinfo,
     ) -> None:
         self._perform = perform
+        self._launch = launch
         self._local = local
         self.cursor = TasksCursor(datetime.now(local))
         self.editor = TaskEditor(
@@ -91,6 +94,8 @@ class TasksTab:
             self.editor.create()
         elif key == "delete":
             self._confirming = task
+        elif key == "L" and task is not None:
+            self._launch(task.id)
         elif not self.editor.start(key, task):
             return False
         return True

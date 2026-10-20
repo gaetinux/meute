@@ -1,9 +1,7 @@
 """The dashboard: a Textual app drawn from `meute.core.board_sessions`."""
 
-from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, tzinfo
-from functools import partial
 from typing import ClassVar, Protocol
 
 from textual import events
@@ -20,13 +18,11 @@ from meute.core.board_view import (
     BoardAction,
     BoardData,
     Detach,
-    StopSession,
     TaskAction,
     error_text,
-    stopping_text,
 )
 from meute.core.errors import MeuteError
-from meute.core.session import Session, SessionId
+from meute.tui.board_workers import BoardWorkers
 from meute.tui.sessions_pane import tabs_content
 from meute.tui.sessions_tab import SessionsTab
 from meute.tui.tab_controller import TabController
@@ -79,18 +75,19 @@ class BoardApp(App[None]):
         super().__init__()
         self._backend = backend
         self._poll_seconds = poll_seconds
-        self._stopping: dict[SessionId, str] = {}  # sessions being stopped: id -> title
+        self._background = BoardWorkers(self, backend.perform, self._finished)
         self._sessions_tab = SessionsTab(
             perform=self._perform,
             notice=self._say,
-            stop=self._stop,
-            is_stopping=self._stopping.__contains__,
+            stop=self._background.stop,
+            is_stopping=self._background.is_stopping,
             local=options.local,
             show_details=options.show_details,
         )
         self._tasks_tab = TasksTab(
             perform=self._perform,
             write=self._write,
+            launch=self._background.launch,
             notice=self._say,
             fail=self._fail,
             local=options.local,
@@ -237,26 +234,12 @@ class BoardApp(App[None]):
     def _fail(self, message: str) -> None:
         self._error = message
 
-    def _stop(self, session: Session) -> None:
-        """Stop `session` in a thread worker: tmux may take seconds to answer."""
-        self._stopping[session.id] = session.title
-        _ = self.run_worker(partial(self._stop_off_thread, session.id), thread=True)
-
-    def _stop_off_thread(self, session_id: SessionId) -> None:
-        """Run in the worker thread: only `call_from_thread` may touch the app from here."""
-        error: str | None = None
-        try:
-            self._backend.perform(StopSession(session_id=session_id))
-        except MeuteError as failure:
-            error = str(failure)
-        with suppress(RuntimeError):  # the app already quit: nobody left to tell
-            self.call_from_thread(self._stopped, session_id, error)
-
-    def _stopped(self, session_id: SessionId, error: str | None) -> None:
-        """Report the end of a stop: its error if any, then a forced reread."""
-        _ = self._stopping.pop(session_id, None)
+    def _finished(self, error: str | None, notice: str | None) -> None:
+        """Report the end of a worker's action: its error or notice, then a forced reread."""
         if error is not None:
             self._error = error
+        if notice is not None:
+            self._notice = notice
         self._reload()
         self._draw()
 
@@ -290,8 +273,8 @@ class BoardApp(App[None]):
             return error_text(self._error)
         if prompt is not None:
             return prompt
-        if self._stopping:
-            return stopping_text(next(reversed(self._stopping.values())))
+        if (running := self._background.footer()) is not None:
+            return running
         if self._notice is not None:
             return self._notice
         if self._editor.editing:

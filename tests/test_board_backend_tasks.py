@@ -20,7 +20,6 @@ from meute.core.board_view import (
     ChangeTask,
     CreateTask,
     DeleteTask,
-    LaunchOnTask,
 )
 from meute.core.config import Config
 from meute.core.db.connection import Database
@@ -135,12 +134,6 @@ def test_add_note_by_the_tui_user(ctx: CliContext, env: TmuxEnv) -> None:  # noq
     _backend(ctx, env).perform(AddNote(task_id=task.id, body=" hello "))
     (note,) = notes(ctx.db, task.id)
     assert (note.body, note.author, note.channel) == ("hello", Author.USER, Channel.TUI)
-
-
-def test_launch_on_task_is_not_available_yet(ctx: CliContext, env: TmuxEnv) -> None:  # noqa: F811 — fixture
-    task = create_task(ctx.db, new_task("Old"), USER)
-    with pytest.raises(InvalidInput, match=r"^not available yet$"):
-        _backend(ctx, env).perform(LaunchOnTask(task_id=task.id))
 
 
 def test_domain_errors_stay_meute_errors(ctx: CliContext, env: TmuxEnv) -> None:  # noqa: F811 — fixture

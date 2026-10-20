@@ -16,6 +16,7 @@ from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.status_publish import publish_status
+from meute.cli.task_launch import launch_on_task
 from meute.cli.task_quick_create import TUI_ACTOR, create_quick_task
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import (
@@ -36,8 +37,9 @@ from meute.core.board_view import (
 from meute.core.db.claude_sessions import purge_samples
 from meute.core.db.task_notes import add_note
 from meute.core.db.task_update import delete_task, update_task
-from meute.core.errors import InvalidInput, MeuteError
+from meute.core.errors import MeuteError, PromptNotPasted
 from meute.core.session import SessionId
+from meute.core.task import TaskId
 from meute.core.views import is_overdue
 from meute.tmux.panes import detach_client
 
@@ -178,10 +180,23 @@ class CliBoardBackend:
             case DeleteTask():
                 delete_task(self._ctx.db, action.task_id, action.version, TUI_ACTOR)
             case LaunchOnTask():
-                message = "not available yet"
-                raise InvalidInput(message)
+                self._launch_on_task(action.task_id)
             case _:
                 assert_never(action)
+
+    def _launch_on_task(self, task_id: TaskId) -> None:
+        """Launch Claude on a task on a connection of its own: the board runs this in a worker.
+
+        Raises:
+            PromptNotPasted: Claude was launched but not ready in time for the task text.
+        """
+        with open_database(self._ctx.paths, self._ctx.db.clock) as db:
+            ctx = replace(self._ctx, db=db)
+            ready = launch_on_task(
+                ctx, self._env, task_id, self._environ, monotonic=time.monotonic, sleep=time.sleep
+            )
+        if not ready:
+            raise PromptNotPasted(task_id)
 
     def _stop(self, session_id: SessionId) -> None:
         """Stop a session on a connection of its own: the board runs this in a worker thread.
