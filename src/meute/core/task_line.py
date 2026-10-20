@@ -72,6 +72,8 @@ def _symbol_role(kind: StatusKind) -> Role:
             return Role.REVIEW
         case StatusKind.DONE:
             return Role.OK
+        case _:
+            assert_never(kind)
 
 
 def task_line(task: Task, now: datetime, width: int) -> StyledLine:

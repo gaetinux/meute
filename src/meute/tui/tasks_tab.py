@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from datetime import datetime, tzinfo
+from typing import assert_never
 
 from textual.content import Content
 
@@ -134,6 +135,8 @@ class TasksTab:
                 self.cursor.fold(line.group, fold=not line.collapsed)
             case TaskInfoLine() | None:
                 pass
+            case _:
+                assert_never(line)
 
     def lines(self, *, focused: bool) -> Content:
         """The grouped tasks, the selected one highlighted."""
