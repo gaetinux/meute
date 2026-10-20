@@ -1,6 +1,8 @@
 """Task actions and task data of the board backend, on an in-memory-like temporary database."""
 
 from collections.abc import Generator
+from dataclasses import replace
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -181,3 +183,21 @@ def test_overdue_tasks_are_counted_in_the_status_line(ctx: CliContext, env: Tmux
         create_task(ctx.db, NewTask(title=title, due=date_due(day)), USER)
     assert _backend(ctx, env).load() is not None
     assert env.tmux.run("show-options", "-gv", STATUS_OPTION).strip() == "2 overdue"
+
+
+def test_quick_entry_reads_the_clock_when_the_task_is_created(ctx: CliContext) -> None:
+    stale = replace(ctx, now=FIXED - timedelta(days=10))
+    task = create_quick_task(stale, "Soon >tomorrow", None)
+    assert task.due == DueDate(day=FIXED.date() + timedelta(days=1))
+
+
+def test_tasks_done_before_today_are_not_loaded(ctx: CliContext, env: TmuxEnv) -> None:  # noqa: F811 — fixture
+    old = create_task(ctx.db, new_task("Old"), USER)
+    update_task(ctx.db, old.id, 1, TaskPatch(status=Done()), USER)
+    with ctx.db.transaction() as conn:
+        conn.execute(
+            "UPDATE tasks SET completed_at = '2026-10-01T08:30:00.000000Z' WHERE id = ?", (old.id,)
+        )
+    create_task(ctx.db, new_task("Open"), USER)
+    data = _loaded(_backend(ctx, env))
+    assert [t.title for t in data.tasks] == ["Open"]
