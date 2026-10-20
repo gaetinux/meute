@@ -1,5 +1,6 @@
 """`meute task quick`: the backend of the `M-t` window and its hidden command."""
 
+import re
 import sqlite3
 from collections.abc import Generator
 from pathlib import Path
@@ -89,8 +90,12 @@ def test_a_locked_database_is_a_meute_error(ctx: CliContext, tmp_path: Path) -> 
         other.close()
 
 
-def test_the_command_is_hidden(sandbox: Sandbox) -> None:
-    listed = sandbox.run("task", "--help").stdout
+ESCAPE = re.compile(r"\033\[[0-9;]*m")
+
+
+@pytest.mark.parametrize("extra", [{}, {"GITHUB_ACTIONS": "true"}])  # CI: typer forces colours
+def test_the_command_is_hidden(sandbox: Sandbox, extra: dict[str, str]) -> None:
+    listed = ESCAPE.sub("", sandbox.run("task", "--help", env=extra).stdout)
     assert "│ list " in listed  # witness: the commands are listed this way
     assert "│ quick " not in listed
     assert sandbox.run("task", "quick", "--help").returncode == 0

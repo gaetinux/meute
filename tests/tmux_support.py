@@ -5,11 +5,13 @@ import shlex
 import shutil
 import signal
 import subprocess
+import tempfile
 import time
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
+from typing import IO
 from uuid import uuid4
 
 from meute.tmux.client import Tmux, is_no_server
@@ -148,31 +150,63 @@ def attached_client(server: TestServer, *, columns: int, rows: int = 24) -> Gene
     attach = shlex.join(
         [server.binary, *server.tmux.base_args()[1:], "attach-session", "-t", "test"]
     )
+    # tmux refuses a terminal without TERM ("terminal does not support clear"): CI sets none.
     environ = {key: value for key, value in os.environ.items() if key != "TMUX"}
+    environ["TERM"] = "xterm-256color"
     script = shutil.which("script")
     if script is None:
         msg = "script (util-linux) is needed to attach a client"
         raise AssertionError(msg)
-    process = subprocess.Popen(
-        [script, "-qfc", f"stty cols {columns} rows {rows}; exec {attach}", "/dev/null"],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        env=environ,
-    )
-    try:
-        deadline = time.monotonic() + 10
-        while not (name := server.tmux.run("list-clients", "-F", "#{client_name}")):
-            if time.monotonic() >= deadline:
-                msg = "timed out waiting for the client to attach"
-                raise AssertionError(msg)
-            time.sleep(0.05)
-        yield name
-    finally:
-        with suppress(TmuxError):
-            _ = server.tmux.run("detach-client", "-s", "test")
+    with tempfile.TemporaryFile() as output:  # what the client drew, or why it gave up
+        process = subprocess.Popen(
+            [script, "-qfc", f"stty cols {columns} rows {rows}; exec {attach}", "/dev/null"],
+            stdin=subprocess.PIPE,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            env=environ,
+        )
         try:
-            _ = process.wait(timeout=_EXIT_GRACE_SECONDS)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            _ = process.wait()
+            yield _client_name(server, process, output)
+        finally:
+            with suppress(TmuxError):
+                _ = server.tmux.run("detach-client", "-s", "test")
+            try:
+                _ = process.wait(timeout=_EXIT_GRACE_SECONDS)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                _ = process.wait()
+
+
+def _client_name(server: TestServer, process: subprocess.Popen[bytes], output: IO[bytes]) -> str:
+    """Wait for the client of `process` to attach; fail at once, with its words, if it exits."""
+    deadline = time.monotonic() + 10
+    while not (name := server.tmux.run("list-clients", "-F", "#{client_name}")):
+        if process.poll() is not None:
+            _ = output.seek(0)
+            msg = f"the client exited: {output.read().decode(errors='replace').strip()}"
+            raise AssertionError(msg)
+        if time.monotonic() >= deadline:
+            msg = "timed out waiting for the client to attach"
+            raise AssertionError(msg)
+        time.sleep(0.05)
+    return name
+
+
+def run_format_job(tmux: Tmux, command: str, done: Path, *, timeout: float = 10.0) -> None:
+    """Expand `#(command)` in a `-p` client kept alive until `command` created `done`.
+
+    tmux kills the `#()` job of a client as soon as that client is gone; a bare `-p` client
+    exits within a millisecond (tmux 3.6 often kills even `touch` first). The client waits
+    for `done` with a `run-shell` chained to it (the job may never run: give up at `timeout`).
+    """
+    ticks = int(timeout * 100)
+    wait = (
+        f"i=0; until [ -e {shlex.quote(str(done))} ]; do"
+        f" i=$((i+1)); [ $i -gt {ticks} ] && exit 1; sleep 0.01; done"
+    )
+    _ = subprocess.run(
+        [*tmux.base_args(), "display-message", "-p", f"#({command})", ";", "run-shell", wait],
+        capture_output=True,
+        check=False,
+        timeout=timeout + _EXIT_GRACE_SECONDS,
+    )
