@@ -9,7 +9,7 @@ from meute.core.board_sessions import BoardSessions
 from meute.core.quota_view import QuotaLine, quota_bar_lines
 from meute.core.session_details import details_card
 from meute.core.sessions_view import CardLine, SessionInfo, SessionLine
-from meute.core.styled import Role, StyledLine
+from meute.core.styled import Role, StyledLine, title_rule
 
 ROLE_STYLES: Mapping[Role, str] = {
     Role.TITLE: "bold #f2f2f2",
@@ -30,7 +30,7 @@ ROLE_STYLES: Mapping[Role, str] = {
     Role.TAB: "#8a8a8a",
     Role.PLAIN: "",
 }
-BAND_STYLE = "on #2a1416"
+BAND_STYLE = "on #4a1c22"
 SELECTED_STYLE = "on #264f78"
 BLURRED_SELECTED_STYLE = "on #444444"
 _BLURRED_TAB_STYLE = f"{ROLE_STYLES[Role.TAB]} underline"
@@ -92,9 +92,10 @@ def view_content(
     return highlighted_content(rows, focused=focused, width=width)
 
 
-def quota_content(line: QuotaLine, local: tzinfo) -> Content:
-    """Return the quota lines with their bars, coloured by level."""
-    return Content("\n").join(styled_content(row) for row in quota_bar_lines(line, local=local))
+def quota_content(line: QuotaLine, local: tzinfo, width: int) -> Content:
+    """Return the quota lines with their bars, coloured by level, then a dim rule `width` wide."""
+    rows = [*quota_bar_lines(line, local=local), title_rule(None, width, Role.DIM)]
+    return Content("\n").join(styled_content(row) for row in rows)
 
 
 def details_content(board: BoardSessions, info: SessionInfo, width: int) -> Content:

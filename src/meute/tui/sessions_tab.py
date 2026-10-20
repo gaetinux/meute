@@ -158,10 +158,10 @@ class SessionsTab:
             self.cursor.model, self.cursor.selected, focused=focused, width=self.cursor.width
         )
 
-    def quota(self, width: int) -> Content | None:  # noqa: ARG002 — the bars have their own width
-        """The quota bars, when the usage is known."""
+    def quota(self, width: int) -> Content | None:
+        """The quota bars and a rule under them, when the usage is known."""
         quota = self.cursor.model.data.quota
-        return None if quota is None else quota_content(quota, self._local)
+        return None if quota is None else quota_content(quota, self._local, width)
 
     def details(self, width: int) -> Content | None:
         """The selected session's details, when shown and there is one."""

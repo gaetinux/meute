@@ -123,6 +123,9 @@ class BoardApp(App[None]):
         yield self._footer
 
     def on_mount(self) -> None:
+        if self.size.width > 0:  # the terminal's width until the board's own is known
+            for tab in self._tabs.values():
+                _ = tab.fit(self.size.width)
         self._reload()
         _ = self.set_interval(self._poll_seconds, self._reload)
         self.call_after_refresh(self._fit)

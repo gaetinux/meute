@@ -367,6 +367,7 @@ def test_quota_lines_are_bars_coloured_by_level() -> None:
         assert quota.plain.splitlines() == [
             "5h ████████░░ 85%  resets 12:00 · limit ~10:30",
             "7d ██████░░░░ 55%  resets Tue 09:00 · OFF-PEAK (weekend)",
+            "─" * _SIZE[0],
         ]
         styled = {quota.plain[s.start : s.end]: str(s.style) for s in quota.spans}
         assert styled == {
@@ -376,6 +377,7 @@ def test_quota_lines_are_bars_coloured_by_level() -> None:
             "██████░░░░ 55%": "#e5c07b",
             "  resets Tue 09:00": "#8a8a8a",
             " · OFF-PEAK (weekend)": "#23d18b",
+            "─" * _SIZE[0]: "#8a8a8a",
         }
         assert _colours_parse(quota)
 
@@ -397,8 +399,8 @@ def test_low_quota_is_green_and_no_quota_hides_the_lines() -> None:
 
     async def steps(_pilot: Pilot[None], app: BoardApp) -> None:
         quota = _content(app, "quota")
-        assert quota.plain == "5h █░░░░░░░░░ 10%"
-        assert [str(s.style) for s in quota.spans] == ["#23d18b"]
+        assert quota.plain == "5h █░░░░░░░░░ 10%\n" + "─" * _SIZE[0]
+        assert [str(s.style) for s in quota.spans] == ["#23d18b", "#8a8a8a"]
         assert _colours_parse(quota)
 
     _ = _scenario(low, steps)

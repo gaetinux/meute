@@ -25,7 +25,7 @@ from meute.core.sessions_view_text import (
     ref_line,
     section_line,
 )
-from meute.core.styled import StyledLine, plain
+from meute.core.styled import Role, StyledLine, plain, title_rule
 from meute.core.text import printable
 
 OTHER_GROUP = "Other"
@@ -264,8 +264,8 @@ def build_view(  # noqa: PLR0913 — everything the view draws, the clock, home 
     """Build the lines of the Sessions view, `width` columns at most, from the data and choices.
 
     Sessions waiting for the user come first in "Needs you" (except with `attention_only`,
-    where each stays in its group), then the groups, then the bottom sections; a blank line
-    separates the blocks.
+    where each stays in its group), then the groups, a blank line between these blocks; then
+    a dim rule, when something is above it, and the bottom sections one under the other.
     """
     groups: dict[str, list[SessionInfo]] = {}
     for info in infos:
@@ -285,10 +285,14 @@ def build_view(  # noqa: PLR0913 — everything the view draws, the clock, home 
         )
     if state.attention_only and not blocks:
         blocks.append([InfoLine(spans=dim_line(NOTHING_TO_SHOW, width))])
-    blocks += _bottom_blocks(
-        infos, repos, outside=outside, orphans=orphans, state=state, home=home, width=width
-    )
     lines: list[ViewLine] = []
     for block in blocks:
         lines += [InfoLine(spans=()), *block] if lines else block
+    bottom = _bottom_blocks(
+        infos, repos, outside=outside, orphans=orphans, state=state, home=home, width=width
+    )
+    if lines and bottom:
+        lines.append(InfoLine(spans=title_rule(None, width, Role.DIM)))
+    for block in bottom:
+        lines += block
     return SessionsView(lines=tuple(lines))

@@ -285,20 +285,18 @@ def test_bottom_blocks_are_separated_by_a_blank_line() -> None:
     assert _texts(view)[1:] == [
         "  ○ live  idle  5m ago",
         "  + 1 ended (e to show)",
-        "",
+        "─" * _WIDTH,
         "▼ Without session (1)",
         "  notes",
-        "",
         "▼ Outside meute (1)",
         "  ext  busy  ~/w",
-        "",
         "▼ Orphans (1)",
         "  %7",
     ]
     folded = ViewState(collapsed=frozenset({"section:Outside meute", "section:Orphans"}))
     assert _texts(_view(infos, folded, outside=outside, orphans=["%7"]))[-3:] == [
+        "─" * _WIDTH,
         "▶ Outside meute (1)",
-        "",
         "▶ Orphans (1)",
     ]
 
