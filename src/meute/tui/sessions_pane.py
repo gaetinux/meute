@@ -4,9 +4,10 @@ from datetime import tzinfo
 
 from textual.content import Content
 
-from meute.core.board_sessions import BoardSessions, risky_mode_span
+from meute.core.board_sessions import BoardSessions
 from meute.core.quota_view import QuotaLine, quota_level, quota_lines
 from meute.core.sessions_view import SessionInfo, details_lines
+from meute.core.styled import Role, StyledLine
 
 SELECTED_STYLE = "reverse"
 BLURRED_SELECTED_STYLE = "on #444444"
@@ -28,13 +29,23 @@ def view_content(board: BoardSessions, selected: int, *, focused: bool = True) -
     lines: list[Content] = []
     for index, line in enumerate(board.view.lines):
         content = Content(line.text)
-        span = risky_mode_span(board, index)
-        if span is not None:
-            content = content.stylize(RISKY_MODE_STYLE, *span)
+        for start, end in _risky_spans(line.spans):
+            content = content.stylize(RISKY_MODE_STYLE, start, end)
         if index == selected:
             content = content.stylize(SELECTED_STYLE if focused else BLURRED_SELECTED_STYLE)
         lines.append(content)
     return Content("\n").join(lines)
+
+
+def _risky_spans(line: StyledLine) -> list[tuple[int, int]]:
+    """Return where the segments of the risky role sit in the text of `line`."""
+    found: list[tuple[int, int]] = []
+    start = 0
+    for span in line:
+        if span.role is Role.RISKY:
+            found.append((start, start + len(span.text)))
+        start += len(span.text)
+    return found
 
 
 def quota_content(line: QuotaLine, local: tzinfo) -> Content:

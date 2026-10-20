@@ -9,14 +9,21 @@ from meute.core.board_sessions import (
     line_entry,
     line_group,
     line_info,
-    risky_mode_span,
 )
 from meute.core.board_view import NO_SESSIONS, BoardData, RepoEntry, SessionEntry, SessionRow
 from meute.core.claude_session import ClaudeDetails
 from meute.core.project import ProjectId, RepoId
 from meute.core.session_state import Exited
-from meute.core.sessions_view import HeaderLine, InfoLine, RepoLine, SessionLine, ViewState
+from meute.core.sessions_view import (
+    CardLine,
+    HeaderLine,
+    InfoLine,
+    RepoLine,
+    SessionLine,
+    ViewState,
+)
 from meute.core.statusline import StatuslineData
+from meute.core.styled import Role, Span
 from support import (
     BOARD_AT,
     BOARD_HOME,
@@ -66,20 +73,22 @@ def test_details_and_metrics_reach_the_lines() -> None:
     model = board_sessions(data, ViewState())
     line = model.view.lines[_index(model, SessionLine)]
     assert isinstance(line, SessionLine)
-    assert line.text == "▶  build  running  5m  42%  [plan]"
+    assert line.text == "  ● build  running  5m ago"
+    assert model.view.lines[_index(model, CardLine)].text == "    42% · plan"
 
 
 def test_without_a_clock_ages_count_from_the_latest_activity() -> None:
     model = board_sessions(board_data(), ViewState())
     line = model.view.lines[_index(model, SessionLine)]
     assert isinstance(line, SessionLine)
-    assert line.text == "▶  build  running  now"
+    assert line.text == "  ● build  running  now"
 
 
 def test_no_sessions_says_how_to_start_one() -> None:
     data = BoardData(sessions=(), repos=(BOARD_REPO_1,), orphans=(), home=None)
     model = board_sessions(data, ViewState())
-    assert model.view.lines[0] == InfoLine(NO_SESSIONS)
+    assert isinstance(model.view.lines[0], InfoLine)
+    assert model.view.lines[0].text == NO_SESSIONS
     assert isinstance(model.view.lines[-1], RepoLine)
 
 
@@ -114,7 +123,7 @@ def test_line_info_only_for_sessions() -> None:
     assert line_info(model, -1) is None
 
 
-def test_risky_modes_are_spanned_and_others_are_not() -> None:
+def test_risky_modes_take_the_risky_role_and_others_do_not() -> None:
     for mode, risky in (
         ("auto", True),
         ("bypassPermissions", True),
@@ -125,15 +134,11 @@ def test_risky_modes_are_spanned_and_others_are_not() -> None:
     ):
         data = replace(board_data(), details={BOARD_ID_A: ClaudeDetails(permission_mode=mode)})
         model = board_sessions(data, ViewState())
-        index = _index(model, SessionLine)
-        text = model.view.lines[index].text
-        span = risky_mode_span(model, index)
-        if risky:
-            assert span is not None
-            assert text[span[0] : span[1]] == f"[{mode}]"
-        else:
-            assert span is None
-    assert risky_mode_span(model, _index(model, RepoLine)) is None
+        spans = model.view.lines[_index(model, CardLine)].spans
+        assert (Span(mode, Role.RISKY) in spans) is risky
+        assert (Span(mode, Role.DIM) in spans) is not risky
+    repo = model.view.lines[_index(model, RepoLine)]
+    assert not any(span.role is Role.RISKY for span in repo.spans)
 
 
 def test_ended_sessions_count_in_their_group() -> None:
@@ -146,7 +151,7 @@ def test_ended_sessions_count_in_their_group() -> None:
         ),
     )
     model = board_sessions(data, ViewState())
-    assert InfoLine("1 ended (e to show)") in model.view.lines
+    assert "  + 1 ended (e to show)" in [line.text for line in model.view.lines]
     shown = board_sessions(data, ViewState(show_ended=True))
     assert line_info(shown, _index(shown, SessionLine, 1)) is not None
 
@@ -156,7 +161,7 @@ def test_recently_ended_sessions_show_only_with_e() -> None:
     row = SessionRow(session=gone, has_pane=False, displayed=False)
     data = replace(board_data(), sessions=board_data().sessions[:1], ended=(row,))
     hidden = board_sessions(data, ViewState())
-    assert InfoLine("1 ended (e to show)") in hidden.view.lines
+    assert "  + 1 ended (e to show)" in [line.text for line in hidden.view.lines]
     lines = range(len(hidden.view.lines))
     assert row not in [info.row for i in lines if (info := line_info(hidden, i)) is not None]
     shown = board_sessions(data, ViewState(show_ended=True))

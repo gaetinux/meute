@@ -8,21 +8,22 @@ from typing import assert_never
 from meute.core.board_view import NO_SESSIONS, BoardData, BoardEntry, RepoEntry, SessionEntry
 from meute.core.session import SessionId
 from meute.core.sessions_view import (
+    CardLine,
     HeaderLine,
     InfoLine,
+    RefLine,
     RepoLine,
+    SectionLine,
     SessionInfo,
     SessionLine,
     SessionsView,
     ViewLine,
     ViewState,
     build_view,
+    fold_key,
     group_name,
 )
-from meute.core.sessions_view_text import mode_text
-
-RISKY_MODES = frozenset({"auto", "bypassPermissions", "dontAsk"})
-"""Permission modes in which Claude acts without asking (spec 6.2): shown in orange."""
+from meute.core.styled import Span
 
 _NO_ACTIVITY = datetime(1970, 1, 1, tzinfo=UTC)
 
@@ -37,8 +38,8 @@ class BoardSessions:
     now: datetime
 
 
-def board_sessions(data: BoardData, state: ViewState) -> BoardSessions:
-    """Build the Sessions view of `data` as the user folded and filtered it.
+def board_sessions(data: BoardData, state: ViewState, width: int = 72) -> BoardSessions:
+    """Build the Sessions view of `data`, `width` columns wide, as the user folded and filtered it.
 
     Recently ended sessions without a pane count in their group and show with `show_ended`.
     Without `data.now`, ages are measured from the latest activity of the sessions. Without
@@ -58,10 +59,19 @@ def board_sessions(data: BoardData, state: ViewState) -> BoardSessions:
         (row.session.last_activity_at for row in data.sessions), default=_NO_ACTIVITY
     )
     view = build_view(
-        list(infos.values()), data.repos, data.outside, data.orphans, state, now=now, home=data.home
+        list(infos.values()),
+        data.repos,
+        data.outside,
+        data.orphans,
+        state,
+        now=now,
+        home=data.home,
+        width=width,
     )
     if not data.sessions:
-        view = SessionsView(lines=(InfoLine(NO_SESSIONS), *view.lines))
+        hint = InfoLine(spans=(Span(NO_SESSIONS),))
+        rest = (InfoLine(spans=()), *view.lines) if view.lines else ()
+        view = SessionsView(lines=(hint, *rest))
     return BoardSessions(data=data, infos=infos, view=view, now=now)
 
 
@@ -71,9 +81,15 @@ def line_at(board: BoardSessions, index: int) -> ViewLine | None:
 
 
 def line_info(board: BoardSessions, index: int) -> SessionInfo | None:
-    """Return the session on line `index`, or None for any other line or out of range."""
+    """Return the session of line `index` (a card's lines or a reference to it), else None."""
     line = line_at(board, index)
-    return board.infos.get(line.session_id) if isinstance(line, SessionLine) else None
+    match line:
+        case SessionLine() | CardLine() | RefLine():
+            return board.infos.get(line.session_id)
+        case HeaderLine() | SectionLine() | RepoLine() | InfoLine() | None:
+            return None
+        case _:
+            assert_never(line)
 
 
 def line_entry(board: BoardSessions, index: int) -> BoardEntry | None:
@@ -86,25 +102,25 @@ def line_entry(board: BoardSessions, index: int) -> BoardEntry | None:
         case RepoLine():
             repo = next((r for r in board.data.repos if r.id == line.repo_id), None)
             return None if repo is None else RepoEntry(repo=repo)
-        case HeaderLine() | InfoLine() | None:
+        case HeaderLine() | SectionLine() | CardLine() | RefLine() | InfoLine() | None:
             return None
         case _:
             assert_never(line)
 
 
 def line_group(board: BoardSessions, index: int) -> str | None:
-    """Return the group that folding acts on at line `index`: a session's, or a header's."""
+    """Return what folding acts on at line `index`: a session's group, or a heading's key."""
     line = line_at(board, index)
-    if isinstance(line, HeaderLine):
-        return line.group
+    key = None if line is None else fold_key(line)
+    if key is not None:
+        return key
     info = line_info(board, index)
     return None if info is None else info.group
 
 
-def risky_mode_span(board: BoardSessions, index: int) -> tuple[int, int] | None:
-    """Return where a risky permission mode sits in the text of line `index`, if it has one."""
-    line, info = line_at(board, index), line_info(board, index)
-    mode = None if info is None or info.details is None else info.details.permission_mode
-    if line is None or mode is None or mode not in RISKY_MODES:
-        return None
-    return len(line.text) - len(mode_text(mode)), len(line.text)
+def is_folded(board: BoardSessions, key: str) -> bool:
+    """Return whether the group or section `key` (see `fold_key`) is folded in the view."""
+    return any(
+        isinstance(line, HeaderLine | SectionLine) and line.collapsed and fold_key(line) == key
+        for line in board.view.lines
+    )

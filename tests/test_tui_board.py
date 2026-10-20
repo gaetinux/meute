@@ -124,7 +124,7 @@ def _session_text(data: BoardData, session_id: SessionId) -> str:
 
 
 def _repo_text(repo: Repo) -> str:
-    return f"{repo_line(repo)}  + session"
+    return f"  {repo_line(repo)}"
 
 
 def test_board_shows_the_view_model_lines_and_highlights_the_first_entry() -> None:

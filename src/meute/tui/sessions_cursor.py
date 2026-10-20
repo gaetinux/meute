@@ -2,9 +2,15 @@
 
 from dataclasses import replace
 
-from meute.core.board_sessions import BoardSessions, board_sessions, line_at, line_group
+from meute.core.board_sessions import (
+    BoardSessions,
+    board_sessions,
+    is_folded,
+    line_at,
+    line_group,
+)
 from meute.core.board_view import BoardData
-from meute.core.sessions_view import ViewState, keep_selection, line_key, selectable
+from meute.core.sessions_view import ViewState, keep_selection, line_key, selectable, with_fold
 
 _EMPTY = BoardData(sessions=(), repos=(), orphans=(), home=None)
 
@@ -30,7 +36,7 @@ class SessionsCursor:
         elif key in {"space", "left", "right"}:
             group = line_group(self.model, self.selected)
             if group is not None:
-                folded = group in self.state.collapsed
+                folded = is_folded(self.model, group)
                 self.fold(group, fold=not folded if key == "space" else key == "left")
         else:
             return False
@@ -45,14 +51,12 @@ class SessionsCursor:
 
     def fold(self, group: str, *, fold: bool) -> None:
         """Fold or unfold `group`; the selection moves to its header, or into it from there."""
-        if fold == (group in self.state.collapsed):
+        if fold == is_folded(self.model, group):
             return
-        collapsed = self.state.collapsed
         header_selected = self._selected_key() == f"group:{group}"
         inside = line_group(self.model, self.selected) == group
         self.set_state(
-            replace(self.state, collapsed=collapsed | {group} if fold else collapsed - {group}),
-            old_group=group if fold and inside else None,
+            with_fold(self.state, group, fold=fold), old_group=group if fold and inside else None
         )
         if not fold and header_selected:
             choices = selectable(self.model.view)

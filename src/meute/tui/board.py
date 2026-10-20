@@ -35,10 +35,15 @@ from meute.core.board_view import (
 from meute.core.errors import MeuteError
 from meute.core.session import Session, SessionId
 from meute.core.sessions_view import (
+    CardLine,
     HeaderLine,
     InfoLine,
+    RefLine,
     RepoLine,
+    SectionLine,
     SessionLine,
+    fold_key,
+    session_index,
 )
 from meute.tui.sessions_cursor import SessionsCursor
 from meute.tui.sessions_pane import details_content, quota_content, title_content, view_content
@@ -180,8 +185,13 @@ class BoardApp(App[None]):
                     self._show(entry)
             case RepoLine():
                 self._cursor.selected = index
-            case HeaderLine():
-                self._cursor.fold(line.group, fold=not line.collapsed)
+            case CardLine() | RefLine():  # the card's first line, in "Needs you" for a reference
+                index = session_index(self._cursor.model.view, line.session_id)
+                self._cursor.selected = index if index >= 0 else self._cursor.selected
+            case HeaderLine() | SectionLine():
+                key = fold_key(line)
+                if key is not None:
+                    self._cursor.fold(key, fold=not line.collapsed)
             case InfoLine() | None:
                 pass
             case _:

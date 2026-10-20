@@ -81,6 +81,7 @@ def _view(
         state or ViewState(),
         now=_NOW,
         home=BOARD_HOME,
+        width=72,
     )
 
 
@@ -131,23 +132,20 @@ def test_header_text_sums_latest_metrics() -> None:
         _info(2, "b", Idle(), metrics=StatuslineData(cost_usd=0.5, duration_ms=600_000)),
         _info(3, "c", Exited(code=1)),
     ]
-    assert _texts(_view(infos))[0] == "alpha  2 live · 1h15 · $1.73"
+    assert _texts(_view(infos))[0] == "▼ alpha · 2 live · $1.73"
 
 
 def test_header_omits_unknown_parts() -> None:
-    assert _texts(_view([_info(1, "a", Idle())]))[0] == "alpha  1 live"
+    assert _texts(_view([_info(1, "a", Idle())]))[0] == "▼ alpha · 1 live"
     only_duration = _info(1, "a", Idle(), metrics=StatuslineData(duration_ms=120_000))
-    assert _texts(_view([only_duration]))[0] == "alpha  1 live · 2m"
+    assert _texts(_view([only_duration]))[0] == "▼ alpha · 1 live"
 
 
 def test_session_line_exact_text() -> None:
     info = _info(1, "build", Running(), metrics=_METRICS, details=_DETAILS)
     line = _view([info]).lines[1]
-    assert line == SessionLine(
-        session_id=_id(1),
-        text="   build  running  5m  42%  $1.23  [plan]",
-        attention=False,
-    )
+    assert line == SessionLine(session_id=_id(1), spans=line.spans, attention=False)
+    assert line.text == "  ● build  running  5m ago"
 
 
 def test_session_line_marks_displayed_and_attention() -> None:
@@ -155,13 +153,13 @@ def test_session_line_marks_displayed_and_attention() -> None:
     displayed = replace(info, row=replace(info.row, displayed=True))
     line = _view([displayed]).lines[1]
     assert isinstance(line, SessionLine)
-    assert line.text == "▶ !ask  permission  5m"
+    assert line.text == "  ! ask · alpha · permission requested"
     assert line.attention is True
 
 
 def test_session_line_hides_small_cost_and_unknown_parts() -> None:
     cheap = _info(1, "t", Idle(), metrics=StatuslineData(cost_usd=0.10))
-    assert _view([cheap]).lines[1].text == "   t  idle  5m"
+    assert _view([cheap]).lines[1].text == "  ○ t  idle  5m ago"
 
 
 @pytest.mark.parametrize(
@@ -169,22 +167,22 @@ def test_session_line_hides_small_cost_and_unknown_parts() -> None:
     [
         (timedelta(seconds=59), "now"),
         (timedelta(seconds=-30), "now"),
-        (timedelta(minutes=1), "1m"),
-        (timedelta(minutes=59), "59m"),
-        (timedelta(minutes=60), "1h"),
-        (timedelta(hours=23), "23h"),
-        (timedelta(hours=24), "1d"),
-        (timedelta(days=9), "9d"),
+        (timedelta(minutes=1), "1m ago"),
+        (timedelta(minutes=59), "59m ago"),
+        (timedelta(minutes=60), "1h ago"),
+        (timedelta(hours=23), "23h ago"),
+        (timedelta(hours=24), "1d ago"),
+        (timedelta(days=9), "9d ago"),
     ],
 )
 def test_age_text(age: timedelta, expected: str) -> None:
-    assert _view([_info(1, "t", Idle(), age=age)]).lines[1].text == f"   t  idle  {expected}"
+    assert _view([_info(1, "t", Idle(), age=age)]).lines[1].text == f"  ○ t  idle  {expected}"
 
 
 def test_collapsed_group_shows_header_only() -> None:
     view = _view(_three_groups(), ViewState(collapsed=frozenset({"zeta"})))
     texts = _texts(view)
-    assert "zeta  1 live · 1h05 · $1.23 (collapsed)" in texts
+    assert "▶ zeta · 1 live · $1.23" in texts
     assert not any("build" in text or "old" in text for text in texts)
     assert not any("ended" in text for text in texts)
 
@@ -192,7 +190,7 @@ def test_collapsed_group_shows_header_only() -> None:
 def test_ended_sessions_hidden_then_shown(snapshot: SnapshotAssertion) -> None:
     infos = _three_groups()
     hidden = _view(infos)
-    assert InfoLine("1 ended (e to show)") in hidden.lines
+    assert "  + 1 ended (e to show)" in _texts(hidden)
     assert not any("exited" in text for text in _texts(hidden))
     shown = _view(infos, ViewState(show_ended=True))
     assert not any(isinstance(line, InfoLine) and "ended" in line.text for line in shown.lines)
@@ -212,7 +210,7 @@ def test_attention_filter_keeps_attention_sessions_only(snapshot: SnapshotAssert
 
 def test_attention_filter_without_result() -> None:
     view = _view([_info(1, "a", Running())], ViewState(attention_only=True))
-    assert view.lines == (InfoLine("Nothing needs your attention."),)
+    assert _texts(view) == ["Nothing needs your attention."]
 
 
 def test_repositories_without_live_session_and_bottom_sections(
@@ -234,7 +232,7 @@ def test_repositories_without_live_session_and_bottom_sections(
 
 def test_no_bottom_sections_when_empty() -> None:
     texts = _texts(_view([_info(1, "a", Idle())]))
-    assert texts == ["alpha  1 live", "   a  idle  5m"]
+    assert texts == ["▼ alpha · 1 live", "  ○ a  idle  5m ago"]
 
 
 def test_untrusted_text_is_neutralised() -> None:
@@ -288,12 +286,12 @@ def test_keep_selection_falls_back_into_selectable_list() -> None:
     infos = [_info(1, "a", Running()), _info(2, "b", PermissionRequested(), group="beta")]
     key = f"session:{_id(1)}"
     collapsed = _view(infos, ViewState(collapsed=frozenset({"alpha"})))
-    assert collapsed.lines[keep_selection(key, collapsed, 0)] == HeaderLine(
-        group="alpha", text="alpha  1 live (collapsed)", collapsed=True
-    )
-    assert collapsed.lines[keep_selection(key, collapsed, 1)] == SessionLine(
-        session_id=_id(2), text="  !b  permission  5m", attention=True
-    )
+    first = collapsed.lines[keep_selection(key, collapsed, 0)]
+    assert first == SessionLine(session_id=_id(2), spans=first.spans, attention=True, band=True)
+    assert first.text == "  ! b · beta · permission requested"
+    second = collapsed.lines[keep_selection(key, collapsed, 1)]
+    assert second == HeaderLine(group="alpha", spans=second.spans, collapsed=True)
+    assert second.text == "▶ alpha · 1 live"
     filtered = _view(infos, ViewState(attention_only=True))
     assert keep_selection(key, filtered, 0) == selectable(filtered)[0]
     assert keep_selection(key, filtered, 99) == selectable(filtered)[-1]
@@ -342,7 +340,7 @@ def test_details_lines_without_permission_or_metrics() -> None:
 
 
 def test_view_line_union_members() -> None:
-    lines: tuple[ViewLine, ...] = (HeaderLine(group="g", text="t"), InfoLine("i"))
+    lines: tuple[ViewLine, ...] = (HeaderLine(group="g", spans=()), InfoLine(spans=()))
     assert SessionsView(lines=lines).lines == lines
 
 
@@ -354,9 +352,9 @@ def test_attention_filter_with_collapsed_groups() -> None:
     state = ViewState(attention_only=True, collapsed=frozenset({"a", "b"}))
     view = _view(infos, state)
     assert [line.group for line in view.lines if isinstance(line, HeaderLine)] == ["b"]
-    assert _texts(view) == ["b  1 live (collapsed)"]
+    assert _texts(view) == ["▶ b · 1 live"]
     calm_only = _view(infos[:1], state)
-    assert calm_only.lines == (InfoLine("Nothing needs your attention."),)
+    assert _texts(calm_only) == ["Nothing needs your attention."]
 
 
 def test_collapsed_headers_are_selectable() -> None:
@@ -372,5 +370,6 @@ def test_collapsing_the_selected_group_selects_its_header() -> None:
     infos = [_info(1, "a", Running(), group="a"), _info(2, "b", Idle(), group="b")]
     view = _view(infos, ViewState(collapsed=frozenset({"b"})))
     index = keep_selection(f"session:{_id(2)}", view, 0, old_group="b")
-    assert view.lines[index] == HeaderLine(group="b", text="b  1 live (collapsed)", collapsed=True)
+    assert view.lines[index] == HeaderLine(group="b", spans=view.lines[index].spans, collapsed=True)
+    assert view.lines[index].text == "▶ b · 1 live"
     assert keep_selection("group:b", view, 0) == index
