@@ -101,6 +101,7 @@ class BoardApp(App[None]):
         self._error: str | None = None
         self._notice: str | None = None  # shown in the footer until the next key or click
         self._keys_help = False
+        self._fitted_width = 0  # the board width the tabs were last fitted to
         # Held, not queried: at quit the timer may still tick after the widgets left the DOM.
         self._title = Static(id="title")
         self._quota = Static(id="quota")
@@ -133,7 +134,8 @@ class BoardApp(App[None]):
     def _fit(self) -> None:
         """Lay the tabs out for the width the board really has, then redraw."""
         width = self._board.size.width
-        if width > 0:
+        if width > 0 and width != self._fitted_width:
+            self._fitted_width = width
             fitted = [tab.fit(width) for tab in self._tabs.values()]  # every tab, not the first
             if any(fitted):
                 self._draw()

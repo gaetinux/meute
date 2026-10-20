@@ -71,6 +71,11 @@ def is_overdue(task: Task, now: datetime) -> bool:
     return bucket_of(task, now) is Bucket.OVERDUE
 
 
+def count_overdue(tasks: Iterable[Task], now: datetime) -> int:
+    """Return how many of `tasks` are open and past their due date or instant."""
+    return sum(1 for task in tasks if is_overdue(task, now))
+
+
 def _due_instant(due: Due, now: datetime) -> datetime:
     match due:
         case DueDate(day=day):

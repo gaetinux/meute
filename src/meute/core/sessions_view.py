@@ -6,6 +6,7 @@ from typing import assert_never
 
 from meute.core.project import ProjectId, RepoId
 from meute.core.repo import Repo
+from meute.core.selection import keep_selected
 from meute.core.session import Session, SessionId
 from meute.core.sessions_view_cards import (
     OTHER_GROUP,
@@ -122,14 +123,5 @@ def keep_selection(
     other lines, a reference to "Needs you", or an expanded heading (a folded one is
     selectable).
     """
-    choices = selectable(view)
-    if not choices:
-        return -1
-    for index in choices:
-        if old_key is not None and line_key(view.lines[index]) == old_key:
-            return index
-    if old_group is not None:
-        for index in choices:
-            if line_key(view.lines[index]) == f"group:{old_group}":
-                return index
-    return choices[min(max(fallback, 0), len(choices) - 1)]
+    keys = [line_key(line) for line in view.lines]
+    return keep_selected(keys, old_key, fallback, old_group=old_group)

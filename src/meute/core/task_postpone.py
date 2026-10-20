@@ -1,6 +1,6 @@
 """The quick postpones offered for a task's due."""
 
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from enum import Enum
 from typing import assert_never
 
@@ -23,21 +23,10 @@ class Postpone(Enum):
     CLEAR = "clear"
 
 
-def _tonight(now: datetime) -> Due:
-    today = local_due(now.date(), _EVENING, now)
-    return today if today.at > now else local_due(now.date() + timedelta(days=1), _EVENING, now)
-
-
-def _monday(now: datetime) -> Due:
-    ahead = (_MONDAY - now.weekday()) % _WEEK
-    first = local_due(now.date() + timedelta(days=ahead), _MORNING, now)
-    return (
-        first
-        if first.at > now
-        else local_due(
-            first.at.astimezone(now.tzinfo).date() + timedelta(days=_WEEK), _MORNING, now
-        )
-    )
+def _next_after(day: date, at: time, now: datetime, *, step_days: int) -> Due:
+    """Return `day` at `at`, or `step_days` later when that is not strictly after `now`."""
+    first = local_due(day, at, now)
+    return first if first.at > now else local_due(day + timedelta(days=step_days), at, now)
 
 
 def postpone(choice: Postpone, now: datetime) -> Due | None:
@@ -50,11 +39,13 @@ def postpone(choice: Postpone, now: datetime) -> Due | None:
         case Postpone.HOUR:
             return DueAt(at=now.astimezone(UTC) + timedelta(hours=1))
         case Postpone.TONIGHT:
-            return _tonight(now)
+            return _next_after(now.date(), _EVENING, now, step_days=1)
         case Postpone.TOMORROW:
             return local_due(now.date() + timedelta(days=1), _MORNING, now)
         case Postpone.MONDAY:
-            return _monday(now)
+            ahead = (_MONDAY - now.weekday()) % _WEEK
+            monday = now.date() + timedelta(days=ahead)
+            return _next_after(monday, _MORNING, now, step_days=_WEEK)
         case Postpone.CLEAR:
             return None
         case _:

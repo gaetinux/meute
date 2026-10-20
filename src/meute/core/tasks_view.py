@@ -1,18 +1,19 @@
 """The Tasks tab model: filters, urgency or project groups, folding, counters and selection."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import assert_never
 
 from meute.core.project import ProjectRef
+from meute.core.selection import keep_selected
 from meute.core.status import Done
 from meute.core.styled import Role, Span, StyledLine, fit, fold_mark
 from meute.core.task import Task, TaskId
 from meute.core.task_line import task_line
 from meute.core.text import one_line
-from meute.core.views import Bucket, bucket_of, is_overdue, sort_for_display
+from meute.core.views import Bucket, bucket_of, sort_for_display
 
 _NAME_LIMIT = 40
 _FLOATING = "floating"
@@ -89,6 +90,16 @@ class TasksView:
     overdue_count: int
 
 
+@dataclass(frozen=True, slots=True)
+class _TaskGroup:
+    """A group of the list: its fold key, its title, its tasks, and whether it is urgent."""
+
+    key: str
+    title: str
+    members: list[Task]
+    urgent: bool
+
+
 def _keep(task: Task, scope: TaskScope, project: ProjectRef | None) -> bool:
     match scope:
         case TaskScope.ALL:
@@ -113,41 +124,42 @@ def _group_line(
 
 
 def _emit(
-    groups: Sequence[tuple[str, str, list[Task], bool]],
-    state: TasksState,
-    line_of: Callable[[Task], StyledLine],
+    groups: Sequence[_TaskGroup], state: TasksState, line_of: Callable[[Task], StyledLine]
 ) -> list[TasksLine]:
     lines: list[TasksLine] = []
-    for key, title, members, urgent in groups:
-        header = _group_line(key, title, len(members), state=state, urgent=urgent)
+    for group in groups:
+        urgent = group.urgent
+        header = _group_line(group.key, group.title, len(group.members), state=state, urgent=urgent)
         lines.append(header)
         if not header.collapsed:
-            lines.extend(TaskLine(task_id=t.id, spans=line_of(t), band=urgent) for t in members)
+            lines.extend(
+                TaskLine(task_id=t.id, spans=line_of(t), band=urgent) for t in group.members
+            )
     return lines
 
 
 def _urgency_groups(
-    tasks: Sequence[Task], now: datetime
-) -> list[tuple[str, str, list[Task], bool]]:
+    tasks: Sequence[Task], buckets: Mapping[Task, Bucket | None], now: datetime
+) -> list[_TaskGroup]:
     by_bucket: dict[Bucket, list[Task]] = {bucket: [] for bucket in Bucket}
     for task in sort_for_display(tasks, now):
-        bucket = bucket_of(task, now)
+        bucket = buckets[task]
         if bucket is not None:
             by_bucket[bucket].append(task)
     return [
-        (bucket.value, bucket.label, members, bucket is Bucket.OVERDUE)
+        _TaskGroup(bucket.value, bucket.label, members, urgent=bucket is Bucket.OVERDUE)
         for bucket, members in by_bucket.items()
         if members
     ]
 
 
 def _project_groups(
-    tasks: Sequence[Task], now: datetime
-) -> list[tuple[str, str, list[Task], bool]]:
+    tasks: Sequence[Task], buckets: Mapping[Task, Bucket | None], now: datetime
+) -> list[_TaskGroup]:
     named: dict[ProjectRef, list[Task]] = {}
     floating: list[Task] = []
     for task in sort_for_display(tasks, now):
-        if bucket_of(task, now) is None:
+        if buckets[task] is None:
             continue
         if task.project is None:
             floating.append(task)
@@ -155,11 +167,11 @@ def _project_groups(
             named.setdefault(task.project, []).append(task)
     ordered = sorted(named.items(), key=lambda item: (item[0].name.casefold(), item[0].id))
     groups = [
-        (f"project:{ref.id}", one_line(ref.name, _NAME_LIMIT), members, False)
+        _TaskGroup(f"project:{ref.id}", one_line(ref.name, _NAME_LIMIT), members, urgent=False)
         for ref, members in ordered
     ]
     if floating:
-        groups.append((_FLOATING, "Floating", floating, False))
+        groups.append(_TaskGroup(_FLOATING, "Floating", floating, urgent=False))
     return groups
 
 
@@ -175,17 +187,18 @@ def build_tasks_view(
 
     `project` is the project of the displayed session, used by the "this project" filter.
     """
+    buckets = {task: bucket_of(task, now) for task in tasks}
     open_count = sum(1 for task in tasks if not isinstance(task.status, Done))
-    overdue_count = sum(1 for task in tasks if is_overdue(task, now))
+    overdue_count = sum(1 for task in tasks if buckets[task] is Bucket.OVERDUE)
     counters = (open_count, overdue_count)
     if state.scope is TaskScope.THIS_PROJECT and project is None:
         return TasksView((TaskInfoLine((Span(NO_PROJECT_TEXT, Role.DIM),)),), *counters)
     shown = [task for task in tasks if _keep(task, state.scope, project)]
     match state.grouping:
         case Grouping.URGENCY:
-            groups = _urgency_groups(shown, now)
+            groups = _urgency_groups(shown, buckets, now)
         case Grouping.PROJECT:
-            groups = _project_groups(shown, now)
+            groups = _project_groups(shown, buckets, now)
         case _:
             assert_never(state.grouping)
     lines = _emit(groups, state, lambda task: task_line(task, now, width))
@@ -241,11 +254,5 @@ def keep_tasks_selection(
     selected. `fallback` is a position among the selectable lines, clamped to them. Returns -1
     when nothing can be selected: never an information line or an expanded heading.
     """
-    choices = tasks_selectable(view)
-    if not choices:
-        return -1
-    for wanted in (old_key, None if old_group is None else f"group:{old_group}"):
-        for index in choices:
-            if wanted is not None and tasks_line_key(view.lines[index]) == wanted:
-                return index
-    return choices[min(max(fallback, 0), len(choices) - 1)]
+    keys = [tasks_line_key(line) for line in view.lines]
+    return keep_selected(keys, old_key, fallback, old_group=old_group)

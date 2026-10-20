@@ -4,6 +4,7 @@ import difflib
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 from typing import assert_never
 
 from meute.core.errors import InvalidInput
@@ -19,6 +20,13 @@ FLOATING_NAME = "none"
 _CUTOFF = 0.6
 _SHOWN = 200
 _LABEL_WIDTH = 10
+
+
+class PreviewError(StrEnum):
+    """Why a quick entry cannot be created; the value is the text shown."""
+
+    EMPTY_TITLE = "empty title"
+    UNKNOWN_PROJECT = "unknown project"
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +69,7 @@ class QuickPreview:
     project: ProjectChoice
     priority: Priority
     due: Due | None
-    error: str | None
+    error: PreviewError | None
 
     @property
     def can_create(self) -> bool:
@@ -113,7 +121,7 @@ def quick_preview(
             project=resolve_quick_project(None, default, projects),
             priority=Priority.NORMAL,
             due=None,
-            error="empty title",
+            error=PreviewError.EMPTY_TITLE,
         )
     project = resolve_quick_project(parsed.project, default, projects)
     return QuickPreview(
@@ -121,7 +129,7 @@ def quick_preview(
         project=project,
         priority=parsed.priority,
         due=parsed.due,
-        error="unknown project" if isinstance(project, UnknownProject) else None,
+        error=PreviewError.UNKNOWN_PROJECT if isinstance(project, UnknownProject) else None,
     )
 
 
@@ -144,7 +152,7 @@ def _project_line(project: ProjectChoice) -> StyledLine:
             return _row("Project", Span("floating", Role.KIND), *note)
         case UnknownProject(name=name, suggestion=suggestion):
             hint = () if suggestion is None else (Span(f" ({one_line(suggestion, _SHOWN)}?)"),)
-            text = f"@{one_line(name, _SHOWN)}: unknown project"
+            text = f"@{one_line(name, _SHOWN)}: {PreviewError.UNKNOWN_PROJECT}"
             return _row("Project", Span(text, Role.HIGH), *hint)
         case _:
             assert_never(project)
@@ -153,10 +161,10 @@ def _project_line(project: ProjectChoice) -> StyledLine:
 def _footer(preview: QuickPreview) -> StyledLine:
     if preview.can_create:
         return (Span("Enter create · Esc cancel", Role.DIM),)
-    if preview.error == "unknown project":
+    if preview.error is PreviewError.UNKNOWN_PROJECT:
         text = "Cannot create: fix the project or use @none · Esc cancel"
     else:
-        text = "Cannot create: empty title · Esc cancel"
+        text = f"Cannot create: {PreviewError.EMPTY_TITLE} · Esc cancel"
     return (Span(text, Role.HIGH),)
 
 

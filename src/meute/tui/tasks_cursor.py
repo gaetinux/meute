@@ -4,7 +4,7 @@ from dataclasses import replace
 from datetime import datetime
 
 from meute.core.board_view import BoardData
-from meute.core.task import Task
+from meute.core.task import Task, TaskId
 from meute.core.tasks_view import (
     Grouping,
     TaskGroupLine,
@@ -61,13 +61,7 @@ class TasksCursor:
 
     def group_at(self, index: int) -> str | None:
         """Return the group of line `index` (a heading or one of its tasks), else `None`."""
-        lines = self.view.lines
-        if not 0 <= index < len(lines) or isinstance(lines[index], TaskInfoLine):
-            return None
-        headings = (
-            line.group for line in reversed(lines[: index + 1]) if isinstance(line, TaskGroupLine)
-        )
-        return next(headings, None)
+        return self._groups[index] if 0 <= index < len(self._groups) else None
 
     def task_at(self, index: int) -> Task | None:
         """Return the task on line `index`, or `None`."""
@@ -75,7 +69,7 @@ class TasksCursor:
         line = lines[index] if 0 <= index < len(lines) else None
         if not isinstance(line, TaskLine):
             return None
-        return next((task for task in self.data.tasks if task.id == line.task_id), None)
+        return self._tasks.get(line.task_id)
 
     def resize(self, width: int) -> None:
         """Rebuild the view for a board `width` columns wide, keeping the selection."""
@@ -123,14 +117,31 @@ class TasksCursor:
         self.selected = keep_tasks_selection(old_key, self.view, position, old_group=old_group)
 
     def _build(self) -> TasksView:
-        return build_tasks_view(
+        view = build_tasks_view(
             self.data.tasks,
             self.state,
             now=self.now,
             project=self.data.displayed_project,
             width=self.width,
         )
+        # The first task of an id wins, as a scan of the data would find it.
+        self._tasks: dict[TaskId, Task] = {}
+        for task in self.data.tasks:
+            _ = self._tasks.setdefault(task.id, task)
+        self._groups = _line_groups(view)
+        return view
 
     def _selected_key(self) -> str | None:
         lines = self.view.lines
         return tasks_line_key(lines[self.selected]) if 0 <= self.selected < len(lines) else None
+
+
+def _line_groups(view: TasksView) -> tuple[str | None, ...]:
+    """Return the group of each line: its heading's or the one above it; None for information."""
+    groups: list[str | None] = []
+    current: str | None = None
+    for line in view.lines:
+        if isinstance(line, TaskGroupLine):
+            current = line.group
+        groups.append(None if isinstance(line, TaskInfoLine) else current)
+    return tuple(groups)

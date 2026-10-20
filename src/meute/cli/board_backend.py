@@ -32,7 +32,6 @@ from meute.core.board_view import (
     LaunchOnTask,
     ShowSession,
     StopSession,
-    TaskAction,
 )
 from meute.core.db.claude_sessions import purge_samples
 from meute.core.db.task_notes import add_note
@@ -40,7 +39,7 @@ from meute.core.db.task_update import delete_task, update_task
 from meute.core.errors import MeuteError, PromptNotPasted
 from meute.core.session import SessionId
 from meute.core.task import TaskId
-from meute.core.views import is_overdue
+from meute.core.views import count_overdue
 from meute.tmux.panes import detach_client
 
 if TYPE_CHECKING:
@@ -121,9 +120,7 @@ class CliBoardBackend:
         title = next((row.session.title for row in data.sessions if row.displayed), None)
         sessions = [row.session for row in data.sessions]
         pct = None if data.quota is None else data.quota.five_hour_pct
-        overdue = sum(
-            1 for task in data.tasks if data.now is not None and is_overdue(task, data.now)
-        )
+        overdue = 0 if data.now is None else count_overdue(data.tasks, data.now)
         self._status = publish_status(
             self._env.tmux, title, sessions, pct, self._status, overdue=overdue
         )
@@ -145,7 +142,7 @@ class CliBoardBackend:
             # Reset on exit too: a slow action may end after a load that missed its effect.
             self._read_at = None
 
-    def _perform(self, action: BoardAction) -> None:
+    def _perform(self, action: BoardAction) -> None:  # noqa: C901 — one case per board action
         match action:
             case ShowSession():
                 show_session(self._ctx, self._env, action.session_id)
@@ -161,14 +158,7 @@ class CliBoardBackend:
                 self._stop(action.session_id)
             case Detach():
                 detach_client(self._env.tmux)
-            case CreateTask() | ChangeTask() | AddNote() | DeleteTask() | LaunchOnTask():
-                self._task_action(action)
-            case _:
-                assert_never(action)
-
-    def _task_action(self, action: TaskAction) -> None:
-        """Write to the tasks as the TUI user, with the version the board last read."""
-        match action:
+            # Task writes go as the TUI user, with the version the board last read.
             case CreateTask():
                 _ = create_quick_task(self._ctx, action.text, action.project)
             case ChangeTask():

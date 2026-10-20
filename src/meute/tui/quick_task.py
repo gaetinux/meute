@@ -13,7 +13,7 @@ from textual.widgets import Input, Static
 
 from meute.core.errors import MeuteError
 from meute.core.project import ProjectRef
-from meute.core.quick_preview import QuickPreview, preview_lines, quick_preview
+from meute.core.quick_preview import PreviewError, QuickPreview, preview_lines, quick_preview
 from meute.core.styled import Role, Span, StyledLine
 from meute.core.task import Task
 from meute.core.text import one_line, printable
@@ -22,7 +22,6 @@ from meute.tui.task_input import TaskInput, TextAsk
 from meute.tui.tasks_pane import rows_content
 
 _PROJECT_WIDTH = 40
-_EMPTY_TITLE = "empty title"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -106,7 +105,7 @@ class QuickTaskApp(App[None]):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         preview = self._preview(event.value)
         if not preview.can_create:
-            self._failure = preview.error or _EMPTY_TITLE
+            self._failure = preview.error or PreviewError.EMPTY_TITLE
         else:
             try:
                 _ = self._backend.create(event.value)
