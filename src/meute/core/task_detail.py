@@ -13,7 +13,7 @@ from meute.core.status import Blocked, status_text
 from meute.core.styled import Role, Span, StyledLine, clip, labelled
 from meute.core.task import Note, Task, task_label
 from meute.core.task_line import due_short
-from meute.core.text import one_line
+from meute.core.text import one_line, printable
 from meute.core.views import MONTHS, format_due
 
 _LIMIT = 1000
@@ -48,7 +48,7 @@ def _project(task: Task, repo: Repo | None, home: Path | None) -> StyledLine:
     else:
         line = [Span(one_line(task.project.name, _LIMIT), Role.KIND)]
     if repo is not None:
-        line.append(Span(f"{_SEPARATOR}repo {display_path(repo.path, home)}", Role.DIM))
+        line.append(Span(f"{_SEPARATOR}repo {printable(display_path(repo.path, home))}", Role.DIM))
     return labelled("Project", _LABEL_WIDTH, *line)
 
 

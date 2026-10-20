@@ -141,3 +141,11 @@ def test_unsafe_text_is_neutralised() -> None:
     task = replace(make_task(1), title="a\x1b[2Jb", description="x\x1b]0;y\x07")
     lines = task_detail_lines(task, notes=[], sessions=[], repo=None, now=NOW, home=None, width=80)
     assert all("\x1b" not in plain(line) and "\x07" not in plain(line) for line in lines)
+
+
+def test_unsafe_repository_path_is_neutralised() -> None:
+    repo = replace(REPO, path=HOME / "git" / "a\x1b]0;x\x07b")
+    lines = task_detail_lines(
+        make_task(1), notes=[], sessions=[], repo=repo, now=NOW, home=HOME, width=80
+    )
+    assert all("\x1b" not in plain(line) and "\x07" not in plain(line) for line in lines)
