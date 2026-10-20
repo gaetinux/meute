@@ -15,7 +15,7 @@ from meute.core.board_view import (
     TaskAction,
     conflict_text,
 )
-from meute.core.errors import InvalidInput, MeuteError, VersionConflict
+from meute.core.errors import InvalidInput, MeuteError, NotFound, VersionConflict
 from meute.core.project import ProjectId, ProjectRef
 from meute.core.quick_preview import (
     Displayed,
@@ -127,14 +127,18 @@ def _project_id(text: str, projects: Sequence[ProjectRef]) -> ProjectId | None:
     """The project typed on the line: blank or `none` floats; raises `InvalidInput` if unknown."""
     if not text.strip():
         return None
-    match resolve_quick_project(text, None, projects):
+    choice = resolve_quick_project(text, None, projects)
+    match choice:
         case Named(project=project) | Displayed(project=project):
             return project.id
         case Floating():
             return None
-        case UnknownProject(name=name):
-            message = f"unknown project: {name.strip()}"
+        case UnknownProject(name=name, suggestion=suggestion):
+            hint = "" if suggestion is None else f" ({suggestion}?)"
+            message = f"unknown project: {name.strip()}{hint}"
             raise InvalidInput(message)
+        case _:
+            assert_never(choice)
 
 
 def _text_action(field: _TextField, task: Task, text: str, data: BoardData) -> TaskAction:
@@ -268,6 +272,8 @@ class TaskEditor:
             if isinstance(self._edit, _TaskEdit):
                 self._edit = replace(self._edit, task=conflict.current)
             return
+        except NotFound as error:  # deleted elsewhere: nothing left to edit
+            self._fail(str(error))
         except MeuteError as error:
             self._fail(str(error))
             return

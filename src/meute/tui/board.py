@@ -108,7 +108,7 @@ class BoardApp(App[None]):
         self._title = Static(id="title")
         self._quota = Static(id="quota")
         self._board = Static(id="board")
-        self._sessions = VerticalScroll(self._board, id="sessions")
+        self._sessions = VerticalScroll(self._board, id="sessions", can_focus=False)  # keys: on_key
         self._details = Static(id="details")
         self._footer = Static(id="footer")
 

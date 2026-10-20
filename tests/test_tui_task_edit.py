@@ -16,7 +16,7 @@ from meute.core.board_view import (
     CreateTask,
     DeleteTask,
 )
-from meute.core.errors import VersionConflict
+from meute.core.errors import MeuteError, NotFound, VersionConflict
 from meute.core.project import ProjectId, ProjectRef
 from meute.core.status import Blocked, InProgress, Priority
 from meute.core.task import Task, TaskId, TaskPatch
@@ -61,6 +61,7 @@ class EditBackend:
         self.actions: list[BoardAction] = []
         self.loads = 0
         self.conflict: Task | None = None
+        self.error: MeuteError | None = None  # raised by the next action only
 
     def load(self) -> BoardData | None:
         self.loads += 1
@@ -69,6 +70,9 @@ class EditBackend:
 
     def perform(self, action: BoardAction) -> None:
         self.actions.append(action)
+        error, self.error = self.error, None
+        if error is not None:
+            raise error
         current, self.conflict = self.conflict, None
         if current is not None:
             others = tuple(task for task in self.data.tasks if task.id != current.id)
@@ -397,3 +401,58 @@ def test_delete_prompt_neutralises_the_title() -> None:
 
     backend = EditBackend(_data(replace(_review(), title="a\x1b[2Jb")))
     _ = _run(steps, backend)
+
+
+def test_a_click_on_the_board_keeps_the_line_usable() -> None:
+    async def steps(pilot: Pilot[None], app: BoardApp) -> None:
+        await pilot.press("o", "a", "b")
+        await pilot.click("#board", offset=(3, 3))
+        await pilot.press("c", "d", "enter")
+        assert not _is_open(app)
+
+    assert _run(steps).actions == [AddNote(task_id=TaskId(1), body="abcd")]
+
+
+def test_a_click_on_the_board_keeps_the_list_usable() -> None:
+    async def steps(pilot: Pilot[None], app: BoardApp) -> None:
+        await pilot.press("p")
+        await pilot.click("#board", offset=(3, 3))
+        await pilot.press("down", "enter")
+        assert not _is_open(app)
+
+    assert _run(steps).actions == [_change(priority=Priority.HIGH)]
+
+
+def test_a_task_deleted_meanwhile_closes_the_line_with_the_error() -> None:
+    backend = EditBackend(_data())
+    backend.error = NotFound("task", "1")
+
+    async def steps(pilot: Pilot[None], app: BoardApp) -> None:
+        await pilot.press("o", "x", "enter")
+        assert not _is_open(app)
+        assert _text(app, "footer") == "Error: task not found: 1"
+
+    assert len(_run(steps, backend).actions) == 1
+
+
+def test_a_task_deleted_meanwhile_fails_the_delete_once() -> None:
+    backend = EditBackend(_data())
+    backend.error = NotFound("task", "1")
+
+    async def steps(pilot: Pilot[None], app: BoardApp) -> None:
+        await pilot.press("delete", "y")
+        assert _text(app, "footer") == "Error: task not found: 1"
+        assert not _is_open(app)
+
+    assert len(_run(steps, backend).actions) == 1
+
+
+def test_an_unknown_project_suggests_the_closest_one() -> None:
+    async def steps(pilot: Pilot[None], app: BoardApp) -> None:
+        await pilot.press("at")
+        _line(app).value = "infar"
+        await pilot.press("enter")
+        assert _text(app, "footer") == "Error: unknown project: infar (infra?)"
+        assert _is_open(app)
+
+    assert _run(steps).actions == []
