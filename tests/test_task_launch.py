@@ -61,6 +61,24 @@ def test_no_repository_is_refused() -> None:
         task_launch_folder(make_task(3), _repos(board_repo(1, "a", None)), [])
 
 
+def test_else_the_repository_named_like_its_project() -> None:
+    other, named = board_repo(1, "other", None), board_repo(2, "Meute", None)
+    task = replace(make_task(3), project=ProjectRef(id=ProjectId(1), name=" meute "))
+    assert task_launch_folder(task, _repos(other, named), []) == named.path
+
+
+def test_a_linked_repository_beats_the_one_named_like_the_project() -> None:
+    linked, named = board_repo(1, "linked", None), board_repo(2, "meute", None)
+    task = replace(make_task(3), project=ProjectRef(id=ProjectId(1), name="meute"))
+    assert task_launch_folder(task, _repos(linked, named), [linked.id]) == linked.path
+
+
+def test_no_repository_named_like_the_project_is_refused() -> None:
+    task = replace(make_task(3), project=ProjectRef(id=ProjectId(1), name="meute"))
+    with pytest.raises(InvalidInput, match=r"^#3 has no repository: "):
+        task_launch_folder(task, _repos(board_repo(1, "other", None)), [])
+
+
 # --- launch_on_task, with the fake claude -----------------------------------------------------
 
 

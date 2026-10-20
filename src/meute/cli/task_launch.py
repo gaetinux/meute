@@ -33,6 +33,11 @@ def _task_repo(task: Task, repos: Mapping[RepoId, Repo], project_repos: Sequence
     for repo_id in (task.repo_id, *project_repos):
         if repo_id is not None and repo_id in repos:
             return repos[repo_id]
+    if task.project is not None:
+        key = task.project.name.strip().casefold()
+        named = next((r for r in repos.values() if r.name.strip().casefold() == key), None)
+        if named is not None:
+            return named
     message = f"{task_label(task.id)} has no repository: set one on the task or its project"
     raise InvalidInput(message)
 
@@ -40,7 +45,9 @@ def _task_repo(task: Task, repos: Mapping[RepoId, Repo], project_repos: Sequence
 def task_launch_folder(
     task: Task, repos: Mapping[RepoId, Repo], project_repos: Sequence[RepoId]
 ) -> Path:
-    """Return the task's repository, else the first repository of its project.
+    """Return the task's repository, else the first of its project, else the one named like it.
+
+    Names are compared ignoring case and surrounding spaces.
 
     Raises:
         InvalidInput: neither the task nor its project has a known repository.
