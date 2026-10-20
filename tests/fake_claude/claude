@@ -5,6 +5,7 @@ Usage: `claude --settings <file> --session-id <id> ...` or `claude agents --json
 A first Ctrl-C is ignored, a second within a second ends the session.
 MEUTE_FAKE_CLAUDE_SCRIPT picks the sequence (permission, done, exit, end, paste); `paste`
 starts like a session, then appends every byte typed or pasted to MEUTE_FAKE_CLAUDE_INPUT.
+MEUTE_FAKE_CLAUDE_ARGS, when set, names a file receiving the arguments as a JSON list.
 MEUTE_FAKE_CLAUDE_AGENTS names a file printed by `claude agents --json`.
 Standard library only.
 """
@@ -113,6 +114,8 @@ def main(args: list[str]) -> int:
         agents = os.environ.get("MEUTE_FAKE_CLAUDE_AGENTS")
         sys.stdout.write(Path(agents).read_text(encoding="utf-8") if agents else "[]\n")
         return 0
+    if recorded := os.environ.get("MEUTE_FAKE_CLAUDE_ARGS"):
+        Path(recorded).write_text(json.dumps(args), encoding="utf-8")
     settings, session_id = option(args, "--settings"), option(args, "--session-id")
     if settings is None or session_id is None:
         sys.stderr.write("fake claude: --settings and --session-id are required\n")

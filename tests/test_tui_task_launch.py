@@ -42,6 +42,7 @@ class BlockingBackend:
         self.threads: list[int] = []
         self.release = threading.Event()
         self.perform_error: MeuteError | None = None
+        self.unexpected: Exception | None = None  # a failure the backend never promised
 
     def load(self) -> BoardData | None:
         data, self.pending = self.pending, None
@@ -51,6 +52,8 @@ class BlockingBackend:
         self.actions.append(action)
         self.threads.append(threading.get_ident())
         assert self.release.wait(timeout=10)
+        if self.unexpected is not None:
+            raise self.unexpected
         if self.perform_error is not None:
             raise self.perform_error
 
@@ -131,5 +134,19 @@ def test_a_refused_launch_shows_its_error() -> None:
 
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
         await _until(pilot, lambda: _footer(app) == f"Error: {message}", "no error shown")
+
+    _launch(backend, scenario)
+
+
+def test_an_unexpected_failure_ends_the_launch_with_its_error() -> None:
+    backend = BlockingBackend()
+    backend.unexpected = ValueError("boom")
+    backend.release.set()
+
+    async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
+        await _until(pilot, lambda: _footer(app) == "Error: boom", "no error shown")
+        backend.unexpected = None
+        await pilot.press("L")  # the failed launch was forgotten: a new one starts
+        await _until(pilot, lambda: len(backend.actions) == 2, "no second launch")
 
     _launch(backend, scenario)

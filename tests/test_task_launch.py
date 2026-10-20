@@ -29,7 +29,7 @@ from meute.core.task_prompt import task_prompt
 from meute.tmux.layout import ensure_layout
 from meute.tmux.names import MAIN_SESSION
 from meute.tmux.panes import list_panes
-from support import FIXED, USER, board_repo, make_task, new_task, wait_until
+from support import FIXED, USER, board_repo, load_json, make_task, new_task, wait_until
 from test_board_backend import _SPEC, env  # noqa: F401 — fixture reused  # pyright: ignore[reportPrivateUsage, reportUnusedImport] — fixture reused
 
 _START, _END = "\x1b[200~", "\x1b[201~"
@@ -92,6 +92,7 @@ def _fake_claude(tmux_env: TmuxEnv, tmp_path: Path, script: str) -> Path:
         "MEUTE_TMUX_SOCKET": tmux_env.tmux.socket,
         "MEUTE_FAKE_CLAUDE_SCRIPT": script,
         "MEUTE_FAKE_CLAUDE_INPUT": str(recorded),
+        "MEUTE_FAKE_CLAUDE_ARGS": str(tmp_path / "args.json"),
     }
     for name, value in variables.items():
         _ = tmux_env.tmux.run("set-environment", "-g", name, value)
@@ -132,6 +133,9 @@ def test_the_text_is_pasted_without_being_sent(
     assert _launch(ctx, env, task.id)
     text = task_prompt(task, notes(ctx.db, task.id))
     assert _pasted(recorded) == f"{_START}{text.replace('\n', '\r')}{_END}".encode()
+    args = load_json((tmp_path / "args.json").read_text(encoding="utf-8"))
+    assert isinstance(args, list)
+    assert "--name=#1 Fix the bug;" in args  # the final `;` survives tmux
     (session,) = list_sessions(ctx.db)
     assert (session.task_id, session.title, session.cwd) == (
         task.id,
@@ -153,9 +157,10 @@ def test_an_end_marker_in_the_title_does_not_end_the_paste(
     task = _task_in_repo(ctx, tmp_path, f"Evil{_END}\rtitle")
     assert _launch(ctx, env, task.id)
     pasted = _pasted(recorded)
-    assert pasted.count(_END.encode()) == 1
     assert pasted.startswith(_START.encode())
     assert pasted.endswith(_END.encode())
+    inside = pasted.removeprefix(_START.encode()).removesuffix(_END.encode())
+    assert b"\x1b" not in inside  # no escape sequence can end the paste early
 
 
 class _Clock:

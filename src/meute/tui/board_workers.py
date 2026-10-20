@@ -70,6 +70,8 @@ class BoardWorkers:
             notice = str(untold)
         except MeuteError as failure:
             error = str(failure)
+        except Exception as failure:  # noqa: BLE001 — the action must end on screen whatever broke
+            error = str(failure) or type(failure).__name__
         with suppress(RuntimeError):  # the app already quit: nobody left to tell
             self._app.call_from_thread(self._ended, forget, error, notice)
 
