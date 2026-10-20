@@ -94,11 +94,12 @@ def _quick_task_binding(spec: LayoutSpec) -> tuple[str, ...]:
     `display-popup` expands no format in its command, so its `#` stay single; each command
     of the `if-shell` is parsed once more when the key is pressed, hence the second escape.
     """
+    # Inside if-shell strings, a flag unknown to an old tmux fails only when the key is pressed.
     if not spec.attention_command:
         return ()
     command = _shell_string(quick_task_command(spec.attention_command))
     narrow, wide = (
-        _tmux_escape(f'display-popup -B -E -w {width} -h {_POPUP_HEIGHT} -T "" {command}')
+        _tmux_escape(f"display-popup -B -E -w {width} -h {_POPUP_HEIGHT} {command}")
         for width in ("100%", _POPUP_WIDTH)
     )
     condition = f"#{{e|<:#{{client_width}},{_POPUP_WIDTH}}}"

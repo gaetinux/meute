@@ -39,7 +39,7 @@ def _binding(text: str, key: str) -> str:
 def _popup(width: str) -> str:
     """The popup command of the brief, escaped once more for the `if-shell` around it."""
     command = r"'/opt/meute/bin/python' '-m' 'meute' 'task' 'quick'"
-    return rf"display-popup -B -E -w {width} -h 12 -T \"\" \"{command}\""
+    return rf"display-popup -B -E -w {width} -h 12 \"{command}\""
 
 
 def test_quick_task_line() -> None:
