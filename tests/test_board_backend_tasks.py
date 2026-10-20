@@ -194,3 +194,12 @@ def test_tasks_done_before_today_are_not_loaded(ctx: CliContext, env: TmuxEnv) -
     create_task(ctx.db, new_task("Open"), USER)
     data = _loaded(_backend(ctx, env))
     assert [t.title for t in data.tasks] == ["Open"]
+
+
+def test_the_board_clock_is_in_the_local_zone(ctx: CliContext, env: TmuxEnv) -> None:  # noqa: F811 — fixture
+    """The database clock is UTC; due times and Today/Upcoming follow the local zone."""
+    backend = CliBoardBackend(ctx, env, {**_ENVIRON, "TZ": "Asia/Kathmandu"}, monotonic=_Clock())
+    data = _loaded(backend)
+    assert data.now == FIXED
+    assert data.now is not None
+    assert data.now.utcoffset() == timedelta(hours=5, minutes=45)

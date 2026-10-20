@@ -96,7 +96,9 @@ def load_board_data(
         metrics=latest_metrics_by_session(db, live),
         projects={project.id: project.name for project in projects},
         quota=quota_line(ctx, clock, environ),
-        now=clock,
+        now=clock.astimezone(
+            local_zone(environ)
+        ),  # the database clock is UTC; tasks show local times
         tasks=tuple(
             task
             for task in list_tasks(db, TaskFilter(include_done=True))
