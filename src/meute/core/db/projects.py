@@ -11,7 +11,7 @@ from meute.core.db.rows import (
 )
 from meute.core.errors import InvalidInput
 from meute.core.instants import to_db
-from meute.core.project import Project
+from meute.core.project import Project, ProjectRef
 
 
 def create_project(db: Database, name: str, description: str = "") -> Project:
@@ -61,3 +61,8 @@ def list_projects(db: Database) -> list[Project]:
         f"{PROJECT_SELECT} ORDER BY name_key, id",
     )
     return [row_to_project(row) for row in rows]
+
+
+def project_refs(db: Database) -> tuple[ProjectRef, ...]:
+    """Return a reference (id and name) to every project, sorted as `list_projects`."""
+    return tuple(ProjectRef(id=project.id, name=project.name) for project in list_projects(db))

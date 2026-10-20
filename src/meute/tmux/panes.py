@@ -38,6 +38,16 @@ def list_panes(tmux: Tmux) -> list[PaneInfo]:
     return [parse_pane_line(line) for line in output.splitlines()]
 
 
+def pane_of_session(tmux: Tmux, session_id: str) -> PaneInfo | None:
+    """Return the pane of the meute session `session_id`, or None when it has none.
+
+    Raises:
+        CommandFailed: tmux failed for a reason other than a missing server.
+        UnreadableOutput: a pane line could not be parsed.
+    """
+    return next((pane for pane in list_panes(tmux) if pane.meute_id == session_id), None)
+
+
 _CD_THEN_EXEC = 'cd -- "$1" || exit; shift; exec "$@"'
 
 

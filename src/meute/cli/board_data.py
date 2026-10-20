@@ -11,13 +11,12 @@ from meute.core.agents import AgentInfo
 from meute.core.board_view import BoardData, SessionRow
 from meute.core.clock import local_zone
 from meute.core.db.claude_sessions import claude_details_by_session
-from meute.core.db.projects import list_projects
+from meute.core.db.projects import project_refs
 from meute.core.db.repos import list_repos
 from meute.core.db.samples import latest_metrics_by_session, latest_quota, quota_history
 from meute.core.db.sessions import list_sessions
 from meute.core.db.task_reads import latest_notes
 from meute.core.db.tasks import TaskFilter, list_tasks
-from meute.core.project import ProjectRef
 from meute.core.quota_view import PROJECTION_WINDOW, QuotaLine, current_quota, projected_limit
 from meute.core.session import SessionId
 from meute.core.session_project import session_project
@@ -81,8 +80,7 @@ def load_board_data(
     clock = db.now()
     local = local_now(ctx)
     live = [row.session.id for row in snapshot.sessions if is_live(row.session.state)]
-    projects = list_projects(db)
-    refs = tuple(ProjectRef(id=project.id, name=project.name) for project in projects)
+    refs = project_refs(db)
     repos = list_repos(db)
     repo_by_id = {repo.id: repo for repo in repos}
     displayed = next((row.session for row in snapshot.sessions if row.displayed), None)
@@ -95,7 +93,7 @@ def load_board_data(
         ended=recently_ended(ctx, {row.session.id for row in snapshot.sessions}, clock),
         details=claude_details_by_session(db),
         metrics=latest_metrics_by_session(db, live),
-        projects={project.id: project.name for project in projects},
+        projects={ref.id: ref.name for ref in refs},
         quota=quota_line(ctx, clock, environ),
         now=local,
         tasks=tuple(

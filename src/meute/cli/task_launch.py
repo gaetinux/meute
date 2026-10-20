@@ -5,7 +5,7 @@ from pathlib import Path
 
 from meute.cli.context import CliContext
 from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
-from meute.cli.session_show import show_session
+from meute.cli.session_show import show_session, unreachable
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.db.claude_sessions import get_claude_details
 from meute.core.db.repos import list_repos
@@ -20,7 +20,7 @@ from meute.core.session import SessionId
 from meute.core.task import Task, TaskId, task_label
 from meute.core.task_prompt import task_prompt
 from meute.core.text import one_line
-from meute.tmux.panes import list_panes, paste_text
+from meute.tmux.panes import pane_of_session, paste_text
 
 READY_TIMEOUT_SECONDS = 10.0
 READY_POLL_SECONDS = 0.2
@@ -79,12 +79,11 @@ def launch_on_task(  # noqa: PLR0913 — signature of the plan: the clock is inj
     if not _wait_until_ready(ctx, session.id, monotonic=monotonic, sleep=sleep):
         return False
     sleep(PASTE_DELAY_SECONDS)
-    pane = next((p.id for p in list_panes(env.tmux) if p.meute_id == session.id), None)
+    pane = pane_of_session(env.tmux, session.id)
     if pane is None:
-        message = f"session unreachable: {session.title}"
-        raise InvalidInput(message)
+        raise unreachable(session.title)
     make_private_dir(ctx.paths.state_dir)
-    paste_text(env.tmux, pane, text, private_dir=ctx.paths.state_dir)
+    paste_text(env.tmux, pane.id, text, private_dir=ctx.paths.state_dir)
     return True
 
 

@@ -8,7 +8,7 @@ from enum import StrEnum
 from typing import assert_never
 
 from meute.core.errors import InvalidInput
-from meute.core.project import ProjectRef
+from meute.core.project import ProjectId, ProjectRef
 from meute.core.quick_add import parse_quick_add
 from meute.core.status import Priority
 from meute.core.styled import Role, Span, StyledLine, labelled
@@ -59,6 +59,26 @@ class UnknownProject:
 
 
 ProjectChoice = Named | Displayed | Floating | UnknownProject
+
+
+def choice_project_id(choice: ProjectChoice) -> ProjectId | None:
+    """Return the id of the project `choice` names; None when the task floats.
+
+    Raises:
+        InvalidInput: the project is unknown (`unknown project: {name}`, then ` ({close}?)`
+            when a project has a close name).
+    """
+    match choice:
+        case Named(project=ref) | Displayed(project=ref):
+            return ref.id
+        case Floating():
+            return None
+        case UnknownProject(name=name, suggestion=suggestion):
+            hint = "" if suggestion is None else f" ({suggestion}?)"
+            message = f"{PreviewError.UNKNOWN_PROJECT}: {name.strip()}{hint}"
+            raise InvalidInput(message)
+        case _:
+            assert_never(choice)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

@@ -15,14 +15,11 @@ from meute.core.board_view import (
     TaskAction,
     conflict_text,
 )
-from meute.core.errors import InvalidInput, MeuteError, NotFound, VersionConflict
+from meute.core.errors import MeuteError, NotFound, VersionConflict
 from meute.core.project import ProjectId, ProjectRef
 from meute.core.quick_preview import (
-    Displayed,
-    Floating,
-    Named,
     QuickPreview,
-    UnknownProject,
+    choice_project_id,
     preview_lines,
     quick_preview,
     resolve_quick_project,
@@ -127,18 +124,7 @@ def _project_id(text: str, projects: Sequence[ProjectRef]) -> ProjectId | None:
     """The project typed on the line: blank or `none` floats; raises `InvalidInput` if unknown."""
     if not text.strip():
         return None
-    choice = resolve_quick_project(text, None, projects)
-    match choice:
-        case Named(project=project) | Displayed(project=project):
-            return project.id
-        case Floating():
-            return None
-        case UnknownProject(name=name, suggestion=suggestion):
-            hint = "" if suggestion is None else f" ({suggestion}?)"
-            message = f"unknown project: {name.strip()}{hint}"
-            raise InvalidInput(message)
-        case _:
-            assert_never(choice)
+    return choice_project_id(resolve_quick_project(text, None, projects))
 
 
 def _text_action(field: _TextField, task: Task, text: str, data: BoardData) -> TaskAction:
