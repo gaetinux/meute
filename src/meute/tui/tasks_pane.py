@@ -2,30 +2,20 @@
 
 from textual.content import Content
 
-from meute.core.styled import Role, Span, StyledLine
+from meute.core.styled import Role, StyledLine, title_rule
 from meute.core.tasks_view import TaskGroupLine, TaskLine, TasksView
-from meute.tui.sessions_pane import (
-    BAND_STYLE,
-    BLURRED_SELECTED_STYLE,
-    SELECTED_STYLE,
-    styled_content,
-)
+from meute.tui.sessions_pane import highlighted_content, styled_content
 
 
 def tasks_content(view: TasksView, selected: int, *, focused: bool, width: int) -> Content:
     """Return the task lines in colour, the band lines on red and the selected one on blue
     (grey while the board does not have the focus), padded to `width` so the background spans.
     """
-    highlight = SELECTED_STYLE if focused else BLURRED_SELECTED_STYLE
-    contents: list[Content] = []
-    for index, line in enumerate(view.lines):
-        content = styled_content(line.spans)
-        band = isinstance(line, TaskGroupLine | TaskLine) and line.band
-        if index == selected or band:
-            content = content.pad_right(max(width - content.cell_length, 0))
-            content = content.stylize(highlight if index == selected else BAND_STYLE)
-        contents.append(content)
-    return Content("\n").join(contents)
+    rows = (
+        (line.spans, index == selected, isinstance(line, TaskGroupLine | TaskLine) and line.band)
+        for index, line in enumerate(view.lines)
+    )
+    return highlighted_content(rows, focused=focused, width=width)
 
 
 def rows_content(rows: list[StyledLine]) -> Content:
@@ -35,4 +25,4 @@ def rows_content(rows: list[StyledLine]) -> Content:
 
 def rule(width: int) -> StyledLine:
     """Return a dim horizontal rule `width` columns wide."""
-    return (Span("─" * width, Role.DIM),)
+    return title_rule(None, width, Role.DIM)

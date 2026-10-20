@@ -78,3 +78,34 @@ def fit(left: StyledLine, right: StyledLine, width: int) -> StyledLine:
     head = _cut(left, room - 1)
     mark = Span(_ELLIPSIS, head[-1].role if head else Role.PLAIN)
     return (*head, mark, Span(" "), *right)
+
+
+def clip(line: StyledLine, width: int) -> StyledLine:
+    """Return `line` as is when it fits `width`, else cut to `width` and ending with `…`."""
+    if width <= 0:
+        return ()
+    return line if len(plain(line)) <= width else (*fit(line, (), width - 1), Span(_ELLIPSIS))
+
+
+_RULE = "─"
+
+
+def title_rule(title: str | None, width: int, role: Role) -> StyledLine:
+    """Return a rule `width` columns wide: `─ {title} ───…`, or only `─` without a title.
+
+    A title too long for `width` is cut and ends with `…`. `title` must already be printable.
+    """
+    if title is None:
+        return (Span(_RULE * max(width, 0), role),)
+    head = f"{_RULE} {title} "
+    return clip((Span(head + _RULE * max(width - len(head), 0), role),), width)
+
+
+def labelled(label: str, width: int, *value: Span) -> StyledLine:
+    """Return `label` in the dim role, padded to `width` columns, then the `value` segments."""
+    return (Span(label.ljust(width), Role.DIM), *value)
+
+
+def fold_mark(*, folded: bool) -> str:
+    """Return the mark of a foldable heading: `▶` when folded, `▼` when open."""
+    return "▶" if folded else "▼"

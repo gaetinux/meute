@@ -9,7 +9,7 @@ from typing import assert_never
 from meute.core.board_view import SessionRow
 from meute.core.claude_session import ClaudeDetails
 from meute.core.paths import display_path
-from meute.core.quota_view import quota_level
+from meute.core.quota_view import level_role
 from meute.core.session_state import (
     Compacting,
     Exited,
@@ -26,7 +26,7 @@ from meute.core.session_state import (
     state_label,
 )
 from meute.core.statusline import StatuslineData
-from meute.core.styled import Role, Span, StyledLine, fit, plain
+from meute.core.styled import Role, Span, StyledLine, clip, fit, fold_mark, plain
 from meute.core.text import cost_text, one_line, printable
 
 _MAX_REPLY = 200
@@ -69,7 +69,6 @@ RISKY_MODES = frozenset({"auto", "bypassPermissions", "dontAsk"})
 
 _SEPARATOR = " · "
 _CARD_INDENT = "    "
-_LEVEL_ROLES = {"ok": Role.OK, "warn": Role.WARN, "high": Role.HIGH}
 
 
 def attention_reason(info: SessionInfo) -> str:
@@ -111,13 +110,6 @@ def state_role(state: SessionState) -> Role:
 
 
 STATE_SYMBOLS = {Role.ATTENTION: "!", Role.RUNNING: "●", Role.IDLE: "○"}
-
-
-def clip(line: StyledLine, width: int) -> StyledLine:
-    """Return `line` as is when it fits `width`, else cut to `width` and ending with `…`."""
-    if width <= 0:
-        return ()
-    return line if len(plain(line)) <= width else (*fit(line, (), width - 1), Span("…"))
 
 
 def _with_title(
@@ -186,7 +178,7 @@ def _metrics_parts(details: ClaudeDetails, metrics: StatuslineData) -> list[Span
     if cost := cost_text(metrics.cost_usd):
         parts.append(Span(cost, Role.DIM))
     if metrics.context_pct is not None:
-        level = _LEVEL_ROLES[quota_level(metrics.context_pct)]
+        level = level_role(metrics.context_pct)
         parts.append(Span(f"{metrics.context_pct:.0f}%", level))
     if details.model:
         parts.append(Span(one_line(details.model, _MAX_REPLY), Role.DIM))
@@ -232,7 +224,7 @@ def header_line(  # noqa: PLR0913 — the group, what it shows, and the width
     live = sum(1 for info in members if is_live(info.row.session.state))
     costs = [m.cost_usd for info in members if (m := info.metrics) and m.cost_usd is not None]
     totals = f"{_SEPARATOR}{live} live" + (f"{_SEPARATOR}${sum(costs):.2f}" if costs else "")
-    left: list[Span] = [Span(f"{'▶' if folded else '▼'} {printable(group)}", Role.TITLE)]
+    left: list[Span] = [Span(f"{fold_mark(folded=folded)} {printable(group)}", Role.TITLE)]
     if kind is not None:
         left.append(Span(f" ◆ {printable(kind)}", Role.KIND))
     left.append(Span(totals, Role.DIM))
@@ -243,12 +235,13 @@ def header_line(  # noqa: PLR0913 — the group, what it shows, and the width
 
 def section_line(title: str, count: int, *, folded: bool) -> StyledLine:
     """Return a bottom section heading: `▼ {title} ({count})`, `▶` when folded."""
-    return (Span(f"{'▶' if folded else '▼'} {title} ({count})", Role.DIM),)
+    return (Span(f"{fold_mark(folded=folded)} {title} ({count})", Role.DIM),)
 
 
 def needs_you_heading(title: str, count: int, *, folded: bool) -> StyledLine:
     """Return the heading of "Needs you": `{title} ({count})`, after `▶ ` when folded."""
-    return (Span(f"{'▶ ' if folded else ''}{title} ({count})", Role.ATTENTION),)
+    mark = f"{fold_mark(folded=True)} " if folded else ""
+    return (Span(f"{mark}{title} ({count})", Role.ATTENTION),)
 
 
 def item_line(text: str, width: int) -> StyledLine:

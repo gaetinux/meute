@@ -8,22 +8,18 @@ from meute.core.paths import display_path
 from meute.core.repo import Repo
 from meute.core.session import Session
 from meute.core.session_state import state_label
-from meute.core.sessions_view_text import STATE_SYMBOLS, clip, state_role
+from meute.core.sessions_view_text import STATE_SYMBOLS, state_role
 from meute.core.status import Blocked, status_text
-from meute.core.styled import Role, Span, StyledLine
+from meute.core.styled import Role, Span, StyledLine, clip, labelled
 from meute.core.task import Note, Task, task_label
 from meute.core.task_line import due_short
 from meute.core.text import one_line
-from meute.core.views import format_due
+from meute.core.views import MONTHS, format_due
 
 _LIMIT = 1000
 _NOTES_SHOWN = 2
-_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 _SEPARATOR = " · "
-
-
-def _label(name: str) -> Span:
-    return Span(f"{name:<9}", Role.DIM)
+_LABEL_WIDTH = 9
 
 
 def _header(task: Task, width: int) -> StyledLine:
@@ -33,7 +29,6 @@ def _header(task: Task, width: int) -> StyledLine:
 
 def _status(task: Task, now: datetime) -> StyledLine:
     line: list[Span] = [
-        _label("Status"),
         Span(one_line(status_text(task.status), _LIMIT)),
         Span(f"{_SEPARATOR}priority ", Role.DIM),
         Span(task.priority.value),
@@ -44,38 +39,39 @@ def _status(task: Task, now: datetime) -> StyledLine:
         # A blocked task already shows its reason in the status.
         if short is not None and not isinstance(task.status, Blocked):
             line += [Span(" ("), Span(short[0], short[1]), Span(")")]
-    return tuple(line)
+    return labelled("Status", _LABEL_WIDTH, *line)
 
 
 def _project(task: Task, repo: Repo | None, home: Path | None) -> StyledLine:
     if task.project is None:
-        line = [_label("Project"), Span("floating", Role.DIM)]
+        line = [Span("floating", Role.DIM)]
     else:
-        line = [_label("Project"), Span(one_line(task.project.name, _LIMIT), Role.KIND)]
+        line = [Span(one_line(task.project.name, _LIMIT), Role.KIND)]
     if repo is not None:
         line.append(Span(f"{_SEPARATOR}repo {display_path(repo.path, home)}", Role.DIM))
-    return tuple(line)
+    return labelled("Project", _LABEL_WIDTH, *line)
 
 
 def _about(task: Task) -> StyledLine | None:
     lines = task.description.strip().splitlines()
     if not lines:
         return None
-    return (_label("About"), Span(one_line(lines[0], _LIMIT)))
+    return labelled("About", _LABEL_WIDTH, Span(one_line(lines[0], _LIMIT)))
 
 
 def _note_when(note: Note, now: datetime) -> str:
     local = note.created_at.astimezone(now.tzinfo)
     if local.date() == now.date():
         return f"{local:%H:%M}"
-    return f"{_MONTHS[local.month - 1]} {local.day:02d}"
+    return f"{MONTHS[local.month - 1]} {local.day:02d}"
 
 
 def _notes(notes: Sequence[Note], now: datetime) -> list[StyledLine]:
     latest = sorted(notes, key=lambda note: (note.created_at, note.id), reverse=True)
     return [
-        (
-            _label("Notes" if index == 0 else ""),
+        labelled(
+            "Notes" if index == 0 else "",
+            _LABEL_WIDTH,
             Span(f"{_note_when(note, now)} ", Role.DIM),
             Span(one_line(note.body, _LIMIT)),
         )
@@ -84,7 +80,7 @@ def _notes(notes: Sequence[Note], now: datetime) -> list[StyledLine]:
 
 
 def _sessions(sessions: Sequence[Session]) -> StyledLine:
-    line: list[Span] = [_label("Sessions")]
+    line: list[Span] = []
     for index, session in enumerate(sessions):
         role = state_role(session.state)
         if index:
@@ -94,7 +90,7 @@ def _sessions(sessions: Sequence[Session]) -> StyledLine:
             Span(one_line(session.title, _LIMIT)),
             Span(f" {state_label(session.state)}", Role.DIM),
         ]
-    return tuple(line)
+    return labelled("Sessions", _LABEL_WIDTH, *line)
 
 
 def task_detail_lines(  # noqa: PLR0913 — one keyword per piece of data shown

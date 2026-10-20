@@ -8,7 +8,7 @@ from typing import assert_never
 
 from meute.core.project import ProjectRef
 from meute.core.status import Done
-from meute.core.styled import Role, Span, StyledLine, fit
+from meute.core.styled import Role, Span, StyledLine, fit, fold_mark
 from meute.core.task import Task, TaskId
 from meute.core.task_line import task_line
 from meute.core.text import one_line
@@ -108,7 +108,7 @@ def _group_line(
 ) -> TaskGroupLine:
     folded = key in state.collapsed
     role = Role.ATTENTION if urgent else Role.TITLE
-    text = f"{'▶' if folded else '▼'} {title} ({count})"
+    text = f"{fold_mark(folded=folded)} {title} ({count})"
     return TaskGroupLine(group=key, spans=(Span(text, role),), collapsed=folded, band=urgent)
 
 

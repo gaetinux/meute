@@ -10,7 +10,7 @@ from meute.core.errors import InvalidInput
 from meute.core.project import ProjectRef
 from meute.core.quick_add import parse_quick_add
 from meute.core.status import Priority
-from meute.core.styled import Role, Span, StyledLine
+from meute.core.styled import Role, Span, StyledLine, labelled
 from meute.core.task import Due
 from meute.core.text import one_line, printable
 from meute.core.views import format_due
@@ -126,7 +126,7 @@ def quick_preview(
 
 
 def _row(label: str, *value: Span) -> StyledLine:
-    return (Span(label.ljust(_LABEL_WIDTH), Role.DIM), *value)
+    return labelled(label, _LABEL_WIDTH, *value)
 
 
 def _project_line(project: ProjectChoice) -> StyledLine:

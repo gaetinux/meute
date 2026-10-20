@@ -8,7 +8,8 @@ from meute.core.status import Done
 from meute.core.task import Due, DueAt, DueDate, Task
 
 _DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+"""English month abbreviations, January first."""
 
 
 class Bucket(Enum):
@@ -98,7 +99,7 @@ def _format_day(day: date, now: datetime) -> str:
         return "today"
     if day == today + timedelta(days=1):
         return "tomorrow"
-    text = f"{_DAYS[day.weekday()]} {_MONTHS[day.month - 1]} {day.day}"
+    text = f"{_DAYS[day.weekday()]} {MONTHS[day.month - 1]} {day.day}"
     return text if day.year == today.year else f"{text} {day.year}"
 
 

@@ -138,6 +138,11 @@ _BAR_CELLS = 10
 _LEVEL_ROLES = {"ok": Role.OK, "warn": Role.WARN, "high": Role.HIGH}
 
 
+def level_role(pct: float) -> Role:
+    """Return the role of a percentage: OK, WARN or HIGH, by its `quota_level`."""
+    return _LEVEL_ROLES[quota_level(pct)]
+
+
 def quota_bar(pct: float) -> str:
     """Return a bar of 10 cells, `round(pct / 10)` of them full, bounded to 0..10."""
     filled = min(max(round(pct / _BAR_CELLS), 0), _BAR_CELLS)
@@ -147,7 +152,7 @@ def quota_bar(pct: float) -> str:
 def _bar_line(label: str, pct: float, resets: str | None) -> list[Span]:
     spans = [
         Span(f"{label} "),
-        Span(f"{quota_bar(pct)} {round(pct)}%", _LEVEL_ROLES[quota_level(pct)]),
+        Span(f"{quota_bar(pct)} {round(pct)}%", level_role(pct)),
     ]
     if resets is not None:
         spans.append(Span(f"  resets {resets}", Role.DIM))

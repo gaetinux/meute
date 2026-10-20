@@ -1,6 +1,6 @@
 """The board's panes drawn as Textual `Content`: never markup, so data shows literally."""
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from datetime import tzinfo
 
 from textual.content import Content
@@ -52,6 +52,24 @@ def tabs_content(line: StyledLine, *, focused: bool) -> Content:
     return Content.assemble(*parts)
 
 
+def highlighted_content(
+    lines: Iterable[tuple[StyledLine, bool, bool]], *, focused: bool, width: int
+) -> Content:
+    """Return `(line, selected, band)` rows in colour: selected ones on blue (grey while the
+    board does not have the focus), band ones on red, both padded to `width` so the
+    background spans the board.
+    """
+    highlight = SELECTED_STYLE if focused else BLURRED_SELECTED_STYLE
+    contents: list[Content] = []
+    for line, selected, band in lines:
+        content = styled_content(line)
+        if selected or band:
+            content = content.pad_right(max(width - content.cell_length, 0))
+            content = content.stylize(highlight if selected else BAND_STYLE)
+        contents.append(content)
+    return Content("\n").join(contents)
+
+
 def view_content(
     board: BoardSessions, selected: int, *, focused: bool = True, width: int = 0
 ) -> Content:
@@ -63,18 +81,15 @@ def view_content(
     lines = board.view.lines
     current = lines[selected] if 0 <= selected < len(lines) else None
     chosen = current.session_id if isinstance(current, SessionLine) else None
-    highlight = SELECTED_STYLE if focused else BLURRED_SELECTED_STYLE
-    contents: list[Content] = []
-    for index, line in enumerate(lines):
-        content = styled_content(line.spans)
-        is_selected = index == selected or (
-            isinstance(line, CardLine) and line.session_id == chosen
+    rows = (
+        (
+            line.spans,
+            index == selected or (isinstance(line, CardLine) and line.session_id == chosen),
+            line.band,
         )
-        if is_selected or line.band:
-            content = content.pad_right(max(width - content.cell_length, 0))
-            content = content.stylize(highlight if is_selected else BAND_STYLE)
-        contents.append(content)
-    return Content("\n").join(contents)
+        for index, line in enumerate(lines)
+    )
+    return highlighted_content(rows, focused=focused, width=width)
 
 
 def quota_content(line: QuotaLine, local: tzinfo) -> Content:

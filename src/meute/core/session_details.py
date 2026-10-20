@@ -4,24 +4,16 @@ from pathlib import Path
 
 from meute.core.claude_session import ClaudeDetails
 from meute.core.paths import display_path
-from meute.core.sessions_view_text import SessionInfo, clip
-from meute.core.styled import Role, Span, StyledLine
+from meute.core.sessions_view_text import SessionInfo
+from meute.core.styled import Role, Span, StyledLine, clip, labelled, title_rule
 from meute.core.text import one_line, printable
 
 _MAX_VALUE = 200
 _LABEL_WIDTH = 12
-_RULE = "─"
-
-
-def _rule(title: str, width: int) -> StyledLine:
-    """Return `─ {title} ───…`, `width` columns wide (cut when the title is longer)."""
-    head = f"{_RULE} {one_line(title, _MAX_VALUE)} "
-    return clip((Span(head + _RULE * max(width - len(head), 0), Role.ACCENT),), width)
 
 
 def _row(label: str, value: str, width: int) -> StyledLine:
-    padded = label.ljust(_LABEL_WIDTH)
-    return clip((Span(padded, Role.DIM), Span(one_line(value, _MAX_VALUE))), width)
+    return clip(labelled(label, _LABEL_WIDTH, Span(one_line(value, _MAX_VALUE))), width)
 
 
 def details_card(info: SessionInfo, *, home: Path | None, width: int) -> list[StyledLine]:
@@ -33,4 +25,5 @@ def details_card(info: SessionInfo, *, home: Path | None, width: int) -> list[St
         ("Folder", printable(display_path(session.cwd, home))),
         ("Waiting for", details.pending_permission),
     )
-    return [_rule(session.title, width), *(_row(k, v, width) for k, v in rows if v)]
+    rule = title_rule(one_line(session.title, _MAX_VALUE), width, Role.ACCENT)
+    return [rule, *(_row(k, v, width) for k, v in rows if v)]
