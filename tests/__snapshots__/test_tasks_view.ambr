@@ -1,0 +1,31 @@
+# serializer version: 1
+# name: test_snapshot_project
+  list([
+    '▼ Alpha (2)',
+    '  ◎    task 4  @Alpha                                  today',
+    '  ·    task 6  @Alpha                                       ',
+    '▼ meute (4)',
+    '  ·    task 2  @meute                              yesterday',
+    '  · !! task 1  @meute                                2h late',
+    '  ·    task 5  @meute                             Tue Oct 20',
+    '  ✓    task 7  @meute                                       ',
+    '▼ Floating (2)',
+    '  ·    task 3  (floating)                                6pm',
+    '  ✕    task 9  (floating)                       blocked: VPN',
+  ])
+# ---
+# name: test_snapshot_urgency
+  list([
+    '▼ Overdue (2)',
+    '  ·    task 2  @meute                              yesterday',
+    '  · !! task 1  @meute                                2h late',
+    '▼ Today (3)',
+    '  ·    task 3  (floating)                                6pm',
+    '  ◎    task 4  @Alpha                                  today',
+    '  ✕    task 9  (floating)                       blocked: VPN',
+    '▼ Upcoming (1)',
+    '  ·    task 5  @meute                             Tue Oct 20',
+    '▶ No due date (1)',
+    '▶ Done today (1)',
+  ])
+# ---

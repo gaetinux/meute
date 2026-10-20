@@ -102,7 +102,8 @@ def _format_day(day: date, now: datetime) -> str:
     return text if day.year == today.year else f"{text} {day.year}"
 
 
-def _format_clock(moment: datetime) -> str:
+def format_clock(moment: datetime) -> str:
+    """Format the time of `moment` on a 12-hour clock: `6pm`, `2:30pm`, `12am`."""
     hour = moment.hour % 12 or 12
     minutes = f":{moment.minute:02d}" if moment.minute else ""
     return f"{hour}{minutes}{'am' if moment.hour < 12 else 'pm'}"  # noqa: PLR2004 — noon
@@ -118,4 +119,4 @@ def format_due(due: Due, now: datetime) -> str:
             return _format_day(day, now)
         case DueAt(at=at):
             local = at.astimezone(now.tzinfo)
-            return f"{_format_day(local.date(), now)} {_format_clock(local)}"
+            return f"{_format_day(local.date(), now)} {format_clock(local)}"
