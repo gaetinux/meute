@@ -11,15 +11,17 @@ from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll
 from textual.content import Content
 from textual.geometry import Region
-from textual.widgets import Static
+from textual.widgets import Input, OptionList, Static
 
 from meute.core.board_header import Tab, tab_at, tabs_line
 from meute.core.board_view import (
     BOARD_TITLE,
+    EDIT_FOOTER,
     BoardAction,
     BoardData,
     Detach,
     StopSession,
+    TaskAction,
     error_text,
     stopping_text,
 )
@@ -58,6 +60,7 @@ class BoardApp(App[None]):
     """The Sessions view: quotas on top, grouped sessions, the selected one's details."""
 
     TITLE = BOARD_TITLE
+    AUTO_FOCUS = None  # the keys come to `on_key`; only an open task input takes the focus
     CSS: ClassVar[str] = """
     #quota { height: auto; }
     #sessions { height: 1fr; }
@@ -85,7 +88,14 @@ class BoardApp(App[None]):
             local=options.local,
             show_details=options.show_details,
         )
-        self._tasks_tab = TasksTab(perform=self._perform, local=options.local)
+        self._tasks_tab = TasksTab(
+            perform=self._perform,
+            write=self._write,
+            notice=self._say,
+            fail=self._fail,
+            local=options.local,
+        )
+        self._editor = self._tasks_tab.editor
         self._tabs: dict[Tab, TabController] = {
             Tab.SESSIONS: self._sessions_tab,
             Tab.TASKS: self._tasks_tab,
@@ -111,6 +121,7 @@ class BoardApp(App[None]):
         yield self._quota
         yield self._sessions
         yield self._details
+        yield self._editor.widget
         yield self._footer
 
     def on_mount(self) -> None:
@@ -130,9 +141,17 @@ class BoardApp(App[None]):
             if any(fitted):
                 self._draw()
 
-    # Every key comes here, not through bindings, so that a pending stop confirmation
-    # swallows any key; ctrl+q stays Textual's own priority binding and quits.
+    # Every key comes here, not through bindings, so a pending stop swallows any key; ctrl+q
+    # stays Textual's priority binding. An open task input takes every key but Escape.
     def on_key(self, event: events.Key) -> None:
+        if self._editor.editing:
+            if event.key in {"tab", "shift+tab"}:
+                event.prevent_default()  # the focus stays in the input
+            elif event.key == "escape":
+                self._error = self._notice = None
+                self._editor.cancel()
+                self._draw()
+            return
         self._error = self._notice = None
         if not self._current.handle_key(event.key):
             self._handle_key(event.key)
@@ -151,8 +170,21 @@ class BoardApp(App[None]):
         elif key == "q":
             self._perform(Detach())
 
+    def on_input_changed(self, event: Input.Changed) -> None:
+        self._editor.preview(event.value)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self._error = self._notice = None
+        self._editor.submit_text(event.value)
+        self._draw()
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        self._error = self._notice = None
+        self._editor.submit_choice(event.option_index)
+        self._draw()
+
     def on_click(self, event: events.Click) -> None:
-        if event.widget not in {self._board, self._title}:
+        if event.widget not in {self._board, self._title} or self._editor.editing:
             return
         self._error = self._notice = None
         if event.widget is self._title and self._current.prompt() is None:
@@ -194,6 +226,16 @@ class BoardApp(App[None]):
             self._backend.perform(action)
         except MeuteError as error:
             self._error = str(error)
+
+    def _write(self, action: TaskAction) -> None:
+        """Send a task change, then reread whatever happened; raises `MeuteError`."""
+        try:
+            self._backend.perform(action)
+        finally:
+            self._reload()
+
+    def _fail(self, message: str) -> None:
+        self._error = message
 
     def _stop(self, session: Session) -> None:
         """Stop `session` in a thread worker: tmux may take seconds to answer."""
@@ -252,4 +294,6 @@ class BoardApp(App[None]):
             return stopping_text(next(reversed(self._stopping.values())))
         if self._notice is not None:
             return self._notice
+        if self._editor.editing:
+            return EDIT_FOOTER
         return self._current.keys_help() if self._keys_help else self._current.footer()

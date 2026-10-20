@@ -15,7 +15,7 @@ from meute.core.repo import Repo
 from meute.core.session import Session, SessionId
 from meute.core.session_state import is_live
 from meute.core.statusline import StatuslineData
-from meute.core.task import Note, Task, TaskId, TaskPatch
+from meute.core.task import Note, Task, TaskId, TaskPatch, task_label
 from meute.core.text import printable
 
 BOARD_TITLE = "meute"
@@ -30,6 +30,8 @@ KEYS_HELP = (
     "? or Esc close this list"
 )
 TASKS_FOOTER = "a add · s status · d postpone · o note · L Claude · ? keys"
+EDIT_FOOTER = "Enter confirm · Esc cancel"
+MULTILINE_DESCRIPTION = "multi-line description: edit it with meute task edit"
 TASKS_KEYS_HELP = (
     "↑↓ select · Enter show its session · Space ←→ fold · f filter · g group\n"
     "a add · s status · p priority · d postpone · e title · D description\n"
@@ -251,6 +253,16 @@ def outside_line(agent: AgentInfo, home: Path | None) -> str:
 def confirm_stop_text(title: str) -> str:
     """Return the confirmation prompt shown before stopping a session."""
     return f'Stop "{printable(title)}"? y: yes · any other key: no'
+
+
+def confirm_delete_text(task_id: TaskId, title: str) -> str:
+    """Return the confirmation prompt shown before deleting a task."""
+    return f'Delete {task_label(task_id)} "{printable(title)}"? y: yes · any other key: no'
+
+
+def conflict_text(task_id: TaskId) -> str:
+    """Return the footer notice when a task changed since it was read."""
+    return f"{task_label(task_id)} was modified in the meantime: reloaded"
 
 
 def stopping_text(title: str) -> str:

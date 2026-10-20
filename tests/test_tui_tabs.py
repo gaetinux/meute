@@ -83,7 +83,7 @@ def test_sessions_keys_do_nothing_on_tasks() -> None:
     async def scenario() -> None:
         async with app.run_test(size=_SIZE) as pilot:
             await pilot.press("tab")
-            for key in ("x", "c", "n", "a", "e", "enter", "space"):
+            for key in ("x", "c", "n", "enter", "space"):
                 await pilot.press(key)
             footers.append(_text(app, "footer"))
             assert _on_tasks(app)

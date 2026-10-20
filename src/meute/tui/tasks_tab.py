@@ -1,4 +1,4 @@
-"""The Tasks tab: its cursor, its keys and clicks, the task detail."""
+"""The Tasks tab: its cursor, its keys and clicks, the task detail, the edits."""
 
 from collections.abc import Callable
 from datetime import datetime, tzinfo
@@ -6,23 +6,48 @@ from datetime import datetime, tzinfo
 from textual.content import Content
 
 from meute.core.board_header import tasks_totals
-from meute.core.board_view import TASKS_FOOTER, TASKS_KEYS_HELP, BoardAction, BoardData, ShowSession
+from meute.core.board_view import (
+    TASKS_FOOTER,
+    TASKS_KEYS_HELP,
+    BoardAction,
+    BoardData,
+    DeleteTask,
+    ShowSession,
+    TaskAction,
+    confirm_delete_text,
+)
 from meute.core.session import Session
 from meute.core.session_state import is_live
-from meute.core.task import TaskId
+from meute.core.task import Task, TaskId
 from meute.core.task_detail import task_detail_lines
 from meute.core.tasks_view import TaskGroupLine, TaskInfoLine, TaskLine, filters_line
+from meute.tui.task_edit import TaskEditor
 from meute.tui.tasks_cursor import TasksCursor
 from meute.tui.tasks_pane import rows_content, rule, tasks_content
 
 
 class TasksTab:
-    """The Tasks view; the board gives it where to send actions."""
+    """The Tasks view; the board gives it where to send actions, notices and errors.
 
-    def __init__(self, *, perform: Callable[[BoardAction], None], local: tzinfo) -> None:
+    `write` sends a task change and raises `MeuteError` when it is refused.
+    """
+
+    def __init__(
+        self,
+        *,
+        perform: Callable[[BoardAction], None],
+        write: Callable[[TaskAction], None],
+        notice: Callable[[str], None],
+        fail: Callable[[str], None],
+        local: tzinfo,
+    ) -> None:
         self._perform = perform
         self._local = local
         self.cursor = TasksCursor(datetime.now(local))
+        self.editor = TaskEditor(
+            write=write, notice=notice, fail=fail, data=lambda: self.cursor.data, local=local
+        )
+        self._confirming: Task | None = None
 
     @property
     def selected(self) -> int:
@@ -52,12 +77,23 @@ class TasksTab:
 
     def handle_key(self, key: str) -> bool:
         """Apply `key`; `False` when the board should deal with it."""
+        confirming, self._confirming = self._confirming, None
+        if confirming is not None:  # a pending delete swallows any key
+            if key == "y":
+                self.editor.send(DeleteTask(task_id=confirming.id, version=confirming.version))
+            return True
         if self.cursor.handle_key(key):
             return True
+        task = self.cursor.task_at(self.cursor.selected)
         if key == "enter":
             self._enter()
-            return True
-        return False
+        elif key == "a":
+            self.editor.create()
+        elif key == "delete":
+            self._confirming = task
+        elif not self.editor.start(key, task):
+            return False
+        return True
 
     def _enter(self) -> None:
         """Unfold a folded heading, or show the most recent live session of the task."""
@@ -80,8 +116,11 @@ class TasksTab:
         return sorted(linked, key=lambda session: session.last_activity_at, reverse=True)
 
     def click(self, y: int, x: int) -> None:
-        """Select the task at row `y`, or fold the heading there."""
+        """Select the task at row `y`, or fold the heading there; a click only cancels a delete."""
         _ = x
+        if self._confirming is not None:
+            self._confirming = None
+            return
         line = self.cursor.view.lines[y] if 0 <= y < len(self.cursor.view.lines) else None
         match line:
             case TaskLine():
@@ -122,8 +161,9 @@ class TasksTab:
         return rows_content(rows)
 
     def prompt(self) -> str | None:
-        """No confirmation yet."""
-        return None
+        """The pending delete confirmation, which takes over the footer."""
+        task = self._confirming
+        return None if task is None else confirm_delete_text(task.id, task.title)
 
     def footer(self) -> str:
         """The one-line keys."""
