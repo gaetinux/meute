@@ -143,11 +143,11 @@ class TasksTab:
         cursor = self.cursor
         return tasks_content(cursor.view, cursor.selected, focused=focused, width=cursor.width)
 
-    def quota(self) -> Content | None:
-        """The filter row and a rule, in the slot above the list."""
+    def quota(self, width: int) -> Content | None:
+        """The filter row and a rule, in the full-width slot above the list."""
         cursor = self.cursor
-        filters = filters_line(cursor.state, cursor.data.displayed_project, cursor.width)
-        return rows_content([filters, rule(cursor.width)])
+        filters = filters_line(cursor.state, cursor.data.displayed_project, width)
+        return rows_content([filters, rule(width)])
 
     def details(self, width: int) -> Content | None:
         """The selected task's detail, when a task is selected."""

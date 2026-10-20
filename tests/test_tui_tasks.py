@@ -265,3 +265,19 @@ def test_tasks_tab_empty(snap_compare: SnapCompare) -> None:
 def test_tasks_footer_fits_one_line_at_60_columns() -> None:
     assert TASKS_FOOTER == "a add · s status · d postpone · o note · L Claude · ? keys"
     assert len(TASKS_FOOTER) <= 58
+
+
+def test_filter_row_spans_the_full_width_when_the_list_scrolls() -> None:
+    due = at_due("2026-10-16T09:00[Europe/Paris]")
+    many = tuple(replace(make_task(n, due=due), title=f"Task {n}") for n in range(1, 41))
+
+    async def steps(pilot: Pilot[None], app: BoardApp) -> None:
+        await pilot.pause()
+        width = app.query_one("#quota", Static).size.width
+        assert app.query_one("#board", Static).size.width < width  # the scrollbar is there
+        filters, rule_line = _text(app, "quota").splitlines()
+        assert filters.endswith("f: filter")
+        assert len(filters) == width
+        assert rule_line == "─" * width
+
+    _ = _run(_data(many), steps)

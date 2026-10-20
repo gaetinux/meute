@@ -39,8 +39,8 @@ class TabController(Protocol):
         """The tab's lines."""
         ...
 
-    def quota(self) -> Content | None:
-        """The quota bars, or `None` to hide them."""
+    def quota(self, width: int) -> Content | None:
+        """The slot above the list, `width` columns wide, or `None` to hide it."""
         ...
 
     def details(self, width: int) -> Content | None:

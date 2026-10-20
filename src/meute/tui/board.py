@@ -257,7 +257,7 @@ class BoardApp(App[None]):
             self._tab, overdue=self._tasks_tab.overdue_count, totals=tab.totals(), width=width
         )
         self._title.update(tabs_content(tabs, focused=focused))
-        quota = tab.quota()
+        quota = tab.quota(width)
         self._quota.display = quota is not None
         if quota is not None:
             self._quota.update(quota)
