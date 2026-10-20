@@ -228,7 +228,7 @@ Décision de l'auteur, 2026-10-18. Le but est que l'utilisateur n'ait pas à con
 - **Session affichée** : sa carte porte une marque `▶` en première colonne, pour savoir ce que montre le panneau principal.
 - **Bordures** réduites à une ligne discrète.
 - **`M-t`** (§ 9.6) ouvre une fenêtre flottante tmux (`display-popup`) ; l'option `-B` (sans bordure) demande tmux 3.3 ou plus. Sur tmux 3.2, appuyer sur `M-t` affiche une erreur de tmux ; le reste de la configuration n'est pas affecté, car le `display-popup` est dans des chaînes d'un `if-shell`, analysées seulement à l'appui sur la touche, jamais au chargement du fichier.
-- **Focus visible** (précision de l'auteur, 2026-10-19) : le tableau affiche en haut un titre (`meute · Sessions`) en inverse et sa sélection en inverse quand il a le focus, le titre en gris et la sélection sur fond gris sinon (tmux lui transmet le focus, `focus-events`) ; tmux grise légèrement le fond du panneau qui n'a pas le focus (`window-style`). La passe visuelle complète du tableau est faite au début du plan 4b, pour les deux onglets.
+- **Focus visible** (précision de l'auteur, 2026-10-19) : le tableau affiche en haut la ligne des onglets (`Sessions  Tasks`, § 9.5) : quand il a le focus, l'onglet actif est en inverse sur la couleur d'accent et la sélection en inverse ; sans le focus, l'onglet actif est seulement souligné et la sélection sur fond gris (tmux lui transmet le focus, `focus-events`) ; tmux grise légèrement le fond du panneau qui n'a pas le focus (`window-style`). La passe visuelle complète du tableau est faite au début du plan 4b, pour les deux onglets.
 - **Détacher sans rien arrêter** : `q` dans le tableau et `M-q` partout.
 - **Messages et alertes de tmux masqués.**
 - **Le préfixe tmux** reste utilisable, mais n'est plus nécessaire.
@@ -483,7 +483,7 @@ Décision de l'auteur, 2026-10-19.
 - **Projet** : un nom, une description, des consignes, et un ou plusieurs dépôts. Au premier lancement d'une session dans un dépôt sans projet, un projet du même nom est créé automatiquement et lié à ce dépôt. Plusieurs dépôts peuvent ensuite être regroupés dans un même projet.
 - **Vue Sessions** :
   - les sessions sont regroupées par projet, à défaut par dépôt, à défaut sous `Other`, en attendant la création automatique des projets (plan 6) ;
-  - l'en-tête de chaque projet affiche son nom, son type, son temps et son coût, et se replie en une ligne de résumé ;
+  - l'en-tête de chaque projet affiche son nom, son type, le nombre de sessions vivantes et son coût (le temps n'y figure plus, selon la maquette validée le 2026-10-19), et se replie en une ligne de résumé ;
   - les projets sans session vivante sont listés en bas, avec l'action « + session ».
 
 ## 11. Worktrees et Git
