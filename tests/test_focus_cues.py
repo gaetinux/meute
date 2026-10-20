@@ -64,10 +64,17 @@ def test_board_shows_whether_it_has_the_focus() -> None:
     asyncio.run(scenario())
     focused, blurred, back = seen
     assert focused[0].startswith(" Sessions  Tasks ")
-    assert ROLE_STYLES[Role.TAB_ACTIVE] in focused[1]
+    assert focused[1] == {
+        ROLE_STYLES[Role.TAB_ACTIVE],
+        ROLE_STYLES[Role.TAB],
+        ROLE_STYLES[Role.DIM],
+    }
     assert SELECTED_STYLE in focused[2]
-    assert ROLE_STYLES[Role.TAB_ACTIVE] not in blurred[1]
-    assert f"{ROLE_STYLES[Role.TAB]} underline" in blurred[1]
+    assert blurred[1] == {
+        f"{ROLE_STYLES[Role.TAB]} underline",
+        ROLE_STYLES[Role.TAB],
+        ROLE_STYLES[Role.DIM],
+    }
     assert BLURRED_SELECTED_STYLE in blurred[2]
     assert SELECTED_STYLE not in blurred[2]
     assert back == focused
