@@ -13,6 +13,7 @@ from textual.content import Content
 from textual.geometry import Region
 from textual.widgets import Static
 
+from meute.core.board_header import Tab, board_totals, tabs_line
 from meute.core.board_sessions import line_at, line_entry, line_group, line_info
 from meute.core.board_view import (
     BOARD_TITLE,
@@ -42,11 +43,16 @@ from meute.core.sessions_view import (
     RepoLine,
     SectionLine,
     SessionLine,
-    fold_key,
+    section_key,
     session_index,
 )
 from meute.tui.sessions_cursor import SessionsCursor
-from meute.tui.sessions_pane import details_content, quota_content, title_content, view_content
+from meute.tui.sessions_pane import (
+    details_content,
+    quota_content,
+    tabs_content,
+    view_content,
+)
 
 
 class BoardBackend(Protocol):
@@ -77,11 +83,10 @@ class BoardApp(App[None]):
 
     TITLE = BOARD_TITLE
     CSS: ClassVar[str] = """
-    #title { color: $text-muted; }
     #quota { height: auto; }
     #sessions { height: 1fr; }
     #board { text-wrap: nowrap; text-overflow: ellipsis; }
-    #details { height: auto; max-height: 50%; border-top: solid $secondary; }
+    #details { height: auto; max-height: 50%; }
     #footer { dock: bottom; }
     """
 
@@ -121,6 +126,18 @@ class BoardApp(App[None]):
     def on_mount(self) -> None:
         self._reload()
         _ = self.set_interval(self._poll_seconds, self._reload)
+        self.call_after_refresh(self._fit)
+
+    def on_resize(self) -> None:
+        """The terminal changed size: the cards are laid out again for the new width."""
+        self.call_after_refresh(self._fit)
+
+    def _fit(self) -> None:
+        """Lay the cards out for the width the board really has, then redraw."""
+        width = self._board.size.width
+        if width > 0 and width != self._cursor.width:
+            self._cursor.resize(width)
+            self._draw()
 
     # Every key comes here, not through bindings, so that a pending stop confirmation
     # swallows any key; ctrl+q stays Textual's own priority binding and quits.
@@ -188,10 +205,10 @@ class BoardApp(App[None]):
             case CardLine() | RefLine():  # the card's first line, in "Needs you" for a reference
                 index = session_index(self._cursor.model.view, line.session_id)
                 self._cursor.selected = index if index >= 0 else self._cursor.selected
-            case HeaderLine() | SectionLine():
-                key = fold_key(line)
-                if key is not None:
-                    self._cursor.fold(key, fold=not line.collapsed)
+            case HeaderLine():
+                self._cursor.fold(line.group, fold=not line.collapsed)
+            case SectionLine():
+                self._cursor.fold(section_key(line.section), fold=not line.collapsed)
             case InfoLine() | None:
                 pass
             case _:
@@ -251,18 +268,23 @@ class BoardApp(App[None]):
 
     def _draw(self) -> None:
         focused = self.app_focus
-        self._title.update(title_content(f"{BOARD_TITLE} · Sessions", focused=focused))
+        width = self.size.width or self._cursor.width
+        tabs = tabs_line(
+            Tab.SESSIONS, overdue=0, totals=board_totals(self._cursor.model.data), width=width
+        )
+        self._title.update(tabs_content(tabs, focused=focused))
         quota = self._cursor.model.data.quota
         self._quota.display = quota is not None
         if quota is not None:
             self._quota.update(quota_content(quota, self._local))
         board, selected = self._cursor.model, self._cursor.selected
-        self._board.update(view_content(board, selected, focused=focused))
+        self._board.update(view_content(board, selected, focused=focused, width=self._cursor.width))
         info = line_info(self._cursor.model, self._cursor.selected) if self._show_details else None
         self._details.display = info is not None
         if info is not None:
-            self._details.update(details_content(self._cursor.model, info))
+            self._details.update(details_content(self._cursor.model, info, width))
         self._footer.update(Content(self._footer_text()))
+        self.call_after_refresh(self._fit)  # a scrollbar that came or went changes the width
 
     def _footer_text(self) -> str:
         if self._error is not None:

@@ -7,9 +7,14 @@ from textual import events
 from textual.content import Content
 from textual.widgets import Static
 
+from meute.core.styled import Role
 from meute.tmux.conf import render_config
 from meute.tui.board import BoardApp
-from meute.tui.sessions_pane import BLURRED_SELECTED_STYLE, SELECTED_STYLE, TITLE_STYLE
+from meute.tui.sessions_pane import (
+    BLURRED_SELECTED_STYLE,
+    ROLE_STYLES,
+    SELECTED_STYLE,
+)
 from support import board_data
 from test_tmux_conf import make_spec
 from test_tui_board import FakeBackend
@@ -58,10 +63,11 @@ def test_board_shows_whether_it_has_the_focus() -> None:
 
     asyncio.run(scenario())
     focused, blurred, back = seen
-    assert focused[0] == " meute · Sessions "
-    assert focused[1] == {TITLE_STYLE}
+    assert focused[0].startswith(" Sessions  Tasks ")
+    assert ROLE_STYLES[Role.TAB_ACTIVE] in focused[1]
     assert SELECTED_STYLE in focused[2]
-    assert blurred[1] == set()
+    assert ROLE_STYLES[Role.TAB_ACTIVE] not in blurred[1]
+    assert f"{ROLE_STYLES[Role.TAB]} underline" in blurred[1]
     assert BLURRED_SELECTED_STYLE in blurred[2]
     assert SELECTED_STYLE not in blurred[2]
     assert back == focused

@@ -153,7 +153,7 @@ def test_session_line_marks_displayed_and_attention() -> None:
     displayed = replace(info, row=replace(info.row, displayed=True))
     line = _view([displayed]).lines[1]
     assert isinstance(line, SessionLine)
-    assert line.text == "  ! ask · alpha · permission requested"
+    assert line.text == "▶ ! ask · alpha · permission requested"
     assert line.attention is True
 
 

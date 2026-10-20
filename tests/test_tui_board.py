@@ -30,6 +30,7 @@ from meute.core.repo import Repo
 from meute.core.session import SessionId
 from meute.core.sessions_view import SessionLine, ViewState
 from meute.tui.board import BoardApp
+from meute.tui.sessions_pane import SELECTED_STYLE
 from support import (
     BOARD_HOME,
     BOARD_ID_A,
@@ -40,6 +41,7 @@ from support import (
     board_data,
     board_repo,
     board_session,
+    selected_row,
 )
 
 _SIZE = (60, 30)
@@ -87,8 +89,8 @@ def _content(app: BoardApp, widget_id: str) -> Content:
 
 
 def _highlighted(app: BoardApp) -> list[str]:
-    content = _content(app, "board")
-    return [content.plain[span.start : span.end] for span in content.spans]
+    """The selected line (the first of a card), without the padding that fills its background."""
+    return [row.rstrip() for row in selected_row(_content(app, "board"), (SELECTED_STYLE,))]
 
 
 def _run(backend: FakeBackend, *keys: str) -> str:
@@ -115,11 +117,11 @@ async def _reload(pilot: Pilot[None], backend: FakeBackend, data: BoardData) -> 
 
 
 def _view_texts(data: BoardData) -> list[str]:
-    return [line.text for line in board_sessions(data, ViewState()).view.lines]
+    return [line.text for line in board_sessions(data, ViewState(), _SIZE[0]).view.lines]
 
 
 def _session_text(data: BoardData, session_id: SessionId) -> str:
-    lines = board_sessions(data, ViewState()).view.lines
+    lines = board_sessions(data, ViewState(), _SIZE[0]).view.lines
     return next(x.text for x in lines if isinstance(x, SessionLine) and x.session_id == session_id)
 
 
@@ -133,7 +135,8 @@ def test_board_shows_the_view_model_lines_and_highlights_the_first_entry() -> No
 
     async def scenario() -> None:
         async with app.run_test(size=_SIZE):
-            assert _content(app, "board").plain == "\n".join(_view_texts(data))
+            rows = _content(app, "board").plain.split("\n")
+            assert [row.rstrip() for row in rows] == [t.rstrip() for t in _view_texts(data)]
             assert _highlighted(app) == [_session_text(data, BOARD_ID_A)]
             assert _content(app, "footer").plain == FOOTER
 

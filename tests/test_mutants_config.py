@@ -21,7 +21,7 @@ from meute.core.errors import InvalidInput
 def test_defaults_when_every_section_is_empty() -> None:
     assert validate_config({}) == Config()
     ui = validate_config({"ui": {}}).ui
-    assert (ui.board_width, ui.narrow_threshold) == (60, 120)
+    assert (ui.board_width, ui.narrow_threshold) == (72, 120)
     quotas = validate_config({"quotas": {}}).quotas
     assert (quotas.peak_start_hour, quotas.peak_end_hour) == (8, 14)
 
@@ -91,7 +91,7 @@ def test_roots_permission_mode_and_timezone_messages() -> None:
     [
         ("repos.roots", '["~/git"]'),
         ("claude.permission_mode", "auto"),
-        ("ui.board_width", "60"),
+        ("ui.board_width", "72"),
         ("ui.narrow_threshold", "120"),
         ("quotas.peak_timezone", "America/New_York"),
         ("quotas.peak_start_hour", "8"),

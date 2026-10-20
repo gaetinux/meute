@@ -113,8 +113,10 @@ def _state_role(info: SessionInfo) -> Role:
 _SYMBOLS = {Role.ATTENTION: "!", Role.RUNNING: "●", Role.IDLE: "○"}
 
 
-def _clip(line: StyledLine, width: int) -> StyledLine:
+def clip(line: StyledLine, width: int) -> StyledLine:
     """Return `line` as is when it fits `width`, else cut to `width` and ending with `…`."""
+    if width <= 0:
+        return ()
     return line if len(plain(line)) <= width else (*fit(line, (), width - 1), Span("…"))
 
 
@@ -124,8 +126,15 @@ def _with_title(
     """Return `head`, the title shortened to leave room for `tail`, then `tail`."""
     room = width - len(plain(head)) - len(plain(tail))
     if room < 1:
-        return _clip((*head, Span(one_line(title, _MAX_REPLY), role), *tail), width)
+        return clip((*head, Span(one_line(title, _MAX_REPLY), role), *tail), width)
     return (*head, Span(one_line(title, room, ellipsis=True), role), *tail)
+
+
+def _head(info: SessionInfo, symbol: str, role: Role) -> StyledLine:
+    """Return `  {symbol} `, with `▶` for the first space on the session shown in the pane."""
+    if info.row.displayed:
+        return (Span("▶", Role.ACCENT), Span(f" {symbol} ", role))
+    return (Span(f"  {symbol} ", role),)
 
 
 def card_first_line(info: SessionInfo, *, now: datetime, width: int) -> StyledLine:
@@ -138,9 +147,8 @@ def card_first_line(info: SessionInfo, *, now: datetime, width: int) -> StyledLi
         Span(state_label(session.state), role),
         Span("  " + (age if age == "now" else f"{age} ago"), Role.DIM),
     )
-    return _with_title(
-        (Span(f"  {_SYMBOLS[role]} ", role),), session.title, Role.TITLE, tail, width
-    )
+    head = _head(info, _SYMBOLS[role], role)
+    return _with_title(head, session.title, Role.TITLE, tail, width)
 
 
 def needs_you_first_line(info: SessionInfo, *, width: int) -> StyledLine:
@@ -149,7 +157,7 @@ def needs_you_first_line(info: SessionInfo, *, width: int) -> StyledLine:
         Span(f"{_SEPARATOR}{printable(info.group)}{_SEPARATOR}", Role.DIM),
         Span(attention_reason(info), Role.ATTENTION),
     )
-    head = (Span("  ! ", Role.ATTENTION),)
+    head = _head(info, "!", Role.ATTENTION)
     return _with_title(head, info.row.session.title, Role.TITLE, tail, width)
 
 
@@ -168,7 +176,7 @@ def _joined(parts: Sequence[Span], prefix: str, width: int) -> StyledLine | None
         if index:
             line.append(Span(_SEPARATOR, Role.DIM))
         line.append(part)
-    return _clip(tuple(line), width)
+    return clip(tuple(line), width)
 
 
 def _metrics_parts(details: ClaudeDetails, metrics: StatuslineData) -> list[Span]:
@@ -229,7 +237,7 @@ def header_line(  # noqa: PLR0913 — the group, what it shows, and the width
         left.append(Span(f" ◆ {printable(kind)}", Role.KIND))
     left.append(Span(totals, Role.DIM))
     if folded or not button:
-        return _clip(tuple(left), width)
+        return clip(tuple(left), width)
     return fit(tuple(left), (Span("+ session", Role.RUNNING),), width)
 
 
@@ -245,12 +253,12 @@ def needs_you_heading(title: str, count: int, *, folded: bool) -> StyledLine:
 
 def item_line(text: str, width: int) -> StyledLine:
     """Return an already printable item of a section, indented by two spaces."""
-    return _clip((Span(f"  {text}"),), width)
+    return clip((Span(f"  {text}"),), width)
 
 
 def dim_line(text: str, width: int) -> StyledLine:
     """Return an information line in the dim role."""
-    return _clip((Span(text, Role.DIM),), width)
+    return clip((Span(text, Role.DIM),), width)
 
 
 def details_lines(info: SessionInfo, *, now: datetime, home: Path | None) -> list[str]:  # noqa: ARG001 — the signature is shared with the other views

@@ -32,7 +32,7 @@ class ClaudeConfig:
 class UiConfig:
     """Dashboard layout."""
 
-    board_width: int = 60
+    board_width: int = 72
     narrow_threshold: int = 120
     show_details: bool = True
 
@@ -190,7 +190,7 @@ def validate_config(data: Mapping[str, object]) -> Config:
             stuck_after_minutes=_int(claude, "claude.stuck_after_minutes", 10, 1),
         ),
         ui=UiConfig(
-            board_width=_int(ui, "ui.board_width", 60, 1),
+            board_width=_int(ui, "ui.board_width", 72, 1),
             narrow_threshold=_int(ui, "ui.narrow_threshold", 120, 1),
             show_details=_bool(ui, "ui.show_details", default=True),
         ),

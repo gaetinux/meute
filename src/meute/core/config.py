@@ -44,7 +44,7 @@ stuck_after_minutes = 10
 
 [ui]
 # Dashboard width, in columns.
-board_width = 60
+board_width = 72
 # Below this terminal width, the dashboard goes full screen.
 narrow_threshold = 120
 # Show the details of the selected session under the list.

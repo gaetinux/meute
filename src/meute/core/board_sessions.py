@@ -22,7 +22,9 @@ from meute.core.sessions_view import (
     build_view,
     fold_key,
     group_name,
+    section_key,
 )
+from meute.core.sessions_view_cards import NEEDS_YOU
 from meute.core.styled import Span
 
 _NO_ACTIVITY = datetime(1970, 1, 1, tzinfo=UTC)
@@ -114,6 +116,8 @@ def line_group(board: BoardSessions, index: int) -> str | None:
     key = None if line is None else fold_key(line)
     if key is not None:
         return key
+    if isinstance(line, SessionLine) and line.band:  # a "Needs you" card folds that section
+        return section_key(NEEDS_YOU)
     info = line_info(board, index)
     return None if info is None else info.group
 

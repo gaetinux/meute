@@ -73,7 +73,7 @@ def test_details_and_metrics_reach_the_lines() -> None:
     model = board_sessions(data, ViewState())
     line = model.view.lines[_index(model, SessionLine)]
     assert isinstance(line, SessionLine)
-    assert line.text == "  ● build  running  5m ago"
+    assert line.text == "▶ ● build  running  5m ago"
     assert model.view.lines[_index(model, CardLine)].text == "    42% · plan"
 
 
@@ -81,7 +81,7 @@ def test_without_a_clock_ages_count_from_the_latest_activity() -> None:
     model = board_sessions(board_data(), ViewState())
     line = model.view.lines[_index(model, SessionLine)]
     assert isinstance(line, SessionLine)
-    assert line.text == "  ● build  running  now"
+    assert line.text == "▶ ● build  running  now"
 
 
 def test_no_sessions_says_how_to_start_one() -> None:

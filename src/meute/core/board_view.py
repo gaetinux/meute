@@ -18,7 +18,6 @@ from meute.core.statusline import StatuslineData
 from meute.core.text import printable
 
 BOARD_TITLE = "meute"
-REPOS_HEADING = "Repositories"
 ORPHANS_HEADING = "Orphans"
 OUTSIDE_HEADING = "Outside meute"
 NO_SESSIONS = "No sessions. Pick a repository and press n."
