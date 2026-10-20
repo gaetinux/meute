@@ -30,7 +30,7 @@ def _text(app: BoardApp, widget_id: str) -> str:
 
 
 def _on_tasks(app: BoardApp) -> bool:
-    return "No tasks yet." in _text(app, "board")
+    return "No tasks. Press a to add one." in _text(app, "board")
 
 
 def test_tab_switches_to_tasks_and_back() -> None:

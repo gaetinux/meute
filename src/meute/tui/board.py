@@ -85,9 +85,10 @@ class BoardApp(App[None]):
             local=options.local,
             show_details=options.show_details,
         )
+        self._tasks_tab = TasksTab(perform=self._perform, local=options.local)
         self._tabs: dict[Tab, TabController] = {
             Tab.SESSIONS: self._sessions_tab,
-            Tab.TASKS: TasksTab(),
+            Tab.TASKS: self._tasks_tab,
         }
         self._tab = Tab.SESSIONS
         self._error: str | None = None
@@ -163,7 +164,12 @@ class BoardApp(App[None]):
     def _choose_tab(self, x: int) -> None:
         """Choose the tab whose name was clicked."""
         width = self.size.width or self._sessions_tab.width
-        line = tabs_line(self._tab, overdue=0, totals=self._current.totals(), width=width)
+        line = tabs_line(
+            self._tab,
+            overdue=self._tasks_tab.overdue_count,
+            totals=self._current.totals(),
+            width=width,
+        )
         self._tab = tab_at(line, x) or self._tab
 
     def _say(self, notice: str) -> None:
@@ -220,7 +226,9 @@ class BoardApp(App[None]):
         focused = self.app_focus
         tab = self._current
         width = self.size.width or self._sessions_tab.width
-        tabs = tabs_line(self._tab, overdue=0, totals=tab.totals(), width=width)
+        tabs = tabs_line(
+            self._tab, overdue=self._tasks_tab.overdue_count, totals=tab.totals(), width=width
+        )
         self._title.update(tabs_content(tabs, focused=focused))
         quota = tab.quota()
         self._quota.display = quota is not None
