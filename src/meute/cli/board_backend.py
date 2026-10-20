@@ -16,7 +16,7 @@ from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.status_publish import publish_status
-from meute.cli.task_launch import launch_on_task
+from meute.cli.task_launch import READY_TIMEOUT_SECONDS, launch_on_task
 from meute.cli.task_quick_create import TUI_ACTOR, create_quick_task
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import (
@@ -186,7 +186,7 @@ class CliBoardBackend:
                 ctx, self._env, task_id, self._environ, monotonic=time.monotonic, sleep=time.sleep
             )
         if not ready:
-            raise PromptNotPasted(task_id)
+            raise PromptNotPasted(task_id, timeout_seconds=READY_TIMEOUT_SECONDS)
 
     def _stop(self, session_id: SessionId) -> None:
         """Stop a session on a connection of its own: the board runs this in a worker thread.

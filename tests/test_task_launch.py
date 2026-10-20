@@ -19,7 +19,7 @@ from meute.core.db.repos import sync_repos
 from meute.core.db.sessions import list_sessions
 from meute.core.db.task_notes import add_note, notes
 from meute.core.db.tasks import create_task, get_task
-from meute.core.errors import InvalidInput
+from meute.core.errors import InvalidInput, PromptNotPasted
 from meute.core.paths import Paths
 from meute.core.project import ProjectId, ProjectRef, RepoId
 from meute.core.repo import NewRepo, Repo
@@ -77,6 +77,14 @@ def test_no_repository_named_like_the_project_is_refused() -> None:
     task = replace(make_task(3), project=ProjectRef(id=ProjectId(1), name="meute"))
     with pytest.raises(InvalidInput, match=r"^#3 has no repository: "):
         task_launch_folder(task, _repos(board_repo(1, "other", None)), [])
+
+
+def test_prompt_not_pasted_names_the_timeout_it_was_given() -> None:
+    error = PromptNotPasted(TaskId(3), timeout_seconds=2.5)
+    assert str(error) == "#3: prompt not pasted (Claude not ready after 2.5 s)"
+    assert str(PromptNotPasted(TaskId(3), timeout_seconds=READY_TIMEOUT_SECONDS)).endswith(
+        "(Claude not ready after 10 s)"
+    )
 
 
 # --- launch_on_task, with the fake claude -----------------------------------------------------

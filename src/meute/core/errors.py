@@ -55,9 +55,13 @@ class VersionConflict(MeuteError):  # noqa: N818 — name fixed by the specifica
 
 
 class PromptNotPasted(MeuteError):  # noqa: N818 — a result to report, not a failure
-    """Claude was launched on a task but not ready within 10 s: the task text was not pasted."""
+    """Claude was launched on a task but not ready in time: the task text was not pasted."""
 
-    def __init__(self, task_id: "TaskId") -> None:
-        """Build the notice for the task `task_id`; its session stays launched."""
-        super().__init__(f"#{task_id}: prompt not pasted (Claude not ready after 10 s)")
+    def __init__(self, task_id: "TaskId", *, timeout_seconds: float) -> None:
+        """Build the notice for the task `task_id`, not ready after `timeout_seconds`.
+
+        Its session stays launched.
+        """
+        message = f"#{task_id}: prompt not pasted (Claude not ready after {timeout_seconds:g} s)"
+        super().__init__(message)
         self.task_id = task_id

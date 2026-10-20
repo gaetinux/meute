@@ -116,7 +116,7 @@ def test_a_second_l_during_the_launch_is_ignored() -> None:
 
 def test_claude_not_ready_says_the_prompt_was_not_pasted() -> None:
     backend = BlockingBackend()
-    backend.perform_error = PromptNotPasted(TaskId(1))
+    backend.perform_error = PromptNotPasted(TaskId(1), timeout_seconds=10)
     backend.release.set()
     expected = "#1: prompt not pasted (Claude not ready after 10 s)"
 

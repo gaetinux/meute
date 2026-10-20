@@ -282,7 +282,7 @@ def test_task_texts_of_the_footer_name_the_task_and_neutralise_the_title() -> No
 
 
 def test_prompt_not_pasted_keeps_its_task_and_message() -> None:
-    error = PromptNotPasted(TaskId(12))
+    error = PromptNotPasted(TaskId(12), timeout_seconds=10)
     assert str(error) == "#12: prompt not pasted (Claude not ready after 10 s)"
     assert error.task_id == 12
 
