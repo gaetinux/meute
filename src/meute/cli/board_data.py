@@ -1,7 +1,7 @@
 """Loading the data the dashboard and the session jumps both show."""
 
 from collections.abc import Collection, Mapping, Sequence
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from pathlib import Path
 
 from meute.cli.context import CliContext, local_now
@@ -84,6 +84,13 @@ def load_board_data(
     repos = list_repos(db)
     repo_by_id = {repo.id: repo for repo in repos}
     displayed = next((row.session for row in snapshot.sessions if row.displayed), None)
+    # Open tasks and those done since the local midnight; the buckets then say what shows.
+    midnight = datetime.combine(local.date(), time(), tzinfo=local.tzinfo)
+    tasks = tuple(
+        task
+        for task in list_tasks(db, TaskFilter(done_since=midnight))
+        if bucket_of(task, local) is not None
+    )
     return BoardData(
         sessions=snapshot.sessions,
         repos=tuple(repos),
@@ -96,12 +103,8 @@ def load_board_data(
         projects={ref.id: ref.name for ref in refs},
         quota=quota_line(ctx, clock, environ),
         now=local,
-        tasks=tuple(
-            task
-            for task in list_tasks(db, TaskFilter(include_done=True))
-            if bucket_of(task, local) is not None
-        ),
-        notes={task_id: tuple(found) for task_id, found in latest_notes(db).items()},
+        tasks=tasks,
+        notes=latest_notes(db, task_ids=[task.id for task in tasks]),
         project_refs=refs,
         displayed_project=None
         if displayed is None
