@@ -15,6 +15,7 @@ def welcome_text(keys: KeysConfig) -> str:
         f"{keys.focus_board}: dashboard · {keys.focus_main}: main area\n"
         f"{keys.next_attention} / {keys.previous_attention}:"
         " next / previous session that needs attention\n"
+        f"{keys.quick_task}: new task, from anywhere\n"
         f"{keys.detach} or q in the dashboard: detach, everything keeps running\n"
         "Hold Shift to select text with the mouse."
     )

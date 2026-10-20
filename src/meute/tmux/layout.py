@@ -39,6 +39,11 @@ def main_window_panes(tmux: Tmux) -> list[PaneInfo]:
     return [p for p in list_panes(tmux) if p.session == MAIN_SESSION and p.window == MAIN_WINDOW]
 
 
+def displayed_meute_id(tmux: Tmux) -> str | None:
+    """Return the meute identifier of the session shown in the main area, if any."""
+    return next((pane.meute_id for pane in main_window_panes(tmux) if pane.meute_id), None)
+
+
 def _is_board(pane: PaneInfo) -> bool:
     return pane.role == ROLE_BOARD
 

@@ -46,6 +46,7 @@ class KeysConfig:
     next_attention: str = "M-n"
     previous_attention: str = "M-N"
     detach: str = "M-q"
+    quick_task: str = "M-t"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -200,6 +201,7 @@ def validate_config(data: Mapping[str, object]) -> Config:
             next_attention=_key(keys, "next_attention", default_keys.next_attention),
             previous_attention=_key(keys, "previous_attention", default_keys.previous_attention),
             detach=_key(keys, "detach", default_keys.detach),
+            quick_task=_key(keys, "quick_task", default_keys.quick_task),
         ),
         quotas=QuotasConfig(
             peak_timezone=_timezone(quotas),

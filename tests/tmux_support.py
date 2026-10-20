@@ -1,11 +1,13 @@
 """A throw-away tmux server for tests: dedicated socket, empty configuration."""
 
 import os
+import shlex
 import shutil
 import signal
 import subprocess
 import time
-from contextlib import suppress
+from collections.abc import Generator
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
@@ -134,3 +136,43 @@ def clean_run_dir(binary: str, folder: Path) -> None:
     for sock in folder.glob("tmux-*/*"):
         _ = kill_socket(binary, sock.name, sock)
     shutil.rmtree(folder, ignore_errors=True)
+
+
+@contextmanager
+def attached_client(server: TestServer, *, columns: int, rows: int = 24) -> Generator[str]:
+    """Attach a real client to `test` on a terminal of `columns` by `rows`; yield its name.
+
+    `script` gives the client a pseudo-terminal, as tmux needs one to draw popups. The client
+    is detached at the end, which ends `script`; it is killed if it lingers.
+    """
+    attach = shlex.join(
+        [server.binary, *server.tmux.base_args()[1:], "attach-session", "-t", "test"]
+    )
+    environ = {key: value for key, value in os.environ.items() if key != "TMUX"}
+    script = shutil.which("script")
+    if script is None:
+        msg = "script (util-linux) is needed to attach a client"
+        raise AssertionError(msg)
+    process = subprocess.Popen(
+        [script, "-qfc", f"stty cols {columns} rows {rows}; exec {attach}", "/dev/null"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=environ,
+    )
+    try:
+        deadline = time.monotonic() + 10
+        while not (name := server.tmux.run("list-clients", "-F", "#{client_name}")):
+            if time.monotonic() >= deadline:
+                msg = "timed out waiting for the client to attach"
+                raise AssertionError(msg)
+            time.sleep(0.05)
+        yield name
+    finally:
+        with suppress(TmuxError):
+            _ = server.tmux.run("detach-client", "-s", "test")
+        try:
+            _ = process.wait(timeout=_EXIT_GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            _ = process.wait()

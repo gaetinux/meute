@@ -11,6 +11,7 @@ def test_welcome_text_uses_configured_keys() -> None:
         next_attention="F7",
         previous_attention="F8",
         detach="F9",
+        quick_task="F6",
     )
     assert welcome_text(keys) == (
         "meute\n"
@@ -18,6 +19,7 @@ def test_welcome_text_uses_configured_keys() -> None:
         "Pick a session in the dashboard and press Enter, or click it.\n"
         "M-b: dashboard · C-o: main area\n"
         "F7 / F8: next / previous session that needs attention\n"
+        "F6: new task, from anywhere\n"
         "F9 or q in the dashboard: detach, everything keeps running\n"
         "Hold Shift to select text with the mouse."
     )

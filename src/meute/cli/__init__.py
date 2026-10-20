@@ -9,6 +9,7 @@ import typer
 
 from meute.cli import task_commands as task_commands
 from meute.cli import task_edit_commands as task_edit_commands
+from meute.cli import task_quick as task_quick
 from meute.cli.config_commands import config_app
 from meute.cli.context import ENVIRONMENT_ERRORS, current_time, open_context
 from meute.cli.layout_commands import layout_app, open_meute

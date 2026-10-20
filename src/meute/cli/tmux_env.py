@@ -58,6 +58,7 @@ def open_tmux_env(ctx: CliContext, environ: Mapping[str, str]) -> TmuxEnv:
             next_attention=ctx.config.keys.next_attention,
             previous_attention=ctx.config.keys.previous_attention,
             detach=ctx.config.keys.detach,
+            quick_task=ctx.config.keys.quick_task,
         ),
     )
     config_file = ctx.paths.state_dir / "tmux.conf"

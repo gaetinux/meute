@@ -22,6 +22,7 @@
   set -g display-time 1000
   bind -n M-n run-shell -b "'/opt/meute/bin/python' '-m' 'meute' 'session' 'next'"
   bind -n M-N run-shell -b "'/opt/meute/bin/python' '-m' 'meute' 'session' 'previous'"
+  bind -n M-t if-shell -F "#{e|<:#{client_width},76}" "display-popup -B -E -w 100% -h 12 -T \"\" \"'/opt/meute/bin/python' '-m' 'meute' 'task' 'quick'\"" "display-popup -B -E -w 76 -h 12 -T \"\" \"'/opt/meute/bin/python' '-m' 'meute' 'task' 'quick'\""
   bind -n M-q detach-client
   bind -n M-p switch-client -t =meute:main \; select-pane -t '=meute:main.{right}'
   bind -n M-o if-shell -F "#{window_zoomed_flag}" "" "select-pane -t '=meute:main.{left}'"
