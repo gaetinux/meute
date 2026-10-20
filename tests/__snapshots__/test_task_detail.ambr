@@ -1,0 +1,19 @@
+# serializer version: 1
+# name: test_full
+  list([
+    '─ #12 Review PR #11 ────────────────────────────────────────',
+    'Status   todo · priority urgent · due today 8:30am (2h late)',
+    'Project  meute · repo ~/git/meute',
+    'About    Check the tabs',
+    'Notes    10:12 CI is green',
+    '         08:00 oldest',
+    'Sessions ● plan-4b running · ○ review-11 exited (1)',
+  ])
+# ---
+# name: test_minimal
+  list([
+    '─ #3 task 3 ────────────────────────────',
+    'Status   todo · priority normal',
+    'Project  floating',
+  ])
+# ---

@@ -17,6 +17,7 @@ from meute.core.session_state import (
     MaybeStuck,
     PermissionRequested,
     Running,
+    SessionState,
     SubagentRunning,
     Unknown,
     Unreachable,
@@ -96,9 +97,8 @@ def attention_reason(info: SessionInfo) -> str:
             assert_never(state)
 
 
-def _state_role(info: SessionInfo) -> Role:
-    """`!` for attention, `●` for a session at work, `○` for an idle or ended one."""
-    state = info.row.session.state
+def state_role(state: SessionState) -> Role:
+    """Return the role of a session card symbol: attention, at work, or idle or ended."""
     match state:
         case PermissionRequested() | WaitingInput() | MaybeStuck():
             return Role.ATTENTION
@@ -110,7 +110,7 @@ def _state_role(info: SessionInfo) -> Role:
             assert_never(state)
 
 
-_SYMBOLS = {Role.ATTENTION: "!", Role.RUNNING: "●", Role.IDLE: "○"}
+STATE_SYMBOLS = {Role.ATTENTION: "!", Role.RUNNING: "●", Role.IDLE: "○"}
 
 
 def clip(line: StyledLine, width: int) -> StyledLine:
@@ -140,14 +140,14 @@ def _head(info: SessionInfo, symbol: str, role: Role) -> StyledLine:
 def card_first_line(info: SessionInfo, *, now: datetime, width: int) -> StyledLine:
     """Return `  {sym} {title}  {state}  {age}`: the line of a session in its group."""
     session = info.row.session
-    role = _state_role(info)
+    role = state_role(info.row.session.state)
     age = age_text(session.last_activity_at, now)
     tail = (
         Span("  "),
         Span(state_label(session.state), role),
         Span("  " + (age if age == "now" else f"{age} ago"), Role.DIM),
     )
-    head = _head(info, _SYMBOLS[role], role)
+    head = _head(info, STATE_SYMBOLS[role], role)
     return _with_title(head, session.title, Role.TITLE, tail, width)
 
 
