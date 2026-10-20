@@ -9,12 +9,13 @@ from typing import assert_never
 from meute.core.agents import AgentInfo
 from meute.core.claude_session import ClaudeDetails
 from meute.core.paths import display_path
-from meute.core.project import ProjectId, RepoId
+from meute.core.project import ProjectId, ProjectRef, RepoId
 from meute.core.quota_view import QuotaLine
 from meute.core.repo import Repo
 from meute.core.session import Session, SessionId
 from meute.core.session_state import is_live
 from meute.core.statusline import StatuslineData
+from meute.core.task import Note, Task, TaskId, TaskPatch
 from meute.core.text import printable
 
 BOARD_TITLE = "meute"
@@ -62,6 +63,10 @@ class BoardData:
     projects: Mapping[ProjectId, str] = field(default_factory=dict[ProjectId, str])
     quota: QuotaLine | None = None
     now: datetime | None = None
+    tasks: tuple[Task, ...] = ()
+    notes: Mapping[TaskId, tuple[Note, ...]] = field(default_factory=dict[TaskId, tuple[Note, ...]])
+    project_refs: tuple[ProjectRef, ...] = ()
+    displayed_project: ProjectRef | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -99,7 +104,48 @@ class Detach:
     """Detach the terminal from meute, stopping nothing."""
 
 
-BoardAction = ShowSession | LaunchBash | LaunchClaude | StopSession | Detach
+@dataclass(frozen=True, slots=True, kw_only=True)
+class CreateTask:
+    """Create a task from a quick entry; `project` is the default when it has no `@`."""
+
+    text: str
+    project: ProjectRef | None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ChangeTask:
+    """Apply `patch` to a task still at `version`."""
+
+    task_id: TaskId
+    version: int
+    patch: TaskPatch
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AddNote:
+    """Attach a note to a task."""
+
+    task_id: TaskId
+    body: str
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class DeleteTask:
+    """Delete a task still at `version`."""
+
+    task_id: TaskId
+    version: int
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class LaunchOnTask:
+    """Start a Claude session on a task."""
+
+    task_id: TaskId
+
+
+TaskAction = CreateTask | ChangeTask | AddNote | DeleteTask | LaunchOnTask
+BoardAction = ShowSession | LaunchBash | LaunchClaude | StopSession | Detach | TaskAction
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

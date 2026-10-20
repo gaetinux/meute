@@ -15,10 +15,15 @@ from meute.core.db.projects import list_projects
 from meute.core.db.repos import list_repos
 from meute.core.db.samples import latest_metrics_by_session, latest_quota, quota_history
 from meute.core.db.sessions import list_sessions
+from meute.core.db.task_reads import latest_notes
+from meute.core.db.tasks import TaskFilter, list_tasks
+from meute.core.project import ProjectRef
 from meute.core.quota_view import PROJECTION_WINDOW, QuotaLine, current_quota, projected_limit
 from meute.core.session import SessionId
+from meute.core.session_project import session_project
 from meute.core.session_state import is_live
 from meute.core.statusline_render import peak_text
+from meute.core.views import bucket_of
 
 RECENTLY_ENDED = timedelta(days=7)
 
@@ -75,16 +80,31 @@ def load_board_data(
     db = ctx.db
     clock = db.now()
     live = [row.session.id for row in snapshot.sessions if is_live(row.session.state)]
+    projects = list_projects(db)
+    refs = tuple(ProjectRef(id=project.id, name=project.name) for project in projects)
+    repos = list_repos(db)
+    repo_by_id = {repo.id: repo for repo in repos}
+    displayed = next((row.session for row in snapshot.sessions if row.displayed), None)
     return BoardData(
         sessions=snapshot.sessions,
-        repos=tuple(list_repos(db)),
+        repos=tuple(repos),
         orphans=snapshot.orphans,
         home=Path.home(),
         outside=snapshot.outside,
         ended=recently_ended(ctx, {row.session.id for row in snapshot.sessions}, clock),
         details=claude_details_by_session(db),
         metrics=latest_metrics_by_session(db, live),
-        projects={project.id: project.name for project in list_projects(db)},
+        projects={project.id: project.name for project in projects},
         quota=quota_line(ctx, clock, environ),
         now=clock,
+        tasks=tuple(
+            task
+            for task in list_tasks(db, TaskFilter(include_done=True))
+            if bucket_of(task, clock) is not None
+        ),
+        notes={task_id: tuple(found) for task_id, found in latest_notes(db).items()},
+        project_refs=refs,
+        displayed_project=None
+        if displayed is None
+        else session_project(displayed, projects=refs, repos=repo_by_id),
     )

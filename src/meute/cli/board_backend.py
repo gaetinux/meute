@@ -16,19 +16,29 @@ from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.status_publish import publish_status
+from meute.cli.task_quick_create import TUI_ACTOR, create_quick_task
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import (
+    AddNote,
     BoardAction,
     BoardData,
+    ChangeTask,
+    CreateTask,
+    DeleteTask,
     Detach,
     LaunchBash,
     LaunchClaude,
+    LaunchOnTask,
     ShowSession,
     StopSession,
+    TaskAction,
 )
 from meute.core.db.claude_sessions import purge_samples
-from meute.core.errors import MeuteError
+from meute.core.db.task_notes import add_note
+from meute.core.db.task_update import delete_task, update_task
+from meute.core.errors import InvalidInput, MeuteError
 from meute.core.session import SessionId
+from meute.core.views import is_overdue
 from meute.tmux.panes import detach_client
 
 if TYPE_CHECKING:
@@ -109,7 +119,12 @@ class CliBoardBackend:
         title = next((row.session.title for row in data.sessions if row.displayed), None)
         sessions = [row.session for row in data.sessions]
         pct = None if data.quota is None else data.quota.five_hour_pct
-        self._status = publish_status(self._env.tmux, title, sessions, pct, self._status)
+        overdue = sum(
+            1 for task in data.tasks if data.now is not None and is_overdue(task, data.now)
+        )
+        self._status = publish_status(
+            self._env.tmux, title, sessions, pct, self._status, overdue=overdue
+        )
 
     def close(self) -> None:
         """Stop the background `claude agents` run, if any."""
@@ -144,6 +159,27 @@ class CliBoardBackend:
                 self._stop(action.session_id)
             case Detach():
                 detach_client(self._env.tmux)
+            case CreateTask() | ChangeTask() | AddNote() | DeleteTask() | LaunchOnTask():
+                self._task_action(action)
+            case _:
+                assert_never(action)
+
+    def _task_action(self, action: TaskAction) -> None:
+        """Write to the tasks as the TUI user, with the version the board last read."""
+        match action:
+            case CreateTask():
+                _ = create_quick_task(self._ctx, action.text, action.project)
+            case ChangeTask():
+                _ = update_task(
+                    self._ctx.db, action.task_id, action.version, action.patch, TUI_ACTOR
+                )
+            case AddNote():
+                _ = add_note(self._ctx.db, action.task_id, action.body, TUI_ACTOR)
+            case DeleteTask():
+                delete_task(self._ctx.db, action.task_id, action.version, TUI_ACTOR)
+            case LaunchOnTask():
+                message = "not available yet"
+                raise InvalidInput(message)
             case _:
                 assert_never(action)
 

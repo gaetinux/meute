@@ -188,4 +188,5 @@ pytest_add_cli_args_test_selection = [
     "tests/test_board_sessions.py", "tests/test_config_show_details.py", "tests/test_mutants_plan4.py",
     "tests/test_quota_current.py", "tests/test_task_line.py", "tests/test_tasks_view.py",
     "tests/test_task_detail.py", "tests/test_task_postpone.py", "tests/test_task_prompt.py",
+    "tests/test_db_task_reads.py", "tests/test_session_project.py", "tests/test_status_line_overdue.py",
 ]
