@@ -36,6 +36,16 @@ class TmuxEnv:
     config_file: Path
 
 
+def meute_tmux(ctx: CliContext, environ: Mapping[str, str]) -> Tmux:
+    """Return the client of meute's tmux server, without checking tmux or writing anything."""
+    socket = environ.get("MEUTE_TMUX_SOCKET") or DEFAULT_SOCKET
+    return Tmux(socket=socket, config_file=_config_file(ctx))
+
+
+def _config_file(ctx: CliContext) -> Path:
+    return ctx.paths.state_dir / "tmux.conf"
+
+
 def open_tmux_env(ctx: CliContext, environ: Mapping[str, str]) -> TmuxEnv:
     """Check tmux, write the generated configuration and return the client.
 
@@ -61,9 +71,6 @@ def open_tmux_env(ctx: CliContext, environ: Mapping[str, str]) -> TmuxEnv:
             quick_task=ctx.config.keys.quick_task,
         ),
     )
-    config_file = ctx.paths.state_dir / "tmux.conf"
+    config_file = _config_file(ctx)
     _write_if_changed(config_file, render_config(spec))
-    socket = environ.get("MEUTE_TMUX_SOCKET") or DEFAULT_SOCKET
-    return TmuxEnv(
-        tmux=Tmux(socket=socket, config_file=config_file), spec=spec, config_file=config_file
-    )
+    return TmuxEnv(tmux=meute_tmux(ctx, environ), spec=spec, config_file=config_file)
