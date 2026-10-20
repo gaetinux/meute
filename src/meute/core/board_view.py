@@ -25,7 +25,7 @@ FOOTER = "↑↓ select · Enter show · c/n new · x stop · ? keys"
 KEYS_HELP = (
     "↑↓ select · Enter show · Space ←→ fold a group\n"
     "c new Claude session · n new Bash session · x stop\n"
-    "a attention only · e ended sessions · q detach\n"
+    "a attention only · e ended sessions · Tab tasks · q detach\n"
     "? or Esc close this list"
 )
 

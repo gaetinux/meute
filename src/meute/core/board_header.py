@@ -26,6 +26,20 @@ def tabs_line(active: Tab, *, overdue: int, totals: str, width: int) -> StyledLi
     return fit(tuple(left), (Span(totals, Role.DIM),), width)
 
 
+def tab_at(line: StyledLine, x: int) -> Tab | None:
+    """Return the tab whose name covers column `x` of a tabs `line`, or `None`."""
+    names = iter(Tab)
+    start = 0
+    for span in line:
+        end = start + len(span.text)
+        if span.role in {Role.TAB, Role.TAB_ACTIVE}:
+            tab = next(names, None)
+            if start <= x < end:
+                return tab
+        start = end
+    return None
+
+
 def sessions_totals(live: int, duration_ms: int | None, cost: float | None) -> str:
     """Return `{live} live`, then the duration and the cost when known."""
     text = f"{live} live"

@@ -13,7 +13,7 @@ from textual.content import Content
 from textual.geometry import Region
 from textual.widgets import Static
 
-from meute.core.board_header import Tab, tabs_line
+from meute.core.board_header import Tab, tab_at, tabs_line
 from meute.core.board_view import (
     BOARD_TITLE,
     BoardAction,
@@ -141,7 +141,9 @@ class BoardApp(App[None]):
             self.call_after_refresh(self._sessions.scroll_to_region, region, animate=False)
 
     def _handle_key(self, key: str) -> None:
-        if key == "question_mark":
+        if key == "tab":
+            self._tab = Tab.TASKS if self._tab is Tab.SESSIONS else Tab.SESSIONS
+        elif key == "question_mark":
             self._keys_help = not self._keys_help
         elif key == "escape":
             self._keys_help = False
@@ -149,11 +151,20 @@ class BoardApp(App[None]):
             self._perform(Detach())
 
     def on_click(self, event: events.Click) -> None:
-        if event.widget is not self._board:
+        if event.widget not in {self._board, self._title}:
             return
         self._error = self._notice = None
-        self._current.click(round(event.y), round(event.x))
+        if event.widget is self._title:
+            self._choose_tab(round(event.x))
+        else:
+            self._current.click(round(event.y), round(event.x))
         self._draw()
+
+    def _choose_tab(self, x: int) -> None:
+        """Choose the tab whose name was clicked."""
+        width = self.size.width or self._sessions_tab.width
+        line = tabs_line(self._tab, overdue=0, totals=self._current.totals(), width=width)
+        self._tab = tab_at(line, x) or self._tab
 
     def _say(self, notice: str) -> None:
         self._notice = notice
