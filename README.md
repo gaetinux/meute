@@ -16,7 +16,7 @@ uv tool install --compile-bytecode .
 
 ## Keys
 
-Global keys (they work from any pane; rebind them in `config.toml` under `[keys]`):
+Global keys (they work from any pane; rebind them in `config.toml` under `[keys]`). The bar at the bottom of the screen always lists them, as configured; where the dashboard is hidden it adds the meute status (displayed session, attention, 5 h quota, overdue tasks):
 
 | Key | Action |
 |---|---|

@@ -182,7 +182,7 @@ On évite ainsi un protocole de socket, la gestion des versions entre clients, u
   - `M-p` : focus sur le tableau de bord ;
   - `M-o` : focus sur la zone principale ;
   - `M-n` / `M-N` : session suivante / précédente parmi celles « needs attention ».
-- **La barre d'état tmux** affiche la session affichée et le nombre de sessions « needs attention ». Elle est remplacée par une ligne meute (§ 5.6).
+- **La barre d'état tmux** est remplacée par une ligne meute : les touches globales, et là où le tableau est masqué la session affichée et le nombre de sessions « needs attention » (§ 5.6).
 - **Se détacher** (`q` dans le tableau de bord, `M-q` partout, `prefix d` ou fermeture du terminal, voir § 5.6) laisse tout tourner. Relancer `meute` permet de se rattacher.
 
 ### 5.2 Mode étroit
@@ -223,7 +223,7 @@ Décision de l'auteur, 2026-10-18. Le but est que l'utilisateur n'ait pas à con
   - un clic sur un panneau lui donne le focus ;
   - la molette fait défiler ;
   - la sélection de texte se fait en maintenant `Shift`.
-- **Ligne d'état meute** : la barre d'état de tmux est remplacée par une ligne meute, qui affiche la session affichée, le nombre de sessions « needs attention », le quota 5 h et, s'il y en a, le nombre de tâches en retard (`· 2 overdue`, § 9.5). Elle n'apparaît que là où le tableau de bord est masqué (mode étroit, session affichée en plein écran) : à côté du tableau, elle répéterait ce qu'il montre (précision de l'auteur, 2026-10-19).
+- **Ligne d'état meute** : la barre d'état de tmux est remplacée par une ligne meute, sur une ligne en bas de tout l'écran. Elle affiche toujours, à gauche et en gris (`colour245`), les touches globales, construites depuis `[keys]` : `M-p panel · M-o back · M-n/M-N next · M-t task · M-q detach` (décision de l'auteur, 2026-10-20 : depuis Claude, on ne savait pas comment revenir au tableau sans cliquer). Là où le tableau de bord est masqué (mode étroit, session affichée en plein écran), elle y ajoute à droite la session affichée, le nombre de sessions « needs attention », le quota 5 h et, s'il y en a, le nombre de tâches en retard (`· 2 overdue`, § 9.5) ; à côté du tableau, cette partie répéterait ce qu'il montre (précision de l'auteur, 2026-10-19).
 - **Pied du tableau** : une seule ligne avec les touches essentielles (`↑↓ select · Enter show · c/n new · x stop · ? keys`) ; `?` affiche la liste complète des touches, `?` ou `Échap` la referme. Dans l'onglet Tâches, le pied devient `a add · s status · d postpone · o note · L Claude · ? keys` (57 colonnes, pour tenir dans les 72 du tableau ; `p`, `e` et les autres touches sont dans `?`). Pendant qu'une saisie ou une liste de choix est ouverte, il affiche `Enter confirm · Esc cancel`.
 - **Session affichée** : sa carte porte une marque `▶` en première colonne, pour savoir ce que montre le panneau principal.
 - **Bordures** réduites à une ligne discrète.
