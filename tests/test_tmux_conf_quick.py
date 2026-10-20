@@ -39,7 +39,7 @@ def _binding(text: str, key: str) -> str:
 def _popup(width: str) -> str:
     """The popup command of the brief, escaped once more for the `if-shell` around it."""
     command = r"'/opt/meute/bin/python' '-m' 'meute' 'task' 'quick'"
-    return rf"display-popup -B -E -w {width} -h 12 \"{command}\""
+    return rf"display-popup -B -EE -w {width} -h 12 \"{command}\""
 
 
 def test_quick_task_line() -> None:
@@ -151,3 +151,27 @@ def test_a_second_m_t_opens_no_second_window(tmux_server: TestServer, tmp_path: 
         time.sleep(2.5)
     assert len(_runs(out)) == 1
     assert not (tmp_path / "second").exists()
+
+
+@pytest.mark.parametrize(("status", "stays_open"), [(0, False), (1, True)])
+def test_a_failed_quick_task_keeps_its_window_open(
+    tmux_server: TestServer, tmp_path: Path, status: int, *, stays_open: bool
+) -> None:
+    folder = tmp_path / "bin"
+    folder.mkdir()
+    script = folder / "python"
+    script.write_text(f'#!/bin/sh\nprintf \'%s\\0\' "$0" "$@" >> "$OUT"\nexit {status}\n')
+    script.chmod(0o755)
+    out = _install(tmux_server, tmp_path, script)
+    second = tmp_path / "second"
+    with attached_client(tmux_server, columns=100) as client:
+        tmux_server.tmux.run("send-keys", "-K", "-c", client, "M-t")
+        wait_until("the popup command", lambda: bool(_runs(out)))
+        time.sleep(0.5)  # the popup closes, or not, once its command exited
+        # A popup asked for while one is open is refused without a word (nothing runs).
+        tmux_server.tmux.run("display-popup", "-c", client, "-E", f"touch {second}")
+        if stays_open:
+            time.sleep(0.5)
+        else:
+            wait_until("the second popup", second.exists)
+    assert second.exists() is not stays_open

@@ -99,7 +99,7 @@ def _quick_task_binding(spec: LayoutSpec) -> tuple[str, ...]:
         return ()
     command = _shell_string(quick_task_command(spec.attention_command))
     narrow, wide = (
-        _tmux_escape(f"display-popup -B -E -w {width} -h {_POPUP_HEIGHT} {command}")
+        _tmux_escape(f"display-popup -B -EE -w {width} -h {_POPUP_HEIGHT} {command}")
         for width in ("100%", _POPUP_WIDTH)
     )
     condition = f"#{{e|<:#{{client_width}},{_POPUP_WIDTH}}}"

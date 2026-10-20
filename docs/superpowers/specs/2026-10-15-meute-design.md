@@ -474,7 +474,7 @@ Décision de l'auteur, 2026-10-19.
 
 - `M-t` (configurable, `[keys] quick_task`) ouvre de partout une petite fenêtre tmux par-dessus l'écran (`display-popup`), avec le champ de saisie rapide (§ 9.3) et l'aperçu en direct.
 - Sans `@projet`, la tâche est rattachée au projet de la session affichée ; l'aperçu l'indique et `@none` force une tâche volante.
-- **Dimensions** : 12 lignes de haut, 76 colonnes de large ou 100 % du client s'il fait moins de 76 colonnes (tmux refuse une fenêtre plus large que le client) ; `-B` : pas de bordure ; le `#` n'est pas doublé dans la commande de `display-popup`, qui n'étend aucun format. Cela demande tmux 3.3 ou plus (§ 5.6).
+- **Dimensions** : 12 lignes de haut, 76 colonnes de large ou 100 % du client s'il fait moins de 76 colonnes (tmux refuse une fenêtre plus large que le client) ; `-B` : pas de bordure ; `-EE` : la fenêtre ne se ferme d'elle-même que si la commande réussit (`Entrée` et `Échap` sortent avec 0), pour qu'une erreur au démarrage reste lisible jusqu'à l'appui sur une touche ; le `#` n'est pas doublé dans la commande de `display-popup`, qui n'étend aucun format. Cela demande tmux 3.3 ou plus (§ 5.6).
 - `Entrée` crée la tâche et ferme la fenêtre : l'utilisateur reste exactement où il était. `Échap` annule. En cas d'erreur (base verrouillée, projet inconnu), la fenêtre reste ouverte avec le texte et l'erreur.
 
 ## 10. Projets et dépôts
