@@ -7,7 +7,7 @@ import typer
 
 from meute.cli.context import ENVIRONMENT_ERRORS, CliContext, local_now, open_context
 from meute.cli.task_app import task_app
-from meute.cli.task_quick_create import create_quick_task
+from meute.cli.task_quick_create import create_quick_task, repo_names
 from meute.cli.tmux_env import meute_tmux
 from meute.core.db.projects import project_refs
 from meute.core.db.repos import list_repos
@@ -66,11 +66,16 @@ class CliQuickBackend:
         self._projects = projects
 
     def context(self) -> "QuickContext":
-        """Return the clock, the default project and all the projects."""
+        """Return the clock, the default project, all the projects and the repository names."""
         from meute.tui.quick_task import QuickContext  # noqa: PLC0415 — keeps Textual out of every other command's start-up
 
         projects = project_refs(self._ctx.db) if self._projects is None else self._projects
-        return QuickContext(now=local_now(self._ctx), default=self._default, projects=projects)
+        return QuickContext(
+            now=local_now(self._ctx),
+            default=self._default,
+            projects=projects,
+            repo_names=repo_names(self._ctx.db),
+        )
 
     def create(self, text: str) -> Task:
         """Create the task `text` describes, as the TUI user.

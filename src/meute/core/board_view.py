@@ -153,7 +153,16 @@ class LaunchOnTask:
     task_id: TaskId
 
 
-TaskAction = CreateTask | ChangeTask | AddNote | DeleteTask | LaunchOnTask
+@dataclass(frozen=True, slots=True, kw_only=True)
+class MoveToRepoProject:
+    """Move a task still at `version` to the project to create from the repository `name`."""
+
+    task_id: TaskId
+    version: int
+    name: str
+
+
+TaskAction = CreateTask | ChangeTask | MoveToRepoProject | AddNote | DeleteTask | LaunchOnTask
 BoardAction = ShowSession | LaunchBash | LaunchClaude | StopSession | Detach | TaskAction
 
 

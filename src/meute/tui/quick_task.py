@@ -26,11 +26,15 @@ _PROJECT_WIDTH = 40
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class QuickContext:
-    """What the preview needs: the clock, the displayed session's project and all projects."""
+    """What the preview needs: the clock, the displayed session's project, all projects.
+
+    `repo_names` are the known repositories, whose names `@` may also give.
+    """
 
     now: datetime
     default: ProjectRef | None
     projects: tuple[ProjectRef, ...]
+    repo_names: tuple[str, ...] = ()
 
 
 class QuickTaskBackend(Protocol):
@@ -122,7 +126,11 @@ class QuickTaskApp(App[None]):
     def _preview(self, text: str) -> QuickPreview:
         context = self._quick
         return quick_preview(
-            text, now=context.now, default=context.default, projects=context.projects
+            text,
+            now=context.now,
+            default=context.default,
+            projects=context.projects,
+            repo_names=context.repo_names,
         )
 
     def _show(self, text: str) -> None:

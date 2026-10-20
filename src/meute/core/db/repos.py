@@ -4,9 +4,10 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from meute.core.db.connection import Database
+from meute.core.db.projects import create_project
 from meute.core.db.rows import as_integer, as_text, fetch_all
 from meute.core.instants import from_db, to_db
-from meute.core.project import RepoId
+from meute.core.project import Project, ProjectId, RepoId
 from meute.core.repo import NewRepo, Repo
 
 _text = as_text
@@ -45,3 +46,26 @@ def list_repos(db: Database) -> list[Repo]:
         (_row_to_repo(row) for row in rows),
         key=lambda repo: (repo.name.casefold(), str(repo.path)),
     )
+
+
+def link_repo(db: Database, project_id: ProjectId, repo_id: RepoId) -> None:
+    """Attach a repository to a project; attaching it again changes nothing."""
+    with db.transaction() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO project_repos (project_id, repo_id) VALUES (?, ?)",
+            (project_id, repo_id),
+        )
+
+
+def create_repo_project(db: Database, name: str) -> Project:
+    """Create the project `name` and attach every repository of that name (ignoring case).
+
+    Raises:
+        InvalidInput: the name is empty or already used (nothing is attached).
+    """
+    project = create_project(db, name)
+    key = project.name.casefold()
+    for repo in list_repos(db):
+        if repo.name.strip().casefold() == key:
+            link_repo(db, project.id, repo.id)
+    return project

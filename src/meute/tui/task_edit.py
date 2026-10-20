@@ -1,6 +1,6 @@
 """The task edits of the Tasks tab: what each key asks for on the line, what Enter sends."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime, tzinfo
 from enum import Enum
@@ -12,12 +12,14 @@ from meute.core.board_view import (
     BoardData,
     ChangeTask,
     CreateTask,
+    MoveToRepoProject,
     TaskAction,
     conflict_text,
 )
 from meute.core.errors import MeuteError, NotFound, VersionConflict
-from meute.core.project import ProjectId, ProjectRef
+from meute.core.project import ProjectId
 from meute.core.quick_preview import (
+    NewFromRepo,
     QuickPreview,
     choice_project_id,
     preview_lines,
@@ -120,11 +122,16 @@ def _ask(edit: _TaskEdit | _NewTask) -> Ask:
     return _choice_ask(edit.field, edit.task)
 
 
-def _project_id(text: str, projects: Sequence[ProjectRef]) -> ProjectId | None:
+def _repo_names(data: BoardData) -> tuple[str, ...]:
+    return tuple(repo.name for repo in data.repos)
+
+
+def _project_id(text: str, data: BoardData) -> ProjectId | NewFromRepo | None:
     """The project typed on the line: blank or `none` floats; raises `InvalidInput` if unknown."""
     if not text.strip():
         return None
-    return choice_project_id(resolve_quick_project(text, None, projects))
+    choice = resolve_quick_project(text, None, data.project_refs, _repo_names(data))
+    return choice_project_id(choice)
 
 
 def _text_action(field: _TextField, task: Task, text: str, data: BoardData) -> TaskAction:
@@ -137,7 +144,10 @@ def _text_action(field: _TextField, task: Task, text: str, data: BoardData) -> T
         case _TextField.DESCRIPTION:
             patch = TaskPatch(description=text)
         case _TextField.PROJECT:
-            patch = TaskPatch(project_id=_project_id(text, data.project_refs))
+            project = _project_id(text, data)
+            if isinstance(project, NewFromRepo):
+                return MoveToRepoProject(task_id=task.id, version=task.version, name=project.name)
+            patch = TaskPatch(project_id=project)
         case _TextField.NOTE:
             return AddNote(task_id=task.id, body=text)
         case _:
@@ -207,7 +217,11 @@ class TaskEditor:
     def _quick(self, text: str) -> QuickPreview:
         data = self._data()
         return quick_preview(
-            text, now=self._now(), default=data.displayed_project, projects=data.project_refs
+            text,
+            now=self._now(),
+            default=data.displayed_project,
+            projects=data.project_refs,
+            repo_names=_repo_names(data),
         )
 
     def preview(self, text: str) -> None:

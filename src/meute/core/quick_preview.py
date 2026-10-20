@@ -58,11 +58,20 @@ class UnknownProject:
     suggestion: str | None
 
 
-ProjectChoice = Named | Displayed | Floating | UnknownProject
+@dataclass(frozen=True, slots=True)
+class NewFromRepo:
+    """`@name` matches no project but the repository `name`: creating makes its project."""
+
+    name: str
 
 
-def choice_project_id(choice: ProjectChoice) -> ProjectId | None:
+ProjectChoice = Named | Displayed | Floating | NewFromRepo | UnknownProject
+
+
+def choice_project_id(choice: ProjectChoice) -> ProjectId | NewFromRepo | None:
     """Return the id of the project `choice` names; None when the task floats.
+
+    A project still to create from a repository is returned as is.
 
     Raises:
         InvalidInput: the project is unknown (`unknown project: {name}`, then ` ({close}?)`
@@ -73,6 +82,8 @@ def choice_project_id(choice: ProjectChoice) -> ProjectId | None:
             return ref.id
         case Floating():
             return None
+        case NewFromRepo():
+            return choice
         case UnknownProject(name=name, suggestion=suggestion):
             hint = "" if suggestion is None else f" ({suggestion}?)"
             message = f"{PreviewError.UNKNOWN_PROJECT}: {name.strip()}{hint}"
@@ -102,11 +113,15 @@ def _key(name: str) -> str:
 
 
 def resolve_quick_project(
-    name: str | None, default: ProjectRef | None, projects: Sequence[ProjectRef]
+    name: str | None,
+    default: ProjectRef | None,
+    projects: Sequence[ProjectRef],
+    repo_names: Sequence[str] = (),
 ) -> ProjectChoice:
     """Resolve the `@name` of a quick entry (None when absent) against `projects`.
 
     `@none` floats, a name matches ignoring case and outer spaces, no `@` takes `default`.
+    A name matching no project but one of `repo_names` makes the project of that repository.
     """
     if name is None:
         return Floating(explicit=False) if default is None else Displayed(default)
@@ -116,15 +131,24 @@ def resolve_quick_project(
     for project in projects:
         if _key(project.name) == key:
             return Named(project)
-    close = difflib.get_close_matches(key, [_key(p.name) for p in projects], n=1, cutoff=_CUTOFF)
-    suggestion = next((p.name for p in projects if close and _key(p.name) == close[0]), None)
+    for repo_name in repo_names:
+        if _key(repo_name) == key:
+            return NewFromRepo(repo_name.strip())
+    names = [*(p.name for p in projects), *repo_names]
+    close = difflib.get_close_matches(key, [_key(n) for n in names], n=1, cutoff=_CUTOFF)
+    suggestion = next((n for n in names if close and _key(n) == close[0]), None)
     return UnknownProject(name=name, suggestion=suggestion)
 
 
 def quick_preview(
-    text: str, *, now: datetime, default: ProjectRef | None, projects: Sequence[ProjectRef]
+    text: str,
+    *,
+    now: datetime,
+    default: ProjectRef | None,
+    projects: Sequence[ProjectRef],
+    repo_names: Sequence[str] = (),
 ) -> QuickPreview:
-    """Preview `text` as a quick entry; never raises."""
+    """Preview `text` as a quick entry, `@name` as `resolve_quick_project` says; never raises."""
     if not text.strip():
         return QuickPreview(
             title=None,
@@ -143,7 +167,7 @@ def quick_preview(
             due=None,
             error=PreviewError.EMPTY_TITLE,
         )
-    project = resolve_quick_project(parsed.project, default, projects)
+    project = resolve_quick_project(parsed.project, default, projects, repo_names)
     return QuickPreview(
         title=parsed.title,
         project=project,
@@ -170,6 +194,12 @@ def _project_line(project: ProjectChoice) -> StyledLine:
         case Floating(explicit=explicit):
             note = () if explicit else (Span("  (no displayed session)", Role.DIM),)
             return _row("Project", Span("floating", Role.KIND), *note)
+        case NewFromRepo(name=name):
+            return _row(
+                "Project",
+                Span(one_line(name, _SHOWN), Role.KIND),
+                Span("  (new project from repository)", Role.DIM),
+            )
         case UnknownProject(name=name, suggestion=suggestion):
             hint = () if suggestion is None else (Span(f" ({one_line(suggestion, _SHOWN)}?)"),)
             text = f"@{one_line(name, _SHOWN)}: {PreviewError.UNKNOWN_PROJECT}"

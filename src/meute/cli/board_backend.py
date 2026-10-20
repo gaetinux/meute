@@ -17,7 +17,7 @@ from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.status_publish import publish_status
 from meute.cli.task_launch import READY_TIMEOUT_SECONDS, launch_on_task
-from meute.cli.task_quick_create import TUI_ACTOR, create_quick_task
+from meute.cli.task_quick_create import TUI_ACTOR, create_quick_task, move_to_repo_project
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import (
     AddNote,
@@ -30,6 +30,7 @@ from meute.core.board_view import (
     LaunchBash,
     LaunchClaude,
     LaunchOnTask,
+    MoveToRepoProject,
     ShowSession,
     StopSession,
 )
@@ -165,6 +166,8 @@ class CliBoardBackend:
                 _ = update_task(
                     self._ctx.db, action.task_id, action.version, action.patch, TUI_ACTOR
                 )
+            case MoveToRepoProject():
+                move_to_repo_project(self._ctx.db, action.task_id, action.version, action.name)
             case AddNote():
                 _ = add_note(self._ctx.db, action.task_id, action.body, TUI_ACTOR)
             case DeleteTask():
