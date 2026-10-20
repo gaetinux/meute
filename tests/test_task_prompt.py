@@ -53,3 +53,11 @@ def test_no_escape_can_end_the_bracketed_paste() -> None:
     assert "\r" not in text
     assert text.endswith("y;")
     assert text.count("\n") == 7
+    assert text.count("\ufffd") == 4  # the four ESC only, none from a CR
+
+
+def test_line_endings_become_newlines() -> None:
+    task = replace(make_task(7), description="a\r\nb\nc\rd")
+    text = task_prompt(task, [_note(1, "e\r\nf", 10)])
+    assert text == "#7 task 7\n\na\nb\nc\nd\n\nNotes:\n- e\nf"
+    assert "\ufffd" not in text

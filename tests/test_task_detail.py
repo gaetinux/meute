@@ -99,6 +99,14 @@ def test_lines_fit_the_width() -> None:
     assert len(plain(lines[0])) == width
 
 
+def test_old_note_shows_its_day() -> None:
+    old = _note(1, "older", datetime(2026, 10, 5, 7, 40, tzinfo=UTC))
+    lines = task_detail_lines(
+        make_task(1), notes=[old], sessions=[], repo=None, now=NOW, home=None, width=80
+    )
+    assert "Notes    Oct 05 older" in [plain(line) for line in lines]
+
+
 def test_roles() -> None:
     lines = _full()
     assert lines[0][0].role is Role.ACCENT

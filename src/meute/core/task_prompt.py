@@ -7,8 +7,9 @@ from meute.core.text import printable
 
 
 def _clean(text: str) -> str:
-    """Neutralise control characters (no ESC, so no end of bracketed paste) and trim."""
-    return printable(text, keep_newlines=True).strip()
+    """Unify line endings, neutralise control characters (no ESC) and trim."""
+    unified = text.replace("\r\n", "\n").replace("\r", "\n")
+    return printable(unified, keep_newlines=True).strip()
 
 
 def task_prompt(task: Task, notes: Sequence[Note]) -> str:
