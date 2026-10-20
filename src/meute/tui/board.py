@@ -4,7 +4,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, tzinfo
 from functools import partial
-from typing import ClassVar, Protocol, assert_never
+from typing import ClassVar, Protocol
 
 from textual import events
 from textual.app import App, ComposeResult
@@ -13,46 +13,22 @@ from textual.content import Content
 from textual.geometry import Region
 from textual.widgets import Static
 
-from meute.core.board_header import Tab, board_totals, tabs_line
-from meute.core.board_sessions import line_at, line_entry, line_group, line_info
+from meute.core.board_header import Tab, tabs_line
 from meute.core.board_view import (
     BOARD_TITLE,
-    FOOTER,
-    KEYS_HELP,
     BoardAction,
     BoardData,
-    BoardEntry,
     Detach,
     StopSession,
-    claude_action,
-    confirm_stop_text,
-    ended_notice,
-    enter_action,
     error_text,
-    new_action,
-    stop_target,
     stopping_text,
 )
 from meute.core.errors import MeuteError
 from meute.core.session import Session, SessionId
-from meute.core.sessions_view import (
-    CardLine,
-    HeaderLine,
-    InfoLine,
-    RefLine,
-    RepoLine,
-    SectionLine,
-    SessionLine,
-    section_key,
-    session_index,
-)
-from meute.tui.sessions_cursor import SessionsCursor
-from meute.tui.sessions_pane import (
-    details_content,
-    quota_content,
-    tabs_content,
-    view_content,
-)
+from meute.tui.sessions_pane import tabs_content
+from meute.tui.sessions_tab import SessionsTab
+from meute.tui.tab_controller import TabController
+from meute.tui.tasks_tab import TasksTab
 
 
 class BoardBackend(Protocol):
@@ -100,13 +76,22 @@ class BoardApp(App[None]):
         super().__init__()
         self._backend = backend
         self._poll_seconds = poll_seconds
-        self._show_details = options.show_details
-        self._local = options.local
-        self._cursor = SessionsCursor()
-        self._confirming: Session | None = None
+        self._stopping: dict[SessionId, str] = {}  # sessions being stopped: id -> title
+        self._sessions_tab = SessionsTab(
+            perform=self._perform,
+            notice=self._say,
+            stop=self._stop,
+            is_stopping=self._stopping.__contains__,
+            local=options.local,
+            show_details=options.show_details,
+        )
+        self._tabs: dict[Tab, TabController] = {
+            Tab.SESSIONS: self._sessions_tab,
+            Tab.TASKS: TasksTab(),
+        }
+        self._tab = Tab.SESSIONS
         self._error: str | None = None
         self._notice: str | None = None  # shown in the footer until the next key or click
-        self._stopping: dict[SessionId, str] = {}  # sessions being stopped: id -> title
         self._keys_help = False
         # Held, not queried: at quit the timer may still tick after the widgets left the DOM.
         self._title = Static(id="title")
@@ -115,6 +100,10 @@ class BoardApp(App[None]):
         self._sessions = VerticalScroll(self._board, id="sessions")
         self._details = Static(id="details")
         self._footer = Static(id="footer")
+
+    @property
+    def _current(self) -> TabController:
+        return self._tabs[self._tab]
 
     def compose(self) -> ComposeResult:
         yield self._title
@@ -133,92 +122,41 @@ class BoardApp(App[None]):
         self.call_after_refresh(self._fit)
 
     def _fit(self) -> None:
-        """Lay the cards out for the width the board really has, then redraw."""
+        """Lay the tabs out for the width the board really has, then redraw."""
         width = self._board.size.width
-        if width > 0 and width != self._cursor.width:
-            self._cursor.resize(width)
-            self._draw()
+        if width > 0:
+            fitted = [tab.fit(width) for tab in self._tabs.values()]  # every tab, not the first
+            if any(fitted):
+                self._draw()
 
     # Every key comes here, not through bindings, so that a pending stop confirmation
     # swallows any key; ctrl+q stays Textual's own priority binding and quits.
     def on_key(self, event: events.Key) -> None:
         self._error = self._notice = None
-        confirming, self._confirming = self._confirming, None
-        if confirming is not None:
-            if event.key == "y":
-                self._stop(confirming)
-        else:
+        if not self._current.handle_key(event.key):
             self._handle_key(event.key)
         self._draw()
-        if self._cursor.selected >= 0:
-            region = Region(0, self._cursor.selected, 1, 1)
+        if self._current.selected >= 0:
+            region = Region(0, self._current.selected, 1, 1)
             self.call_after_refresh(self._sessions.scroll_to_region, region, animate=False)
 
     def _handle_key(self, key: str) -> None:
-        if self._cursor.handle_key(key):
-            return
         if key == "question_mark":
             self._keys_help = not self._keys_help
         elif key == "escape":
             self._keys_help = False
         elif key == "q":
             self._perform(Detach())
-        else:
-            self._act(key)
-
-    def _act(self, key: str) -> None:
-        entry = line_entry(self._cursor.model, self._cursor.selected)
-        if entry is None:
-            group = line_group(self._cursor.model, self._cursor.selected)  # a folded group's header
-            if key == "enter" and group is not None:
-                self._cursor.fold(group, fold=False)
-        elif key == "enter":
-            self._show(entry)
-        elif key == "c":
-            self._perform(claude_action(entry))
-        elif key == "n":
-            self._perform(new_action(entry))
-        elif key == "x":
-            target = stop_target(entry)
-            self._confirming = None if target is None or target.id in self._stopping else target
 
     def on_click(self, event: events.Click) -> None:
         if event.widget is not self._board:
             return
         self._error = self._notice = None
-        if self._confirming is not None:  # like a key, a click only cancels the stop
-            self._confirming = None
-        else:
-            self._click(round(event.y))
+        self._current.click(round(event.y), round(event.x))
         self._draw()
 
-    def _click(self, index: int) -> None:
-        line = line_at(self._cursor.model, index)
-        match line:
-            case SessionLine():
-                self._cursor.selected = index
-                entry = line_entry(self._cursor.model, index)
-                if entry is not None:
-                    self._show(entry)
-            case RepoLine():
-                self._cursor.selected = index
-            case CardLine() | RefLine():  # the card's first line, in "Needs you" for a reference
-                index = session_index(self._cursor.model.view, line.session_id)
-                self._cursor.selected = index if index >= 0 else self._cursor.selected
-            case HeaderLine():
-                self._cursor.fold(line.group, fold=not line.collapsed)
-            case SectionLine():
-                self._cursor.fold(section_key(line.section), fold=not line.collapsed)
-            case InfoLine() | None:
-                pass
-            case _:
-                assert_never(line)
-
-    def _show(self, entry: BoardEntry) -> None:
-        """Do what Enter does on `entry`, or say why an ended session cannot show."""
-        self._notice = ended_notice(entry)
-        if self._notice is None:
-            self._perform(enter_action(entry))
+    def _say(self, notice: str) -> None:
+        self._notice = notice
 
     def _reload(self) -> None:
         error_before = self._error
@@ -229,7 +167,8 @@ class BoardApp(App[None]):
             data = None
         else:
             if data is not None:
-                self._cursor.rebuild(data)
+                for tab in self._tabs.values():
+                    tab.rebuild(data, self._board.size.width)
         if data is not None or self._error != error_before:
             self._draw()
 
@@ -268,31 +207,30 @@ class BoardApp(App[None]):
 
     def _draw(self) -> None:
         focused = self.app_focus
-        width = self.size.width or self._cursor.width
-        tabs = tabs_line(
-            Tab.SESSIONS, overdue=0, totals=board_totals(self._cursor.model.data), width=width
-        )
+        tab = self._current
+        width = self.size.width or self._sessions_tab.width
+        tabs = tabs_line(self._tab, overdue=0, totals=tab.totals(), width=width)
         self._title.update(tabs_content(tabs, focused=focused))
-        quota = self._cursor.model.data.quota
+        quota = tab.quota()
         self._quota.display = quota is not None
         if quota is not None:
-            self._quota.update(quota_content(quota, self._local))
-        board, selected = self._cursor.model, self._cursor.selected
-        self._board.update(view_content(board, selected, focused=focused, width=self._cursor.width))
-        info = line_info(self._cursor.model, self._cursor.selected) if self._show_details else None
-        self._details.display = info is not None
-        if info is not None:
-            self._details.update(details_content(self._cursor.model, info, width))
+            self._quota.update(quota)
+        self._board.update(tab.lines(focused=focused))
+        details = tab.details(width)
+        self._details.display = details is not None
+        if details is not None:
+            self._details.update(details)
         self._footer.update(Content(self._footer_text()))
         self.call_after_refresh(self._fit)  # a scrollbar that came or went changes the width
 
     def _footer_text(self) -> str:
+        prompt = self._current.prompt()
         if self._error is not None:
             return error_text(self._error)
-        if self._confirming is not None:
-            return confirm_stop_text(self._confirming.title)
+        if prompt is not None:
+            return prompt
         if self._stopping:
             return stopping_text(next(reversed(self._stopping.values())))
         if self._notice is not None:
             return self._notice
-        return KEYS_HELP if self._keys_help else FOOTER
+        return self._current.keys_help() if self._keys_help else self._current.footer()
