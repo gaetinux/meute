@@ -153,7 +153,7 @@ def test_space_folds_and_enter_unfolds() -> None:
         board = _text(app, "board")
         assert "▶ Overdue (1)" in board
         assert "Review the PR" not in board
-        assert _selected(app) == ["▶ Overdue (1)".ljust(80)] or "Overdue" in _selected(app)[0]
+        assert _selected(app) == ["▶ Overdue (1)".ljust(80)]
         await pilot.press("enter")
         assert "▼ Overdue (1)" in _text(app, "board")
         assert "Review the PR" in _selected(app)[0]
@@ -260,3 +260,8 @@ def test_tasks_tab_100_columns(snap_compare: SnapCompare) -> None:
 
 def test_tasks_tab_empty(snap_compare: SnapCompare) -> None:
     assert snap_compare(_snap(_data(())), press=["tab"], terminal_size=(60, 30))
+
+
+def test_tasks_footer_fits_one_line_at_60_columns() -> None:
+    assert TASKS_FOOTER == "a add · s status · d postpone · o note · L Claude · ? keys"
+    assert len(TASKS_FOOTER) <= 58

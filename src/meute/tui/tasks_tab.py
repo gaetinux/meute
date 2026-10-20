@@ -39,9 +39,8 @@ class TasksTab:
         view = self.cursor.view
         return tasks_totals(view.open_count, view.overdue_count)
 
-    def rebuild(self, data: BoardData, width: int) -> None:
+    def rebuild(self, data: BoardData, width: int) -> None:  # noqa: ARG002 — the lines follow `fit`
         """Take the new data, keeping the selection and the folds."""
-        _ = width  # the lines follow the board's own width, given to `fit`
         self.cursor.rebuild(data, data.now or datetime.now(self._local))
 
     def fit(self, width: int) -> bool:

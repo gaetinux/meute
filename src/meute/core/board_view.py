@@ -29,7 +29,7 @@ KEYS_HELP = (
     "a attention only · e ended sessions · Tab tasks · q detach\n"
     "? or Esc close this list"
 )
-TASKS_FOOTER = "a add · s status · p priority · d postpone · e edit · o note · L Claude · ? keys"
+TASKS_FOOTER = "a add · s status · d postpone · o note · L Claude · ? keys"
 TASKS_KEYS_HELP = (
     "↑↓ select · Enter show its session · Space ←→ fold · f filter · g group\n"
     "a add · s status · p priority · d postpone · e title · D description\n"
