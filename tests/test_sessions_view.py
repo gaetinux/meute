@@ -141,6 +141,14 @@ def test_header_omits_unknown_parts() -> None:
     assert _texts(_view([only_duration]))[0] == "▼ alpha · 1 live"
 
 
+def test_header_hides_a_small_cost_like_the_cards() -> None:
+    infos = [
+        _info(1, "a", Running(), metrics=StatuslineData(cost_usd=0.04)),
+        _info(2, "b", Idle(), metrics=StatuslineData(cost_usd=0.06)),
+    ]
+    assert _texts(_view(infos))[0] == "▼ alpha · 2 live"
+
+
 def test_session_line_exact_text() -> None:
     info = _info(1, "build", Running(), metrics=_METRICS, details=_DETAILS)
     line = _view([info]).lines[1]

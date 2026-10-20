@@ -6,6 +6,7 @@ from meute.core.board_view import BoardData
 from meute.core.session_state import is_live
 from meute.core.sessions_view_text import duration_text
 from meute.core.styled import Role, Span, StyledLine, fit
+from meute.core.text import cost_text
 
 
 class Tab(Enum):
@@ -41,12 +42,12 @@ def tab_at(line: StyledLine, x: int) -> Tab | None:
 
 
 def sessions_totals(live: int, duration_ms: int | None, cost: float | None) -> str:
-    """Return `{live} live`, then the duration and the cost when known."""
+    """Return `{live} live`, then the duration and the cost when known (cost above 10 cents)."""
     text = f"{live} live"
     if duration_ms is not None:
         text += f" · {duration_text(duration_ms)}"
-    if cost is not None:
-        text += f" · ${cost:.2f}"
+    if cost_shown := cost_text(cost):
+        text += f" · {cost_shown}"
     return text
 
 

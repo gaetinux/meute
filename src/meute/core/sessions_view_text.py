@@ -219,11 +219,13 @@ def header_line(  # noqa: PLR0913 — the group, what it shows, and the width
     """Return a group header: `▼ {name} ◆ {kind} · {n} live · {cost}`, `+ session` at right.
 
     `+ session` shows when `button` is true (the group's repository is known) and the group
-    is not folded; a folded group starts with `▶`. Unknown parts are left out.
+    is not folded; a folded group starts with `▶`. Unknown parts and a cost of at most
+    10 cents are left out.
     """
     live = sum(1 for info in members if is_live(info.row.session.state))
     costs = [m.cost_usd for info in members if (m := info.metrics) and m.cost_usd is not None]
-    totals = f"{_SEPARATOR}{live} live" + (f"{_SEPARATOR}${sum(costs):.2f}" if costs else "")
+    cost = cost_text(sum(costs) if costs else None)
+    totals = f"{_SEPARATOR}{live} live" + (f"{_SEPARATOR}{cost}" if cost else "")
     left: list[Span] = [Span(f"{fold_mark(folded=folded)} {printable(group)}", Role.TITLE)]
     if kind is not None:
         left.append(Span(f" ◆ {printable(kind)}", Role.KIND))

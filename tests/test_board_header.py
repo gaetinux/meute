@@ -36,3 +36,8 @@ def test_sessions_totals_unknown_parts() -> None:
 def test_tasks_totals() -> None:
     assert tasks_totals(12, 2) == "12 open · 2 overdue"
     assert tasks_totals(3, 0) == "3 open"
+
+
+def test_sessions_totals_hide_a_small_cost_like_the_cards() -> None:
+    assert sessions_totals(2, None, 0.1) == "2 live"
+    assert sessions_totals(2, 120000, 0.0) == "2 live · 2m"
