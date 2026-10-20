@@ -182,7 +182,7 @@ pytest_add_cli_args_test_selection = [
     "tests/test_session_refresh.py", "tests/test_mutants_plan2.py", "tests/test_db_claude_sessions.py",
     "tests/test_hooks.py", "tests/test_db_hook_apply.py", "tests/test_reconcile_settled.py",
     "tests/test_session_refresh_settled.py", "tests/test_statusline_parse.py", "tests/test_db_samples.py", "tests/test_db_samples_latest.py", "tests/test_statusline_render.py", "tests/test_clock.py", "tests/test_claude_settings.py", "tests/test_claude_launch.py",
-    "tests/test_agents_parse.py", "tests/test_agents_rules.py", "tests/test_session_refresh_agents.py",
+    "tests/test_styled.py", "tests/test_quota_bars.py", "tests/test_board_header.py", "tests/test_agents_parse.py", "tests/test_agents_rules.py", "tests/test_session_refresh_agents.py",
     "tests/test_agents_poller.py", "tests/test_refresh_stuck.py", "tests/test_board_purge.py",
     "tests/test_mutants_plan3.py", "tests/test_shared_helpers.py", "tests/test_refresh_stale_read.py", "tests/test_hooks_clear_resume.py", "tests/test_private_files.py", "tests/test_hooks_tool_name.py", "tests/test_attention.py", "tests/test_quota_view.py", "tests/test_sessions_view.py",
     "tests/test_board_sessions.py", "tests/test_config_show_details.py", "tests/test_mutants_plan4.py",

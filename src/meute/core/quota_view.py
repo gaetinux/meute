@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, tzinfo
 
 from meute.core.statusline import StatuslineData
+from meute.core.styled import Role, Span, StyledLine
 
 PROJECTION_WINDOW = timedelta(minutes=30)
 """How far back the samples count for the "limit around" projection."""
@@ -131,3 +132,65 @@ def quota_lines(line: QuotaLine, *, local: tzinfo) -> list[str]:
         five = f"{five} · limit around {limit} at this rate"
     lines = [five, _part("7d", line.seven_day_pct, seven_reset), line.peak]
     return [text for text in lines if text]
+
+
+_BAR_CELLS = 10
+_LEVEL_ROLES = {"ok": Role.OK, "warn": Role.WARN, "high": Role.HIGH}
+
+
+def quota_bar(pct: float) -> str:
+    """Return a bar of 10 cells, `round(pct / 10)` of them full, bounded to 0..10."""
+    filled = min(max(round(pct / _BAR_CELLS), 0), _BAR_CELLS)
+    return "█" * filled + "░" * (_BAR_CELLS - filled)
+
+
+def _bar_line(label: str, pct: float, resets: str | None) -> list[Span]:
+    spans = [
+        Span(f"{label} "),
+        Span(f"{quota_bar(pct)} {round(pct)}%", _LEVEL_ROLES[quota_level(pct)]),
+    ]
+    if resets is not None:
+        spans.append(Span(f"  resets {resets}", Role.DIM))
+    return spans
+
+
+def _peak_role(peak: str) -> Role:
+    """Return OK for off-peak hours and WARN for peak hours.
+
+    The peak text only comes as text (`⚡ PEAK (~3h left)`, `✦ OFF-PEAK (weekend)`): the
+    off-peak label is the one that contains `OFF-PEAK`.
+    """
+    return Role.OK if "OFF-PEAK" in peak else Role.WARN
+
+
+def quota_bar_lines(line: QuotaLine, *, local: tzinfo) -> list[StyledLine]:
+    """Return the quota lines with bars: 5 h, 7 d and the peak hours; unknown parts are omitted.
+
+    The peak text goes after the 7 d part, or alone on its line without one.
+    """
+    lines: list[StyledLine] = []
+    if line.five_hour_pct is not None:
+        resets = (
+            None
+            if line.five_hour_resets_at is None
+            else line.five_hour_resets_at.astimezone(local).strftime("%H:%M")
+        )
+        five = _bar_line("5h", line.five_hour_pct, resets)
+        if line.limit_at is not None:
+            limit = line.limit_at.astimezone(local).strftime("%H:%M")
+            five.append(Span(f" · limit ~{limit}", Role.RISKY))
+        lines.append(tuple(five))
+    peak_role = _peak_role(line.peak)
+    if line.seven_day_pct is not None:
+        resets = (
+            None
+            if line.seven_day_resets_at is None
+            else _weekday(line.seven_day_resets_at.astimezone(local))
+        )
+        seven = _bar_line("7d", line.seven_day_pct, resets)
+        if line.peak:
+            seven.append(Span(f" · {line.peak}", peak_role))
+        lines.append(tuple(seven))
+    elif line.peak:
+        lines.append((Span(line.peak, peak_role),))
+    return lines
