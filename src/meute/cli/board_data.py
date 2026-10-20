@@ -4,7 +4,7 @@ from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from meute.cli.context import CliContext
+from meute.cli.context import CliContext, local_now
 from meute.cli.session_refresh import refresh
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.agents import AgentInfo
@@ -79,6 +79,7 @@ def load_board_data(
     snapshot = refresh(ctx, env, agents=agents, assume=assume)
     db = ctx.db
     clock = db.now()
+    local = local_now(ctx)
     live = [row.session.id for row in snapshot.sessions if is_live(row.session.state)]
     projects = list_projects(db)
     refs = tuple(ProjectRef(id=project.id, name=project.name) for project in projects)
@@ -96,13 +97,11 @@ def load_board_data(
         metrics=latest_metrics_by_session(db, live),
         projects={project.id: project.name for project in projects},
         quota=quota_line(ctx, clock, environ),
-        now=clock.astimezone(
-            local_zone(environ)
-        ),  # the database clock is UTC; tasks show local times
+        now=local,
         tasks=tuple(
             task
             for task in list_tasks(db, TaskFilter(include_done=True))
-            if bucket_of(task, clock) is not None
+            if bucket_of(task, local) is not None
         ),
         notes={task_id: tuple(found) for task_id, found in latest_notes(db).items()},
         project_refs=refs,

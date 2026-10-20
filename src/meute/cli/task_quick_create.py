@@ -2,7 +2,7 @@
 
 from typing import assert_never
 
-from meute.cli.context import CliContext
+from meute.cli.context import CliContext, local_now
 from meute.core.actor import Actor, Author, Channel
 from meute.core.db.projects import list_projects
 from meute.core.db.tasks import create_task
@@ -45,7 +45,7 @@ def create_quick_task(ctx: CliContext, text: str, default: ProjectRef | None) ->
     Raises:
         InvalidInput: the title is empty, or the project is unknown (nothing is written).
     """
-    parsed = parse_quick_add(text, ctx.db.now())
+    parsed = parse_quick_add(text, local_now(ctx))
     project_id = _project_id(ctx, parsed.project, default)
     new = NewTask(
         title=parsed.title, priority=parsed.priority, due=parsed.due, project_id=project_id

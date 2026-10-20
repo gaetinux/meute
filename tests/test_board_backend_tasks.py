@@ -2,8 +2,9 @@
 
 from collections.abc import Generator
 from dataclasses import replace
-from datetime import timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -11,6 +12,7 @@ from meute.cli.board_backend import CliBoardBackend
 from meute.cli.context import CliContext
 from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.session_show import show_session
+from meute.cli.task_quick import CliQuickBackend
 from meute.cli.task_quick_create import create_quick_task
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.actor import Actor, Author, Channel
@@ -196,10 +198,30 @@ def test_tasks_done_before_today_are_not_loaded(ctx: CliContext, env: TmuxEnv) -
     assert [t.title for t in data.tasks] == ["Open"]
 
 
+def _kathmandu(ctx: CliContext, db_clock: datetime) -> CliContext:
+    """A context in Kathmandu (+05:45) whose database clock (UTC) reads `db_clock`."""
+    db = Database.open(ctx.paths.db_file, busy_timeout_ms=1000, clock=lambda: db_clock)
+    return replace(ctx, db=db, now=db_clock.astimezone(ZoneInfo("Asia/Kathmandu")))
+
+
 def test_the_board_clock_is_in_the_local_zone(ctx: CliContext, env: TmuxEnv) -> None:  # noqa: F811 — fixture
     """The database clock is UTC; due times and Today/Upcoming follow the local zone."""
-    backend = CliBoardBackend(ctx, env, {**_ENVIRON, "TZ": "Asia/Kathmandu"}, monotonic=_Clock())
-    data = _loaded(backend)
+    local = replace(ctx, now=FIXED.astimezone(ZoneInfo("Asia/Kathmandu")))
+    data = _loaded(_backend(local, env))
     assert data.now == FIXED
     assert data.now is not None
     assert data.now.utcoffset() == timedelta(hours=5, minutes=45)
+
+
+def test_quick_entry_reads_tomorrow_on_the_local_date(ctx: CliContext) -> None:
+    late = _kathmandu(ctx, datetime(2026, 10, 14, 20, 0, tzinfo=UTC))  # 01:45 on the 15th there
+    task = create_quick_task(late, "Soon >tomorrow", None)
+    assert task.due == DueDate(day=date(2026, 10, 16))
+    late.db.conn.close()
+
+
+def test_quick_window_context_carries_the_local_clock(ctx: CliContext) -> None:
+    late = _kathmandu(ctx, datetime(2026, 10, 14, 20, 0, tzinfo=UTC))
+    now = CliQuickBackend(late, None).context().now
+    assert now.utcoffset() == timedelta(hours=5, minutes=45)
+    late.db.conn.close()

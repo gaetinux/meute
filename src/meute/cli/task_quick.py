@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from meute.cli.context import ENVIRONMENT_ERRORS, CliContext, open_context
+from meute.cli.context import ENVIRONMENT_ERRORS, CliContext, local_now, open_context
 from meute.cli.task_app import task_app
 from meute.cli.task_quick_create import create_quick_task
 from meute.cli.tmux_env import open_tmux_env
@@ -60,7 +60,7 @@ class CliQuickBackend:
         from meute.tui.quick_task import QuickContext  # noqa: PLC0415 — keeps Textual out of every other command's start-up
 
         return QuickContext(
-            now=self._ctx.db.now(), default=self._default, projects=_project_refs(self._ctx)
+            now=local_now(self._ctx), default=self._default, projects=_project_refs(self._ctx)
         )
 
     def create(self, text: str) -> Task:

@@ -51,6 +51,11 @@ class CliContext:
     paths: Paths
 
 
+def local_now(ctx: CliContext) -> datetime:
+    """Return the current instant in the zone of `ctx.now` (the database clock is UTC)."""
+    return ctx.db.now().astimezone(ctx.now.tzinfo or UTC)
+
+
 def open_database(paths: Paths, clock: Callable[[], datetime]) -> AbstractContextManager[Database]:
     """Open the database of `paths` with meute's busy timeout; the caller closes it."""
     return Database.open(paths.db_file, busy_timeout_ms=BUSY_TIMEOUT_MS, clock=clock)
