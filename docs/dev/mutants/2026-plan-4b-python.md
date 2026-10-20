@@ -1,6 +1,6 @@
 # Rapport de mutation — plan 4b Python (passe visuelle, onglet Tâches, `M-t`)
 
-Commande : `rm -rf mutants && uv run mutmut run --max-children 4` puis `uv run mutmut results` (mutmut 3.8.0, 6889 mutants, environ 4 min). Même configuration que les plans précédents (`[tool.mutmut]` de `pyproject.toml`). La liste blanche gagne `tests/test_mutants_plan4b.py` et trois fichiers du plan qui exercent des modules mutés en processus : `test_sessions_cards.py`, `test_card_marks.py` et `test_tmux_conf_quick.py` (la ligne `M-t` de `conf.py`). Les tests du TUI, de `meute.cli` et des sessions tmux ne voient pas les mutants et n'y sont pas.
+Commande : `rm -rf mutants && uv run mutmut run --max-children 4` puis `uv run mutmut results` (mutmut 3.8.0, 6889 mutants, environ 4 min). Même configuration que les plans précédents (`[tool.mutmut]` de `pyproject.toml`). La liste blanche gagne `tests/test_mutants_plan4b.py` (depuis scindé en `test_mutants_plan4b_tasks.py` et `test_mutants_plan4b_sessions.py`) et trois fichiers du plan qui exercent des modules mutés en processus : `test_sessions_cards.py`, `test_card_marks.py` et `test_tmux_conf_quick.py` (la ligne `M-t` de `conf.py`). Les tests du TUI, de `meute.cli` et des sessions tmux ne voient pas les mutants et n'y sont pas.
 
 | | mutants | tués | survivants | sans test |
 |---|---|---|---|---|
@@ -9,7 +9,7 @@ Commande : `rm -rf mutants && uv run mutmut run --max-children 4` puis `uv run m
 | Plan 4b, avec les trois fichiers ajoutés à la liste blanche | 6889 | 6363 | 410 | 116 |
 | Plan 4b, après `tests/test_mutants_plan4b.py` | 6889 | 6572 | 317 | 0 |
 
-Les 147 mutants « sans test » du premier passage venaient de fonctions que seuls les tests du TUI appelaient (`details_card`, `board_totals`, `tab_at`, les textes du pied du tableau…) : ils n'avaient donc aucune couverture visible de mutmut. Les tests de `test_mutants_plan4b.py` les appellent directement.
+Les 147 mutants « sans test » du premier passage venaient de fonctions que seuls les tests du TUI appelaient (`details_card`, `board_totals`, `tab_at`, les textes du pied du tableau…) : ils n'avaient donc aucune couverture visible de mutmut. Les tests de `test_mutants_plan4b_*.py` les appellent directement.
 
 Les 255 survivants de `main` au plan 3 sont ceux des plans 1 à 3, déjà justifiés. En comparant les survivants par fonction, le plan 4b (et le plan 4 avant lui) en ajoute 69 et en retire 7 (`_make_private_file` réécrit au plan 4, `entry_key` et `_peak` remplacés) : 317 au total. Les 69 sont justifiés ci-dessous ; 9 d'entre eux (`_crossing_seconds`, `_current_cycle`, `_bool`) et 10 autres (`needs_attention`, `line_entry`, `line_info`, SQL de `quota_history`) sont déjà justifiés dans le rapport du plan 4 et sont repris ici parce que la comparaison se fait avec `main` au plan 3.
 
@@ -41,7 +41,7 @@ Faux `claude` (`tests/fake_claude/claude`, `tests/fake_claude` en tête du `PATH
 
 ## Tests ajoutés (aucun test existant modifié)
 
-Tous dans `tests/test_mutants_plan4b.py`.
+Tous dans `tests/test_mutants_plan4b_tasks.py` et `tests/test_mutants_plan4b_sessions.py`.
 
 | Test | Mutations tuées |
 |---|---|
