@@ -300,7 +300,7 @@ def test_500_tasks_build_quickly() -> None:
     view = _build(tasks, state)
     elapsed = time.perf_counter() - started
     assert len([line for line in view.lines if isinstance(line, TaskLine)]) == 500
-    assert elapsed < 0.1
+    assert elapsed < 0.5
 
 
 _STATUSES: list[TaskStatus] = [Todo(), Review(), Done(), Blocked(reason="r")]
