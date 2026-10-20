@@ -28,7 +28,7 @@ def tabs_line(active: Tab, *, overdue: int, totals: str, width: int) -> StyledLi
 
 def tab_at(line: StyledLine, x: int) -> Tab | None:
     """Return the tab whose name covers column `x` of a tabs `line`, or `None`."""
-    names = iter(Tab)
+    names = iter(Tab)  # the tab spans come in the order of the enum
     start = 0
     for span in line:
         end = start + len(span.text)

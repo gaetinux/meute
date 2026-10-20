@@ -87,10 +87,13 @@ def test_sessions_keys_do_nothing_on_tasks() -> None:
                 await pilot.press(key)
             footers.append(_text(app, "footer"))
             assert _on_tasks(app)
+            await pilot.press("tab")
+            footers.append(_text(app, "footer"))
 
     asyncio.run(scenario())
     assert backend.actions == []
     assert not footers[0].startswith("Stop ")
+    assert not footers[1].startswith("Stop ")
 
 
 def test_question_mark_escape_and_q_still_work_on_tasks() -> None:
@@ -167,3 +170,22 @@ def test_the_focus_cue_follows_the_active_tab_on_tasks() -> None:
         ("Sessions", ROLE_STYLES[Role.TAB]),
         ("Tasks", f"{ROLE_STYLES[Role.TAB]} underline"),
     ]
+
+
+def test_a_click_on_a_tab_name_only_cancels_a_pending_stop() -> None:
+    backend = FakeBackend(board_data())
+    app = BoardApp(backend, poll_seconds=_NO_POLL)
+    seen: list[tuple[bool, str]] = []
+
+    async def scenario() -> None:
+        async with app.run_test(size=_SIZE) as pilot:
+            await pilot.press("x")
+            assert _text(app, "footer").startswith("Stop ")
+            await pilot.click("#title", offset=(12, 0))  # on " Tasks "
+            seen.append((_on_tasks(app), _text(app, "footer")))
+            await pilot.press("y")
+
+    asyncio.run(scenario())
+    assert seen[0][0] is False
+    assert not seen[0][1].startswith("Stop ")
+    assert [type(a).__name__ for a in backend.actions] == []

@@ -154,9 +154,9 @@ class BoardApp(App[None]):
         if event.widget not in {self._board, self._title}:
             return
         self._error = self._notice = None
-        if event.widget is self._title:
+        if event.widget is self._title and self._current.prompt() is None:
             self._choose_tab(round(event.x))
-        else:
+        else:  # a pending prompt turns any click into its cancellation
             self._current.click(round(event.y), round(event.x))
         self._draw()
 
