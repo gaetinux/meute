@@ -87,6 +87,7 @@ KEYS_HELP = (
     "c new Claude session · x stop\n"
     "r resume an ended Claude session\n"
     "n new (this repository's last type)\n"
+    "N choose what to launch\n"
     "a attention only · e ended sessions · Tab tasks · q detach\n"
     "? or Esc close this list"
 )

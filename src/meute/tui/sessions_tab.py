@@ -14,6 +14,8 @@ from meute.core.board_view import (
     BoardAction,
     BoardData,
     BoardEntry,
+    LaunchBash,
+    LaunchClaude,
     LaunchEntry,
     OrphanEntry,
     ShowPane,
@@ -39,6 +41,7 @@ from meute.core.sessions_view import (
     section_key,
     session_index,
 )
+from meute.tui.launch_form import FormSession
 from meute.tui.sessions_cursor import SessionsCursor
 from meute.tui.sessions_pane import details_content, quota_content, view_content
 
@@ -61,6 +64,8 @@ class SessionsTab:
         adopt: Callable[[Orphan], None],
         close: Callable[[Orphan], None],
         is_closing: Callable[[Orphan], bool],
+        launch: Callable[[LaunchBash | LaunchClaude], None],
+        default_mode: str,
         local: tzinfo,
         show_details: bool,
     ) -> None:
@@ -73,6 +78,7 @@ class SessionsTab:
         self._adopt = adopt
         self._close = close
         self._is_closing = is_closing
+        self._form = FormSession(launch=launch, default_mode=default_mode)
         self._local = local
         self._show_details = show_details
         self.cursor = SessionsCursor()
@@ -96,6 +102,7 @@ class SessionsTab:
         """Take the new data, keeping the selection and the folds."""
         _ = width  # the cards follow the board's own width, given to `fit`
         self.cursor.rebuild(data)
+        self._form.refresh(data)
 
     def fit(self, width: int) -> bool:
         """Lay the cards out for `width`; `True` when that changed them."""
@@ -122,10 +129,30 @@ class SessionsTab:
             return True
         if self.cursor.handle_key(key):
             return True
+        if key == "N":
+            self._form.open(self.cursor.model.data, self._selected_entry())
+            return True
         if key in _ACTION_KEYS:
             self._act(key)
             return True
         return False
+
+    @property
+    def form_open(self) -> bool:
+        """Whether the launch form is open: it takes every key."""
+        return self._form.is_open
+
+    def form_key(self, key: str, character: str | None) -> None:
+        """Apply `key` to the open launch form."""
+        self._form.key(key, character, self.cursor.model.data)
+
+    def form_paste(self, text: str) -> None:
+        """Add pasted `text` to the open launch form."""
+        self._form.paste(text)
+
+    def form(self, width: int) -> Content | None:
+        """The launch form in colour, or `None` when it is closed."""
+        return self._form.content(self.cursor.model.data, width)
 
     def _selected_entry(self) -> BoardEntry | None:
         return line_entry(self.cursor.model, self.cursor.selected)

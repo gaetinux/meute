@@ -71,7 +71,9 @@ def board() -> None:
         backend = CliBoardBackend(ctx, env, os.environ)
         try:
             options = BoardOptions(
-                show_details=ctx.config.ui.show_details, local=local_zone(os.environ)
+                show_details=ctx.config.ui.show_details,
+                local=local_zone(os.environ),
+                permission_mode=ctx.config.claude.permission_mode,
             )
             BoardApp(backend, options).run()
         finally:

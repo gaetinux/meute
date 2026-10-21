@@ -1,8 +1,6 @@
 """The dashboard: a Textual app drawn from `meute.core.board_sessions`."""
 
-from dataclasses import dataclass
-from datetime import UTC, tzinfo
-from typing import ClassVar, Protocol
+from typing import ClassVar
 
 from textual import events
 from textual.app import App, ComposeResult
@@ -16,40 +14,19 @@ from meute.core.board_view import (
     BOARD_TITLE,
     EDIT_FOOTER,
     BoardAction,
-    BoardData,
     Detach,
     TaskAction,
     error_text,
 )
 from meute.core.errors import MeuteError
+from meute.tui.board_input import OpenInputs
+from meute.tui.board_types import DEFAULT_OPTIONS, BoardBackend, BoardOptions
 from meute.tui.board_workers import BoardWorkers
+from meute.tui.launch_form import LaunchFormPanel
 from meute.tui.sessions_pane import tabs_content
 from meute.tui.sessions_tab import SessionsTab
 from meute.tui.tab_controller import TabController
 from meute.tui.tasks_tab import TasksTab
-
-
-class BoardBackend(Protocol):
-    """Where the board reads its data and sends its actions; both raise `MeuteError`."""
-
-    def load(self) -> BoardData | None:
-        """Return the current data, or `None` when nothing changed since the last load."""
-        ...
-
-    def perform(self, action: BoardAction) -> None:
-        """Carry out `action`."""
-        ...
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class BoardOptions:
-    """What the configuration says about the board: details shown, local zone of the times."""
-
-    show_details: bool = True
-    local: tzinfo = UTC
-
-
-_DEFAULT_OPTIONS = BoardOptions()
 
 
 class BoardApp(App[None]):
@@ -68,7 +45,7 @@ class BoardApp(App[None]):
     def __init__(
         self,
         backend: BoardBackend,
-        options: BoardOptions = _DEFAULT_OPTIONS,
+        options: BoardOptions = DEFAULT_OPTIONS,
         *,
         poll_seconds: float = 0.5,
     ) -> None:
@@ -86,6 +63,8 @@ class BoardApp(App[None]):
             adopt=self._background.adopt,
             close=self._background.close,
             is_closing=self._background.is_closing,
+            launch=backend.perform,
+            default_mode=options.permission_mode,
             local=options.local,
             show_details=options.show_details,
         )
@@ -98,6 +77,7 @@ class BoardApp(App[None]):
             local=options.local,
         )
         self._editor = self._tasks_tab.editor
+        self._inputs = OpenInputs(self._editor, self._sessions_tab, self._clear_messages)
         self._tabs: dict[Tab, TabController] = {
             Tab.SESSIONS: self._sessions_tab,
             Tab.TASKS: self._tasks_tab,
@@ -113,6 +93,7 @@ class BoardApp(App[None]):
         self._board = Static(id="board")
         self._sessions = VerticalScroll(self._board, id="sessions", can_focus=False)  # keys: on_key
         self._details = Static(id="details")
+        self._form = LaunchFormPanel()
         self._footer = Static(id="footer")
 
     @property
@@ -124,6 +105,7 @@ class BoardApp(App[None]):
         yield self._quota
         yield self._sessions
         yield self._details
+        yield self._form
         yield self._editor.widget
         yield self._footer
 
@@ -149,15 +131,10 @@ class BoardApp(App[None]):
                 self._draw()
 
     # Every key comes here, not through bindings, so a pending stop swallows any key; ctrl+q
-    # stays Textual's priority binding. An open task input takes every key but Escape.
+    # stays Textual's priority binding. An open input (task, launch form) takes them all.
     def on_key(self, event: events.Key) -> None:
-        if self._editor.editing:
-            if event.key in {"tab", "shift+tab"}:
-                event.prevent_default()  # the focus stays in the input
-            elif event.key == "escape":
-                self._error = self._notice = None
-                self._editor.cancel()
-                self._draw()
+        if self._inputs.key(event):
+            self._draw()
             return
         self._error = self._notice = None
         if not self._current.handle_key(event.key):
@@ -177,6 +154,11 @@ class BoardApp(App[None]):
         elif key == "q":
             self._perform(Detach())
 
+    def on_paste(self, event: events.Paste) -> None:
+        if self._inputs.paste(event.text):
+            event.stop()
+            self._draw()
+
     def on_input_changed(self, event: Input.Changed) -> None:
         self._editor.preview(event.value)
 
@@ -191,7 +173,7 @@ class BoardApp(App[None]):
         self._draw()
 
     def on_click(self, event: events.Click) -> None:
-        if event.widget not in {self._board, self._title} or self._editor.editing:
+        if event.widget not in {self._board, self._title} or self._inputs.is_open:
             return
         self._error = self._notice = None
         if event.widget is self._title and self._current.prompt() is None:
@@ -210,6 +192,9 @@ class BoardApp(App[None]):
             width=width,
         )
         self._tab = tab_at(line, x) or self._tab
+
+    def _clear_messages(self) -> None:
+        self._error = self._notice = None
 
     def _say(self, notice: str) -> None:
         self._notice = notice
@@ -274,6 +259,10 @@ class BoardApp(App[None]):
         self._details.display = details is not None
         if details is not None:
             self._details.update(details)
+        form = self._sessions_tab.form(width)
+        self._form.display = form is not None
+        if form is not None:
+            self._form.update(form)
         self._footer.update(Content(self._footer_text()))
         self.call_after_refresh(self._fit)  # a scrollbar that came or went changes the width
 

@@ -82,7 +82,17 @@ def _modes(default_mode: str) -> tuple[str, ...]:
 
 
 def _resolved(path: Path) -> Path:
-    return path.resolve()
+    """Return `path` resolved; one that cannot be resolved stands for itself."""
+    try:
+        return path.resolve()
+    except (ValueError, OSError, RuntimeError):
+        return path
+
+
+def _busy(data: BoardData) -> frozenset[Path]:
+    return frozenset(
+        _resolved(row.session.cwd) for row in data.sessions if is_live(row.session.state)
+    )
 
 
 def open_form(
@@ -125,11 +135,14 @@ def open_form(
         modes=_modes(default_mode),
         mode=0,
         field=FormField.TYPE,
-        busy=frozenset(
-            _resolved(row.session.cwd) for row in data.sessions if is_live(row.session.state)
-        ),
+        busy=_busy(data),
         error=None,
     )
+
+
+def with_busy(form: LaunchForm, data: BoardData) -> LaunchForm:
+    """Return `form` with the live folders of the new `data`; nothing else changes."""
+    return replace(form, busy=_busy(data))
 
 
 def _fields(form: LaunchForm) -> list[FormField]:
