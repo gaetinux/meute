@@ -64,6 +64,7 @@ class BoardApp(App[None]):
             close=self._background.close,
             is_closing=self._background.is_closing,
             launch=backend.perform,
+            launch_task=self._background.launch_form,
             default_mode=options.permission_mode,
             local=options.local,
             show_details=options.show_details,

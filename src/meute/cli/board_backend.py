@@ -18,7 +18,7 @@ from meute.cli.session_resume import resume_session
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.status_publish import publish_status
-from meute.cli.task_launch import READY_TIMEOUT_SECONDS, launch_on_task
+from meute.cli.task_launch import READY_TIMEOUT_SECONDS, launch_claude_on_task, launch_on_task
 from meute.cli.task_quick_create import TUI_ACTOR, create_quick_task, move_to_repo_project
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import (
@@ -166,8 +166,11 @@ class CliBoardBackend:
                     permission_mode=action.permission_mode,
                     task_id=action.task_id,
                 )
-                session = launch_claude(self._ctx, self._env, claude, self._environ)
-                show_session(self._ctx, self._env, session.id)
+                if action.task_id is None:
+                    session = launch_claude(self._ctx, self._env, claude, self._environ)
+                    show_session(self._ctx, self._env, session.id)
+                else:  # a task picked in the form: its text is pasted, like `L`, in a worker
+                    self._launch_on_task(action.task_id, claude)
             case StopSession():
                 self._stop(action.session_id)
             case ResumeSession():
@@ -206,16 +209,25 @@ class CliBoardBackend:
             case _:
                 assert_never(action)
 
-    def _launch_on_task(self, task_id: TaskId) -> None:
+    def _launch_on_task(self, task_id: TaskId, form: ClaudeLaunch | None = None) -> None:
         """Launch Claude on a task on a connection of its own: the board runs this in a worker.
+
+        `form` is what the launch form asked for (folder, title, mode); without it, the
+        task's repository and label.
 
         Raises:
             PromptNotPasted: Claude was launched but not ready in time for the task text.
         """
         with open_database(self._ctx.paths, self._ctx.db.clock) as db:
-            ctx = replace(self._ctx, db=db)
-            ready = launch_on_task(
-                ctx, self._env, task_id, self._environ, monotonic=time.monotonic, sleep=time.sleep
+            ctx, env, environ = replace(self._ctx, db=db), self._env, self._environ
+            ready = (
+                launch_on_task(
+                    ctx, env, task_id, environ, monotonic=time.monotonic, sleep=time.sleep
+                )
+                if form is None
+                else launch_claude_on_task(
+                    ctx, env, form, task_id, environ, monotonic=time.monotonic, sleep=time.sleep
+                )
             )
         if not ready:
             raise PromptNotPasted(task_id, timeout_seconds=READY_TIMEOUT_SECONDS)

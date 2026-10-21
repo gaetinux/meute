@@ -1,6 +1,7 @@
 """Launching Claude on a task: in its repository, linked to it, its text pasted but not sent."""
 
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from meute.cli.context import CliContext
@@ -81,6 +82,46 @@ def launch_on_task(  # noqa: PLR0913 — signature of the plan: the clock is inj
     repo = _task_repo(task, {r.id: r for r in list_repos(ctx.db)}, project_repos)
     title = one_line(f"{task_label(task.id)} {task.title}", _TITLE_WIDTH, ellipsis=True)
     request = ClaudeLaunch(cwd=repo.path, title=title, repo_id=repo.id, task_id=task.id)
+    return _launch_and_paste(ctx, env, request, text, environ, monotonic=monotonic, sleep=sleep)
+
+
+def launch_claude_on_task(  # noqa: PLR0913 — like `launch_on_task`, with the form's request
+    ctx: CliContext,
+    env: TmuxEnv,
+    request: ClaudeLaunch,
+    task_id: TaskId,
+    environ: Mapping[str, str],
+    *,
+    monotonic: Callable[[], float],
+    sleep: Callable[[float], None],
+) -> bool:
+    """Start Claude as `request` says, linked to a task, and paste the task's text, unsent.
+
+    The launch form's way of `launch_on_task`: its folder, title and mode are kept, and the
+    text waits for SessionStart the same way; `False` when Claude was not ready within 10 s.
+
+    Raises:
+        InvalidInput: the folder does not exist, `claude` is missing, the mode is unknown, or
+            the session has no pane.
+        NotFound: no such task; nothing was started.
+        TmuxError: tmux failed.
+    """
+    text = task_prompt(get_task(ctx.db, task_id), notes(ctx.db, task_id))
+    linked = replace(request, task_id=task_id)
+    return _launch_and_paste(ctx, env, linked, text, environ, monotonic=monotonic, sleep=sleep)
+
+
+def _launch_and_paste(  # noqa: PLR0913 — the launch, its text, and the injected clock
+    ctx: CliContext,
+    env: TmuxEnv,
+    request: ClaudeLaunch,
+    text: str,
+    environ: Mapping[str, str],
+    *,
+    monotonic: Callable[[], float],
+    sleep: Callable[[float], None],
+) -> bool:
+    """Launch and show Claude, then paste `text` once it is ready; `False` if it never was."""
     session = launch_claude(ctx, env, request, environ)
     show_session(ctx, env, session.id)
     if not _wait_until_ready(ctx, session.id, monotonic=monotonic, sleep=sleep):

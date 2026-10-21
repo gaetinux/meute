@@ -25,6 +25,9 @@ from meute.core.styled import StyledLine
 from meute.tui.sessions_pane import styled_content
 
 Launch = Callable[[LaunchBash | LaunchClaude], None]
+# Starts a launch on a task in a worker, which tells its error (or None) when it ends;
+# `False` when it did not start: a launch on that task already runs.
+LaunchTask = Callable[[LaunchClaude, Callable[[str | None], None]], bool]
 
 
 class LaunchFormPanel(Static):
@@ -37,12 +40,18 @@ class LaunchFormPanel(Static):
 
 
 class FormSession:
-    """The form while it is open: it takes every key, and a launch that fails keeps it."""
+    """The form while it is open: it takes every key, and a launch that fails keeps it.
 
-    def __init__(self, *, launch: Launch, default_mode: str) -> None:
+    A launch with a task waits for Claude in a worker: meanwhile the form stays as it is and
+    ignores every key and paste.
+    """
+
+    def __init__(self, *, launch: Launch, launch_task: LaunchTask, default_mode: str) -> None:
         self._launch = launch
+        self._launch_task = launch_task
         self._default_mode = default_mode
         self._form: LaunchForm | None = None
+        self._waiting = False  # a launch with a task runs in a worker
 
     @property
     def is_open(self) -> bool:
@@ -61,7 +70,7 @@ class FormSession:
     def key(self, key: str, character: str | None, data: BoardData) -> None:
         """Apply `key` to the open form; `character` is what the key types, if anything."""
         form = self._form
-        if form is None:
+        if form is None or self._waiting:
             return
         now = _now(data)
         if key == "escape":
@@ -81,7 +90,7 @@ class FormSession:
 
     def paste(self, text: str) -> None:
         """Add pasted `text` to the current text field."""
-        if self._form is not None:
+        if self._form is not None and not self._waiting:
             self._form = type_text(self._form, text)
 
     def lines(self, data: BoardData, width: int) -> list[StyledLine] | None:
@@ -99,8 +108,17 @@ class FormSession:
 
     def _submit(self, form: LaunchForm, data: BoardData) -> None:
         action = form_action(form, _home(data))
+        if isinstance(action, LaunchClaude) and action.task_id is not None:
+            self._waiting = self._launch_task(action, self._ended)
+            return
         error = action if isinstance(action, str) else _try(self._launch, action)
-        self._form = None if error is None else replace(form, error=error)
+        self._ended(error)
+
+    def _ended(self, error: str | None) -> None:
+        """The launch ended: the form closes, or keeps its text and shows the error."""
+        self._waiting = False
+        if self._form is not None:
+            self._form = None if error is None else replace(self._form, error=error)
 
 
 def _try(launch: Launch, action: LaunchBash | LaunchClaude) -> str | None:

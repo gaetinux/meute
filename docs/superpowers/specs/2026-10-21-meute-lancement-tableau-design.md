@@ -63,6 +63,7 @@ Enter launch · Tab next · ←→ choose · Esc cancel
 - **Avertissement** : si une autre session vivante a le même dossier (chemins résolus), la ligne `⚠ another live session works in this folder` s'affiche ; elle n'empêche rien. La recommandation de worktree vient au plan 6.
 - **Validation** : un dossier vide ou inexistant affiche l'erreur sous les champs et bloque le lancement.
 - **Lancement** : en cas d'échec, le formulaire reste ouvert avec la saisie et l'erreur (comme `M-t`) ; en cas de succès, il se ferme et la nouvelle session est affichée dans la zone principale.
+- **Lancement avec une tâche** (décision de l'auteur, 2026-10-21, voir « Écarts ») : comme `L`, Claude démarre dans le dossier du formulaire, avec son titre et son mode, lié à la tâche ; une fois `SessionStart` reçu, le texte de la tâche est collé sans être envoyé. Le lancement tourne dans `BoardWorkers` ; pendant ce temps le formulaire reste ouvert et ignore toutes les touches (un second `Entrée` ne lance rien). Sans tâche, le lancement reste immédiat.
 - **Taille** : 8 à 9 lignes ; il tient en mode étroit.
 - **Textes** : tout ce qui vient de la base ou du disque (titres, noms de dépôt, dossiers) passe par `printable` / `one_line`, et la largeur est celle du tableau (`fit`).
 
@@ -159,4 +160,5 @@ Les décisions 1 à 8 du plan et les arbitrages du contrôleur ajustent ce docum
 - **R14 : l'avertissement du formulaire** compte aussi le dossier de la session vivante sélectionnée : la nouvelle session le partagerait.
 - **R1 : `N` sur un orphelin** se comporte comme sans sélection (aucun dépôt ni dossier préremplis).
 - **Adoption** : l'`id` doit être canonique (36 caractères, minuscules), car la réconciliation compare le tag exactement ; `IntegrityError` seul est traité comme « déjà en base ».
+- **Décision de l'auteur (2026-10-21) : une tâche choisie dans `N` se lance comme `L`.** Le formulaire envoie `LaunchClaude` avec `task_id` à un worker de `BoardWorkers` ; le backend passe alors par `launch_claude_on_task` (même attente de `SessionStart` et même collage par un fichier privé 0600 et un tampon tmux que `launch_on_task`, code partagé). Le formulaire reste ouvert et ignore les touches pendant le lancement, se ferme au succès (ou sur `prompt not pasted`, dit dans le pied), et garde saisie et erreur sur une `MeuteError`.
 - **Adoption, relecture finale** : un orphelin dont le dossier n'est pas absolu (vide, relatif) est refusé (`unknown folder: only x closes it`), au lieu d'enregistrer un chemin relatif.

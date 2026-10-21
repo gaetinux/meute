@@ -10,6 +10,7 @@ from meute.core.board_view import (
     AdoptOrphan,
     BoardAction,
     CloseOrphan,
+    LaunchClaude,
     LaunchOnTask,
     ResumeSession,
     StopSession,
@@ -58,6 +59,25 @@ class BoardWorkers:
         self._launching[task_id] = None
         self._run(LaunchOnTask(task_id=task_id), partial(self._launching.pop, task_id))
 
+    def launch_form(self, action: LaunchClaude, ended: Callable[[str | None], None]) -> bool:
+        """Launch the form's Claude on its task in a thread worker, its text pasted like `L`.
+
+        `ended` gets the error, or `None`, on the app's thread; a notice goes to the footer.
+        `False`, and nothing runs, without a task or while a launch on that task runs.
+        """
+        task_id = action.task_id
+        if task_id is None or task_id in self._launching:
+            return False
+        self._launching[task_id] = None
+        self._run(action, partial(self._launching.pop, task_id), partial(self._form_ended, ended))
+        return True
+
+    def _form_ended(
+        self, ended: Callable[[str | None], None], error: str | None, notice: str | None
+    ) -> None:
+        ended(error)
+        self._finished(None, notice)
+
     def is_resuming(self, session_id: SessionId) -> bool:
         """Whether the session is being resumed."""
         return session_id in self._resuming
@@ -103,10 +123,15 @@ class BoardWorkers:
             return launching_text(next(reversed(self._launching)))
         return None
 
-    def _run(self, action: BoardAction, forget: Callable[[], object]) -> None:
-        _ = self._app.run_worker(partial(self._off_thread, action, forget), thread=True)
+    def _run(
+        self, action: BoardAction, forget: Callable[[], object], told: Finished | None = None
+    ) -> None:
+        work = partial(self._off_thread, action, forget, told or self._finished)
+        _ = self._app.run_worker(work, thread=True)
 
-    def _off_thread(self, action: BoardAction, forget: Callable[[], object]) -> None:
+    def _off_thread(
+        self, action: BoardAction, forget: Callable[[], object], told: Finished
+    ) -> None:
         """Run in the worker thread: only `call_from_thread` may touch the app from here."""
         error: str | None = None
         notice: str | None = None
@@ -119,8 +144,11 @@ class BoardWorkers:
         except Exception as failure:  # noqa: BLE001 — the action must end on screen whatever broke
             error = str(failure) or type(failure).__name__
         with suppress(RuntimeError):  # the app already quit: nobody left to tell
-            self._app.call_from_thread(self._ended, forget, error, notice)
+            self._app.call_from_thread(self._ended, forget, told, error, notice)
 
-    def _ended(self, forget: Callable[[], object], error: str | None, notice: str | None) -> None:
+    @staticmethod
+    def _ended(
+        forget: Callable[[], object], told: Finished, error: str | None, notice: str | None
+    ) -> None:
         _ = forget()
-        self._finished(error, notice)
+        told(error, notice)

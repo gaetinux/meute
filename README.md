@@ -32,7 +32,7 @@ Dashboard, Sessions tab (`?` lists every key):
 | `Enter` | show the selected session in the main area (on a repository: start a Bash session there) |
 | `c` | new Claude session on the selected repository or session |
 | `n` | new session of the type last used in that repository (Claude when it has none) |
-| `N` | open the launch form: type, repository, folder, title, and for Claude the task and the permission mode; `Tab` next field, `←` `→` choose, `Enter` launch, `Esc` cancel |
+| `N` | open the launch form: type, repository, folder, title, and for Claude the task and the permission mode; `Tab` next field, `←` `→` choose, `Enter` launch, `Esc` cancel; with a task, its text is pasted into Claude unsent, like `L` |
 | `r` | resume an ended Claude session (`claude --resume`, in its old pane when it is still there) |
 | `x` | stop the session (asks for confirmation) |
 | `a` / `e` | show only what needs attention / show ended sessions |
