@@ -194,11 +194,11 @@ class SessionsTab:
             self._confirming = orphan
 
     def _resume_entry(self, entry: LaunchEntry) -> None:
-        """Resume the entry's session, or say why not; a resume already running is left alone."""
+        """Resume the entry's session, or say why not; left alone while it is resumed or stopped."""
         target = resume_target(entry, self.cursor.model.data.details)
         if isinstance(target, str):
             self._notice(target)
-        elif not self._is_resuming(target.id):
+        elif not self._is_resuming(target.id) and not self._is_stopping(target.id):
             self._resume(target)
 
     def click(self, y: int, x: int) -> None:

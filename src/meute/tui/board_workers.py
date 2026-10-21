@@ -83,8 +83,8 @@ class BoardWorkers:
         return session_id in self._resuming
 
     def resume(self, session: Session) -> None:
-        """Resume `session` in a thread worker; ignored while that resume runs."""
-        if session.id in self._resuming:
+        """Resume `session` in a thread worker; ignored while it is resumed or stopped."""
+        if session.id in self._resuming or session.id in self._stopping:
             return
         self._resuming[session.id] = session.title
         self._run(ResumeSession(session_id=session.id), partial(self._resuming.pop, session.id))
