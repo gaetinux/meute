@@ -34,10 +34,10 @@ Dashboard, Sessions tab (`?` lists every key):
 | `n` | new session of the type last used in that repository (Claude when it has none) |
 | `N` | open the launch form: type, repository, folder, title, and for Claude the task and the permission mode; `Tab` next field, `←` `→` choose, `Enter` launch, `Esc` cancel; with a task, its text is pasted into Claude unsent, like `L` |
 | `r` | resume an ended Claude session (`claude --resume`, in its old pane when it is still there) |
-| `x` | stop the session (asks for confirmation) |
+| `x` | stop the session (asks for confirmation); when it was the one shown, the next live session of the board takes its place |
 | `a` / `e` | show only what needs attention / show ended sessions |
 
-On an orphan pane (a pane tagged for meute that the database does not know), `Enter` shows it, `a` adopts it as a session and `x` closes it (asks for confirmation).
+On an orphan pane (a pane tagged for meute that the database does not know), `Enter` shows it, `a` adopts it as a session and `x` closes it (asks for confirmation; a shown orphan is replaced by the first live session of the board).
 
 Dashboard, Tasks tab (`Tab` or a click on the title switches tabs; `?` lists every key):
 

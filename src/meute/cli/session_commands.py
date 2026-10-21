@@ -170,5 +170,5 @@ def stop(
         if not yes and not _confirmed(session.title):
             typer.echo("Cancelled.")
             return
-        stopped = stop_session(ctx, open_tmux_env(ctx, os.environ), session.id)
+        stopped = stop_session(ctx, open_tmux_env(ctx, os.environ), session.id, environ=os.environ)
     typer.echo(f"Stopped: {short_id(stopped.id)} {printable(stopped.title)}")

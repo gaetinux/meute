@@ -14,6 +14,7 @@ from meute.cli.context import ENVIRONMENT_ERRORS, CliContext, open_database
 from meute.cli.orphan_actions import adopt_orphan, close_orphan, show_orphan
 from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
+from meute.cli.session_next import order_if_shown, show_next
 from meute.cli.session_resume import resume_session
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
@@ -48,6 +49,7 @@ from meute.core.errors import MeuteError, PromptNotPasted
 from meute.core.session import SessionId
 from meute.core.task import TaskId
 from meute.core.views import count_overdue
+from meute.tmux.layout import displayed_meute_id
 from meute.tmux.panes import detach_client
 
 if TYPE_CHECKING:
@@ -205,7 +207,15 @@ class CliBoardBackend:
                 with open_database(self._ctx.paths, self._ctx.db.clock) as db:
                     _ = adopt_orphan(replace(self._ctx, db=db), action.orphan)
             case CloseOrphan():
-                close_orphan(self._env, action.meute_id, action.agent)
+                if displayed_meute_id(self._env.tmux) != action.meute_id:
+                    close_orphan(self._env, action.meute_id, action.agent)
+                    return
+                # Shown: the next live session takes its place, read on a connection of its own.
+                with open_database(self._ctx.paths, self._ctx.db.clock) as db:
+                    ctx = replace(self._ctx, db=db)
+                    order = order_if_shown(ctx, self._env, self._environ, action.meute_id)
+                    close_orphan(self._env, action.meute_id, action.agent)
+                    _ = show_next(ctx, self._env, order, action.meute_id)
             case _:
                 assert_never(action)
 
@@ -238,7 +248,9 @@ class CliBoardBackend:
         The main thread's connection is never touched here (sqlite3 connections are not shared).
         """
         with open_database(self._ctx.paths, self._ctx.db.clock) as db:
-            _ = stop_session(replace(self._ctx, db=db), self._env, session_id)
+            _ = stop_session(
+                replace(self._ctx, db=db), self._env, session_id, environ=self._environ
+            )
 
     def _resume(self, session_id: SessionId) -> None:
         """Resume a session on a connection of its own: the board runs this in a worker thread."""

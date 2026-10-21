@@ -1,4 +1,4 @@
-"""Which sessions need the user's attention, and the order to visit them."""
+"""Which sessions need the user's attention, and the order to visit them or to show next."""
 
 from collections.abc import Sequence
 from typing import assert_never
@@ -16,6 +16,7 @@ from meute.core.session_state import (
     Unknown,
     Unreachable,
     WaitingInput,
+    is_live,
 )
 
 
@@ -56,5 +57,21 @@ def next_attention(
     for offset in range(count):
         candidate = order[(start + offset * step) % size]
         if needs_attention(candidate.state):
+            return candidate
+    return None
+
+
+def next_live(order: Sequence[Session], current: str) -> Session | None:
+    """Return the live session that follows `current` in `order`, to show once it is stopped.
+
+    The search wraps around and never returns `current` itself. A `current` that is not in
+    `order` (an orphan pane, say) starts from the first session. Returns None when no other
+    session is live.
+    """
+    position = next((i for i, session in enumerate(order) if session.id == current), -1)
+    size = len(order)
+    for offset in range(1, size + 1):
+        candidate = order[(position + offset) % size]
+        if candidate.id != current and is_live(candidate.state):
             return candidate
     return None

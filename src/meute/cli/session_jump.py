@@ -6,15 +6,13 @@ from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 
-from meute.cli.board_data import load_board_data
 from meute.cli.context import CliContext
+from meute.cli.session_next import board_order
 from meute.cli.session_show import show_session
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.attention import next_attention
-from meute.core.board_sessions import board_sessions
 from meute.core.paths import make_private_dir
 from meute.core.session import Session, SessionId
-from meute.core.sessions_view import SessionLine, ViewState
 from meute.tmux.layout import main_window_panes
 
 NOTHING_TO_JUMP_TO = "Nothing needs your attention."
@@ -65,14 +63,7 @@ def jump_to_attention(
 def _jump(
     ctx: CliContext, env: TmuxEnv, environ: Mapping[str, str], *, backwards: bool
 ) -> Session | None:
-    # No `claude agents` here: assumed states stay the board's, which has its readings.
-    data = load_board_data(ctx, env, environ, None, assume=False)
-    board = board_sessions(data, ViewState())
-    order = [
-        board.infos[line.session_id].row.session
-        for line in board.view.lines
-        if isinstance(line, SessionLine) and line.session_id in board.infos
-    ]
+    order = board_order(ctx, env, environ)
     target = next_attention(order, _displayed_id(env), backwards=backwards)
     if target is None:
         _ = env.tmux.run("display-message", NOTHING_TO_JUMP_TO)
