@@ -50,13 +50,14 @@ class Snapshot:
     outside: tuple[AgentInfo, ...] = ()
 
 
-def refresh(
+def refresh(  # noqa: PLR0913 — one keyword per independent option of a reading
     ctx: CliContext,
     env: TmuxEnv,
     *,
     include_ended: bool = False,
     agents: Sequence[AgentInfo] | None = None,
     assume: bool = True,
+    describe_orphans: bool = False,
 ) -> Snapshot:
     """Read the panes, then reconcile; a tmux failure stops everything before any write.
 
@@ -64,7 +65,8 @@ def refresh(
     and the agents outside meute are returned. Without `agents` (not consulted, or failed) only
     the silence rule applies: a silent running session is `stuck?`. With `assume` false, no
     assumed state is recorded at all: for callers without `claude agents`, which would otherwise
-    overwrite what the board learnt from it.
+    overwrite what the board learnt from it. With `describe_orphans`, `orphan_panes` is filled
+    (one tmux query per orphan); only the board reads it.
 
     Raises:
         TmuxError: tmux could not be read.
@@ -85,6 +87,8 @@ def refresh(
         if assume
         else None,
     )
+    if not describe_orphans:
+        return snapshot
     return replace(snapshot, orphan_panes=_describe_orphans(env.tmux, panes, snapshot.orphans))
 
 

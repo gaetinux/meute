@@ -75,7 +75,7 @@ def load_board_data(
     Raises:
         TmuxError: tmux failed.
     """
-    snapshot = refresh(ctx, env, agents=agents, assume=assume)
+    snapshot = refresh(ctx, env, agents=agents, assume=assume, describe_orphans=True)
     db = ctx.db
     clock = db.now()
     local = local_now(ctx)

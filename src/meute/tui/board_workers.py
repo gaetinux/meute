@@ -96,7 +96,7 @@ class BoardWorkers:
     def adopt(self, orphan: Orphan) -> None:
         """Adopt `orphan` in a thread worker; ignored while it is being adopted or closed."""
         key = orphan.meute_id
-        if key in self._adopting or key in self._closing:
+        if self._orphan_busy(key):
             return
         self._adopting[key] = None
         self._run(AdoptOrphan(orphan=orphan), partial(self._adopting.pop, key))
@@ -104,12 +104,16 @@ class BoardWorkers:
     def close(self, orphan: Orphan) -> None:
         """Close the orphan pane in a thread worker; ignored while it is adopted or closed."""
         key = orphan.meute_id
-        if key in self._adopting or key in self._closing:
+        if self._orphan_busy(key):
             return
         self._closing[key] = orphan.command
         self._run(
             CloseOrphan(meute_id=key, agent=orphan_agent(orphan)), partial(self._closing.pop, key)
         )
+
+    def _orphan_busy(self, key: str) -> bool:
+        """Whether the orphan is being adopted or closed: either excludes the other."""
+        return key in self._adopting or key in self._closing
 
     def footer(self) -> str | None:
         """What the latest running action says in the footer, if any action runs."""

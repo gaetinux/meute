@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from collections.abc import Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,7 +46,17 @@ def pane_of_session(tmux: Tmux, session_id: str) -> PaneInfo | None:
         CommandFailed: tmux failed for a reason other than a missing server.
         UnreadableOutput: a pane line could not be parsed.
     """
-    return next((pane for pane in list_panes(tmux) if pane.meute_id == session_id), None)
+    return pane_with_meute_id(list_panes(tmux), session_id)
+
+
+def pane_with_meute_id(panes: Sequence[PaneInfo], session_id: str) -> PaneInfo | None:
+    """Return the first of `panes` tagged with `session_id`, or None (no tmux call)."""
+    return next((pane for pane in panes if pane.meute_id == session_id), None)
+
+
+def pane_by_id(panes: Sequence[PaneInfo], pane_id: str | None) -> PaneInfo | None:
+    """Return the one of `panes` whose tmux id is `pane_id`, or None (no tmux call)."""
+    return next((pane for pane in panes if pane.id == pane_id), None)
 
 
 _CD_THEN_EXEC = 'cd -- "$1" || exit; shift; exec "$@"'

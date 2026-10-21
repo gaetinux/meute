@@ -2,7 +2,6 @@
 
 import asyncio
 import threading
-import time
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
 
@@ -12,7 +11,6 @@ from textual.widgets import Static
 
 from meute.core.board_view import (
     FOOTER,
-    BoardAction,
     BoardData,
     ResumeSession,
     SessionRow,
@@ -25,33 +23,11 @@ from meute.core.errors import MeuteError
 from meute.core.session import AgentKind, Session
 from meute.core.session_state import Running
 from meute.tui.board import BoardApp
-from support import BOARD_HOME, BOARD_ID_A, board_data, board_session
+from support import BOARD_HOME, BOARD_ID_A, BlockingBackend, board_data, board_session, until
 
 Scenario = Callable[[BoardApp, Pilot[None]], Awaitable[None]]
 _SIZE = (60, 30)
 _NO_POLL = 3600.0
-
-
-class BlockingBackend:
-    """Blocks every action until released."""
-
-    def __init__(self, data: BoardData) -> None:
-        self.pending: BoardData | None = data
-        self.actions: list[BoardAction] = []
-        self.threads: list[int] = []
-        self.release = threading.Event()
-        self.perform_error: MeuteError | None = None
-
-    def load(self) -> BoardData | None:
-        data, self.pending = self.pending, None
-        return data
-
-    def perform(self, action: BoardAction) -> None:
-        self.actions.append(action)
-        self.threads.append(threading.get_ident())
-        assert self.release.wait(timeout=10)
-        if self.perform_error is not None:
-            raise self.perform_error
 
 
 def _claude(*, exited: bool, native_id: str | None = "abc") -> tuple[Session, BoardData]:
@@ -76,13 +52,6 @@ def _footer(app: BoardApp) -> str:
     return content.plain
 
 
-async def _until(pilot: Pilot[None], condition: Callable[[], object], what: str) -> None:
-    deadline = time.monotonic() + 10
-    while not condition():
-        assert time.monotonic() < deadline, what
-        await pilot.pause(0.01)
-
-
 def _run(backend: BlockingBackend, keys: tuple[str, ...], scenario: Scenario) -> None:
     app = BoardApp(backend, poll_seconds=_NO_POLL)
 
@@ -100,10 +69,10 @@ def test_r_resumes_in_a_worker_and_the_footer_says_so() -> None:
     seen: list[str] = []
 
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
-        await _until(pilot, lambda: backend.actions, "the resume never started")
+        await until(pilot, lambda: backend.actions, "the resume never started")
         seen.append(_footer(app))
         backend.release.set()
-        await _until(pilot, lambda: _footer(app) == FOOTER, "the resume never ended")
+        await until(pilot, lambda: _footer(app) == FOOTER, "the resume never ended")
 
     _run(backend, ("e", "r"), scenario)
     assert seen == [resuming_text(session.title)]
@@ -116,11 +85,11 @@ def test_r_twice_sends_one_action() -> None:
     backend = BlockingBackend(data)
 
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
-        await _until(pilot, lambda: backend.actions, "the resume never started")
+        await until(pilot, lambda: backend.actions, "the resume never started")
         await pilot.press("r")
         assert _footer(app) == resuming_text("gone")
         backend.release.set()
-        await _until(pilot, lambda: _footer(app) == FOOTER, "the resume never ended")
+        await until(pilot, lambda: _footer(app) == FOOTER, "the resume never ended")
 
     _run(backend, ("e", "r"), scenario)
     assert len(backend.actions) == 1
@@ -157,7 +126,7 @@ def test_a_failed_resume_shows_its_error() -> None:
     backend.release.set()
 
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
-        await _until(pilot, lambda: _footer(app) == error_text("no such conversation"), "no error")
+        await until(pilot, lambda: _footer(app) == error_text("no such conversation"), "no error")
 
     _run(backend, ("e", "r"), scenario)
 

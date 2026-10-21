@@ -1,5 +1,6 @@
 """The state of the launch form (`N`): its fields, its moves and the launch it asks for."""
 
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import Enum, auto
@@ -205,30 +206,25 @@ def _clean(text: str, limit: int) -> str:
     return f"{lead}{one_line(text, limit)}{trail}"
 
 
-def type_text(form: LaunchForm, text: str) -> LaunchForm:
-    """Return `form` with `text` added to the end of the current text field."""
+def _edit_text(form: LaunchForm, edit: Callable[[str, int], str]) -> LaunchForm:
+    """Return `form` with `edit(text, limit)` stored in the current text field; others stay."""
     match form.field:
         case FormField.FOLDER:
-            return replace(
-                form, folder=(form.folder + _clean(text, FOLDER_LIMIT))[:FOLDER_LIMIT], error=None
-            )
+            return replace(form, folder=edit(form.folder, FOLDER_LIMIT), error=None)
         case FormField.TITLE:
-            return replace(
-                form, title=(form.title + _clean(text, TITLE_LIMIT))[:TITLE_LIMIT], error=None
-            )
+            return replace(form, title=edit(form.title, TITLE_LIMIT), error=None)
         case FormField.TYPE | FormField.REPO | FormField.TASK | FormField.MODE:
             return form
+
+
+def type_text(form: LaunchForm, text: str) -> LaunchForm:
+    """Return `form` with `text` added to the end of the current text field."""
+    return _edit_text(form, lambda current, limit: (current + _clean(text, limit))[:limit])
 
 
 def erase(form: LaunchForm) -> LaunchForm:
     """Return `form` without the last character of the current text field."""
-    match form.field:
-        case FormField.FOLDER:
-            return replace(form, folder=form.folder[:-1], error=None)
-        case FormField.TITLE:
-            return replace(form, title=form.title[:-1], error=None)
-        case FormField.TYPE | FormField.REPO | FormField.TASK | FormField.MODE:
-            return form
+    return _edit_text(form, lambda current, _limit: current[:-1])
 
 
 def _expanded(folder: str, home: Path) -> Path | str:
@@ -236,9 +232,12 @@ def _expanded(folder: str, home: Path) -> Path | str:
     text = folder.strip()
     if not text:
         return "folder is empty"
-    if text == "~" or text.startswith("~/"):
-        text = str(home / text[2:]) if text != "~" else str(home)
-    path = Path(text)
+    if text == "~":
+        path = home
+    elif text.startswith("~/"):
+        path = home / text[2:]
+    else:
+        path = Path(text)
     if not path.is_absolute():
         return f"folder must be absolute: {folder.strip()}"
     return path

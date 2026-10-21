@@ -2,18 +2,18 @@
 
 import asyncio
 import threading
-import time
 from collections.abc import Awaitable, Callable
 
 from textual.content import Content
 from textual.pilot import Pilot
 from textual.widgets import Static
 
-from meute.core.board_view import BoardAction, BoardData, LaunchBash, LaunchClaude
-from meute.core.errors import InvalidInput, MeuteError, PromptNotPasted
+from meute.core.board_view import LaunchBash, LaunchClaude
+from meute.core.errors import InvalidInput, PromptNotPasted
 from meute.core.project import RepoId
 from meute.core.task import TaskId
 from meute.tui.board import BoardApp, BoardOptions
+from support import BlockingBackend, until
 from test_tui_launch_form import _MEUTE, _data  # pyright: ignore[reportPrivateUsage] — reused
 
 Scenario = Callable[[BoardApp, Pilot[None]], Awaitable[None]]
@@ -24,28 +24,6 @@ _LAUNCHING = "Launching Claude on #2…"
 _PICK = ("N", "tab", "tab", "tab", "m", "i", "n", "e", "tab", "right")
 
 
-class BlockingBackend:
-    """Blocks every action until released, and notes the thread it ran on."""
-
-    def __init__(self, data: BoardData) -> None:
-        self.pending: BoardData | None = data
-        self.actions: list[BoardAction] = []
-        self.threads: list[int] = []
-        self.release = threading.Event()
-        self.perform_error: MeuteError | None = None
-
-    def load(self) -> BoardData | None:
-        data, self.pending = self.pending, None
-        return data
-
-    def perform(self, action: BoardAction) -> None:
-        self.actions.append(action)
-        self.threads.append(threading.get_ident())
-        assert self.release.wait(timeout=10)
-        if self.perform_error is not None:
-            raise self.perform_error
-
-
 def _text(app: BoardApp, widget_id: str) -> str:
     content = app.query_one(f"#{widget_id}", Static).content
     assert isinstance(content, Content)
@@ -54,13 +32,6 @@ def _text(app: BoardApp, widget_id: str) -> str:
 
 def _is_open(app: BoardApp) -> bool:
     return app.query_one("#launch-form", Static).display
-
-
-async def _until(pilot: Pilot[None], condition: Callable[[], object], what: str) -> None:
-    deadline = time.monotonic() + 10
-    while not condition():
-        assert time.monotonic() < deadline, what
-        await pilot.pause(0.01)
 
 
 def _run(backend: BlockingBackend, keys: tuple[str, ...], scenario: Scenario) -> None:
@@ -84,12 +55,12 @@ def test_a_picked_task_is_launched_in_a_worker_and_the_form_waits() -> None:
     backend = BlockingBackend(_data())
 
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
-        await _until(pilot, lambda: backend.actions, "the launch never started")
+        await until(pilot, lambda: backend.actions, "the launch never started")
         await pilot.pause()
         assert _is_open(app)  # kept while Claude starts
         assert _text(app, "footer") == _LAUNCHING
         backend.release.set()
-        await _until(pilot, lambda: not _is_open(app), "the form never closed")
+        await until(pilot, lambda: not _is_open(app), "the form never closed")
 
     _run(backend, (*_PICK, "enter"), scenario)
     assert backend.actions == [_EXPECTED]
@@ -100,12 +71,12 @@ def test_a_second_enter_during_the_launch_is_ignored() -> None:
     backend = BlockingBackend(_data())
 
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
-        await _until(pilot, lambda: backend.actions, "the launch never started")
+        await until(pilot, lambda: backend.actions, "the launch never started")
         await pilot.press("enter", "x", "enter")
         await pilot.pause(0.05)
         assert _is_open(app)
         backend.release.set()
-        await _until(pilot, lambda: not _is_open(app), "the form never closed")
+        await until(pilot, lambda: not _is_open(app), "the form never closed")
 
     _run(backend, (*_PICK, "enter"), scenario)
     assert backend.actions == [_EXPECTED]
@@ -117,14 +88,14 @@ def test_a_failed_task_launch_keeps_the_form_its_text_and_the_error() -> None:
     backend.release.set()
 
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
-        await _until(
+        await until(
             pilot, lambda: "Error: folder not found: /x" in _text(app, "launch-form"), "no error"
         )
         assert _is_open(app)
         assert "mine" in _text(app, "launch-form")
         backend.perform_error = None
         await pilot.press("enter")  # the same form, launched again
-        await _until(pilot, lambda: not _is_open(app), "the form never closed")
+        await until(pilot, lambda: not _is_open(app), "the form never closed")
 
     _run(backend, (*_PICK, "enter"), scenario)
     assert backend.actions == [_EXPECTED, _EXPECTED]
@@ -137,7 +108,7 @@ def test_claude_not_ready_closes_the_form_and_says_so() -> None:
     expected = "#2: prompt not pasted (Claude not ready after 10 s)"
 
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
-        await _until(pilot, lambda: _text(app, "footer") == expected, "no notice shown")
+        await until(pilot, lambda: _text(app, "footer") == expected, "no notice shown")
         assert not _is_open(app)
 
     _run(backend, (*_PICK, "enter"), scenario)

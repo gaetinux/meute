@@ -101,7 +101,7 @@ def test_refresh_returns_the_complete_orphan(
     db: Database, tmux_server: TestServer, tmp_path: Path
 ) -> None:
     pane = _pane(tmux_server, tmp_path, "x;y")
-    snapshot = refresh(_context(db, tmp_path), _env(tmux_server, tmp_path))
+    snapshot = refresh(_context(db, tmp_path), _env(tmux_server, tmp_path), describe_orphans=True)
     assert snapshot.orphan_panes == (
         Orphan(meute_id="x;y", pane_id=pane, command="sleep", cwd=str(tmp_path), dead=False),
     )
@@ -117,7 +117,7 @@ def test_refresh_omits_a_pane_that_vanished_before_it_was_described(
         return None
 
     monkeypatch.setattr(session_refresh, "orphan_details", vanished)
-    snapshot = refresh(_context(db, tmp_path), _env(tmux_server, tmp_path))
+    snapshot = refresh(_context(db, tmp_path), _env(tmux_server, tmp_path), describe_orphans=True)
     assert (snapshot.orphan_panes, snapshot.orphans) == ((), ("ghost",))
 
 
@@ -129,3 +129,11 @@ def _context(db: Database, tmp_path: Path) -> CliContext:
         config=Config(),
         paths=Paths.from_roots(config_home=tmp_path, data_home=tmp_path, state_home=tmp_path),
     )
+
+
+def test_refresh_does_not_describe_orphans_unless_asked(
+    db: Database, tmux_server: TestServer, tmp_path: Path
+) -> None:
+    _pane(tmux_server, tmp_path, "x;y")
+    snapshot = refresh(_context(db, tmp_path), _env(tmux_server, tmp_path))
+    assert (snapshot.orphan_panes, snapshot.orphans) == ((), ("x;y",))

@@ -42,6 +42,7 @@ from meute.core.paths import display_path
 from meute.core.project import ProjectId, ProjectRef, RepoId
 from meute.core.quota_view import QuotaLine
 from meute.core.repo import Repo
+from meute.core.resume_texts import NOT_CLAUDE, no_native_id_text, still_running_text
 from meute.core.session import AgentKind, Session, SessionId
 from meute.core.session_state import is_live
 from meute.core.statusline import StatuslineData
@@ -163,7 +164,7 @@ def new_action(entry: LaunchEntry, data: BoardData) -> LaunchBash | LaunchClaude
     own = entry.row.session.agent if isinstance(entry, SessionEntry) else None
     if last_agent(data, repo_id, own) is AgentKind.BASH:
         return LaunchBash(cwd=cwd, repo_id=repo_id)
-    return LaunchClaude(cwd=cwd, repo_id=repo_id)
+    return claude_action(entry)
 
 
 def claude_action(entry: LaunchEntry) -> LaunchClaude:
@@ -218,16 +219,16 @@ def resume_target(entry: LaunchEntry, details: Mapping[SessionId, ClaudeDetails]
         case SessionEntry():
             session = entry.row.session
             if session.agent is not AgentKind.CLAUDE:
-                return "only Claude sessions resume"
+                return NOT_CLAUDE
             title = printable(session.title)
             if is_live(session.state):
-                return f'"{title}" is still running'
+                return still_running_text(title)
             known = details.get(session.id)
             if known is None or known.native_id is None:
-                return f'"{title}" cannot be resumed: Claude never confirmed its id'
+                return no_native_id_text(title)
             return session
         case RepoEntry():
-            return "only Claude sessions resume"
+            return NOT_CLAUDE
         case _:
             assert_never(entry)
 

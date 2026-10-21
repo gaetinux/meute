@@ -12,7 +12,7 @@ from meute.core.errors import InvalidInput, NotFound
 from meute.core.orphans import Orphan, adoption
 from meute.core.session import AgentKind, Session, SessionId
 from meute.tmux.layout import ensure_layout, find_layout
-from meute.tmux.panes import list_panes
+from meute.tmux.panes import list_panes, pane_by_id
 
 
 def show_orphan(env: TmuxEnv, pane_id: str) -> None:
@@ -24,7 +24,7 @@ def show_orphan(env: TmuxEnv, pane_id: str) -> None:
         InvalidInput: meute is not open, the pane is gone or dead.
         TmuxError: tmux failed.
     """
-    pane = next((p for p in list_panes(env.tmux) if p.id == pane_id), None)
+    pane = pane_by_id(list_panes(env.tmux), pane_id)
     if pane is None:
         message = "pane is gone"
         raise InvalidInput(message)

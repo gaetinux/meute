@@ -14,6 +14,7 @@ from meute.core.config_validate import PERMISSION_MODES
 from meute.core.db.claude_sessions import get_claude_details
 from meute.core.db.sessions import get_session, reopen_session
 from meute.core.errors import InvalidInput
+from meute.core.resume_texts import NOT_CLAUDE, no_native_id_text, still_running_text
 from meute.core.session import AgentKind, Session, SessionId
 from meute.core.session_state import is_live
 from meute.tmux.errors import TmuxError
@@ -38,14 +39,14 @@ def resume_session(
     """
     session = get_session(ctx.db, session_id)
     if session.agent is not AgentKind.CLAUDE:
-        message = "only Claude sessions resume"
+        message = NOT_CLAUDE
         raise InvalidInput(message)
     if is_live(session.state):
-        message = f'"{session.title}" is still running'
+        message = still_running_text(session.title)
         raise InvalidInput(message)
     details = get_claude_details(ctx.db, session_id)
     if details.native_id is None or _CLAUDE_ID.fullmatch(details.native_id) is None:
-        message = f'"{session.title}" cannot be resumed: Claude never confirmed its id'
+        message = no_native_id_text(session.title)
         raise InvalidInput(message)
     cwd = resolve_folder(session.cwd)
     claude = find_claude(environ)
@@ -53,7 +54,7 @@ def resume_session(
         raise InvalidInput(CLAUDE_MISSING)
     pane = pane_of_session(env.tmux, session_id)
     if pane is not None and not pane.dead:
-        message = f'"{session.title}" is still running'  # restarting it would kill a live process
+        message = still_running_text(session.title)  # restarting it would kill a live process
         raise InvalidInput(message)
     known_mode = details.permission_mode
     mode = known_mode if known_mode in PERMISSION_MODES else ctx.config.claude.permission_mode

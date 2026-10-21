@@ -18,9 +18,9 @@ _LEFT = "◂ "
 _RIGHT = " ▸"
 
 
-def _label(form: LaunchForm, field: FormField, text: str) -> Span:
+def _label(form: LaunchForm, field: FormField) -> Span:
     role = Role.TITLE if form.field is field else Role.DIM
-    return Span(text.ljust(_LABEL_WIDTH), role)
+    return Span(field.name.capitalize().ljust(_LABEL_WIDTH), role)
 
 
 def _choice(
@@ -29,13 +29,11 @@ def _choice(
     """Return a row `label ◂ value ▸`, the value cut so the marks always show."""
     room = width - _LABEL_WIDTH - len(_LEFT) - len(_RIGHT)
     value = clip((Span(text, role),), room) if room > 0 else (Span(text, role),)
-    name = field.name.capitalize()
-    return (_label(form, field, name), Span(_LEFT), *value, Span(_RIGHT))
+    return (_label(form, field), Span(_LEFT), *value, Span(_RIGHT))
 
 
 def _text_row(form: LaunchForm, field: FormField, text: str) -> StyledLine:
-    name = field.name.capitalize()
-    return (_label(form, field, name), Span(printable(text)))
+    return (_label(form, field), Span(printable(text)))
 
 
 def _folder_text(folder: str, home: Path) -> str:

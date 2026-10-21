@@ -1,15 +1,18 @@
 """Helpers shared by the tests: plain functions, not fixtures."""
 
 import json
+import threading
 import time
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from textual.content import Content
+from textual.pilot import Pilot
 
 from meute.core.actor import Actor, Author, Channel
-from meute.core.board_view import BoardData, SessionRow
+from meute.core.board_view import BoardAction, BoardData, SessionRow
 from meute.core.db.connection import Database
 from meute.core.db.projects import create_project
 from meute.core.db.task_update import update_task
@@ -24,6 +27,9 @@ from meute.core.session_state import Exited, Running
 from meute.core.status import Blocked, InProgress, Priority, Review, TaskStatus, Todo
 from meute.core.status import Done as DoneStatus
 from meute.core.task import Due, DueAt, DueDate, NewTask, Task, TaskId, TaskPatch
+
+if TYPE_CHECKING:
+    from meute.core.errors import MeuteError
 
 NOW = parse_zoned("2026-10-14T10:30[Europe/Paris]")  # a Wednesday
 
@@ -221,3 +227,36 @@ def selected_row(content: Content, styles: tuple[str, ...]) -> list[str]:
             return [row]
         start = end + 1
     return []
+
+
+class BlockingBackend:
+    """A board backend whose actions block until released; notes the thread each ran on.
+
+    With `perform_error` set, a released action raises it.
+    """
+
+    def __init__(self, data: BoardData) -> None:
+        self.pending: BoardData | None = data
+        self.actions: list[BoardAction] = []
+        self.threads: list[int] = []
+        self.release = threading.Event()
+        self.perform_error: MeuteError | None = None
+
+    def load(self) -> BoardData | None:
+        data, self.pending = self.pending, None
+        return data
+
+    def perform(self, action: BoardAction) -> None:
+        self.actions.append(action)
+        self.threads.append(threading.get_ident())
+        assert self.release.wait(timeout=10)
+        if self.perform_error is not None:
+            raise self.perform_error
+
+
+async def until(pilot: Pilot[None], condition: Callable[[], object], what: str) -> None:
+    """Pause the pilot until `condition` holds, failing with `what` after ten seconds."""
+    deadline = time.monotonic() + 10
+    while not condition():
+        assert time.monotonic() < deadline, what
+        await pilot.pause(0.01)
