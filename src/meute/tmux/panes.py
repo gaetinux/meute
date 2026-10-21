@@ -86,10 +86,14 @@ def spawn_window(tmux: Tmux, spawn: Spawn) -> PaneId:
 def respawn_window(tmux: Tmux, pane: PaneId, spawn: Spawn) -> PaneId:
     """Restart `spawn.command` in the dead `pane` (kept in place), then set the pane options.
 
+    There is no `-k`: tmux itself refuses a live pane, so two racing callers cannot kill each
+    other's process. There is no `-c` either: the folder travels through `_in_folder` as argv
+    data, which tmux never format-expands.
+
     Raises:
-        CommandFailed: tmux failed (the pane is gone, for one).
+        CommandFailed: tmux failed (the pane is gone or still alive, for one).
     """
-    _ = tmux.run("respawn-pane", "-k", "-t", pane, *_env_args(spawn), "--", *_in_folder(spawn))
+    _ = tmux.run("respawn-pane", "-t", pane, *_env_args(spawn), "--", *_in_folder(spawn))
     for name, value in spawn.pane_options:
         set_pane_option(tmux, pane, name, value)
     return pane

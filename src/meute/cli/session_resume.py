@@ -34,7 +34,7 @@ def resume_session(
         InvalidInput: not an ended Claude session with a known Claude id, the folder is gone or
             `claude` is missing; nothing was started and nothing was written.
         NotFound: no such session.
-        TmuxError: tmux failed; nothing was written.
+        TmuxError: tmux failed; the database was not written.
     """
     session = get_session(ctx.db, session_id)
     if session.agent is not AgentKind.CLAUDE:

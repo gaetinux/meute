@@ -6,7 +6,7 @@ import pytest
 
 from conftest import FAKE_CLAUDE_DIR, Sandbox
 from meute.cli.context import CliContext
-from meute.cli.session_launch import BashLaunch, launch_bash
+from meute.cli.session_launch import BashLaunch, launch_bash, session_spawn
 from meute.cli.session_resume import resume_session
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.actor import Actor, Author, Channel
@@ -21,7 +21,7 @@ from meute.core.session import Session, SessionId
 from meute.core.session_state import Exited, Idle, Unknown
 from meute.tmux.conf import Keys, LayoutSpec
 from meute.tmux.names import BG_SESSION
-from meute.tmux.panes import Spawn, kill_pane, pane_of_session, spawn_window
+from meute.tmux.panes import Spawn, kill_pane, pane_of_session, respawn_window, spawn_window
 from support import FIXED, load_json, wait_until
 
 _SPEC = LayoutSpec(
@@ -220,5 +220,56 @@ def test_refusals_launch_nothing_and_write_nothing(sandbox: Sandbox) -> None:
         pane = pane_of_session(env.tmux, ended.id)
         assert pane is not None
         assert pane.dead
+    finally:
+        ctx.db.close()
+
+
+def test_an_ended_session_with_a_live_pane_is_refused_and_nothing_starts(
+    sandbox: Sandbox,
+) -> None:
+    session = _ended_claude(sandbox)
+    ctx, env, environ = _ctx(sandbox)
+    try:
+        wait_until(
+            "the pane to be dead",
+            lambda: (p := pane_of_session(env.tmux, session.id)) is not None and p.dead,
+        )
+        dead = pane_of_session(env.tmux, session.id)
+        assert dead is not None
+        spawn = session_spawn(session.id, sandbox.root / "w", ("sleep", "3600"))
+        _ = respawn_window(env.tmux, dead.id, spawn)  # the pane lives again, the state is Exited
+        before = get_session(ctx.db, session.id)
+        args = sandbox.root / "args.json"
+        args.unlink()
+        with pytest.raises(InvalidInput, match=r'^"trial" is still running$'):
+            _ = resume_session(ctx, env, session.id, environ)
+        pane = pane_of_session(env.tmux, session.id)
+        assert pane is not None
+        assert (pane.id, pane.dead) == (dead.id, False)
+        assert get_session(ctx.db, session.id) == before
+        assert not args.exists()
+    finally:
+        ctx.db.close()
+
+
+def test_the_launched_pane_is_killed_when_reopening_fails(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    session = _ended_claude(sandbox)
+    ctx, env, environ = _ctx(sandbox)
+
+    def refuse(_db: Database, _session_id: SessionId) -> Session:
+        message = "database is locked"
+        raise InvalidInput(message)
+
+    monkeypatch.setattr("meute.cli.session_resume.reopen_session", refuse)
+    _ = spawn_window(  # keeps the tmux server alive once the pane is killed
+        env.tmux, Spawn(session="keeper", cwd=Path("/"), command=("sleep", "3600"))
+    )
+    _script(sandbox, "permission")
+    try:
+        with pytest.raises(InvalidInput, match="database is locked"):
+            _ = resume_session(ctx, env, session.id, environ)
+        assert pane_of_session(env.tmux, session.id) is None
     finally:
         ctx.db.close()

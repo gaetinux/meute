@@ -1,6 +1,5 @@
 """Reopening an ended session: back to unknown, ended marks cleared."""
 
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -42,7 +41,7 @@ def test_a_live_session_is_refused_and_untouched(db: Database) -> None:
     before = set_session_state(db, SID, Idle())
     with pytest.raises(InvalidInput, match=r'^"work" is still running$'):
         _ = reopen_session(db, SID)
-    assert get_session(db, SID) == replace(before)
+    assert get_session(db, SID) == before
 
 
 def test_an_unknown_session_is_not_found(db: Database) -> None:

@@ -4,6 +4,9 @@ import os
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
+from meute.tmux.errors import CommandFailed
 from meute.tmux.panes import Spawn, list_panes, respawn_window, spawn_window
 from meute.tmux.parse import PaneId, PaneInfo
 from support import wait_until
@@ -41,3 +44,18 @@ def test_respawn_restarts_a_dead_pane_in_place(tmux_server: TestServer, tmp_path
     assert tmux.run("show-options", "-p", "-t", pane, "remain-on-exit").strip() == (
         "remain-on-exit on"
     )
+
+
+def test_respawn_refuses_a_live_pane_and_leaves_it_running(
+    tmux_server: TestServer, tmp_path: Path
+) -> None:
+    tmux = tmux_server.tmux
+    spawn = Spawn(session="bg", cwd=tmp_path, command=("sleep", "3600"))
+    pane = spawn_window(tmux, spawn)
+    pid = tmux.run("display-message", "-p", "-t", pane, "#{pane_pid}")
+    with pytest.raises(CommandFailed):
+        _ = respawn_window(tmux, pane, spawn)
+    after = _find(tmux_server, pane)
+    assert after is not None
+    assert not after.dead
+    assert tmux.run("display-message", "-p", "-t", pane, "#{pane_pid}") == pid
