@@ -74,7 +74,12 @@ def _ended_claude(sandbox: Sandbox) -> Session:
                 get_claude_details(db, first.id).native_id is not None
             )
 
+    def pane_dead() -> bool:
+        pane = pane_of_session(sandbox.tmux(), first.id)
+        return pane is not None and pane.dead
+
     wait_until("the session to end", ended, timeout=30)
+    wait_until("the pane of the ended session to be dead", pane_dead, timeout=30)
     with sandbox.db() as db:
         return get_session(db, first.id)
 
