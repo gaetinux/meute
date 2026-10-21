@@ -89,6 +89,7 @@ KEYS_HELP = (
     "n new (this repository's last type)\n"
     "N choose what to launch\n"
     "a attention only · e ended sessions · Tab tasks · q detach\n"
+    "a adopt · x close on an orphan pane\n"
     "? or Esc close this list"
 )
 TASKS_FOOTER = "a add · s status · d postpone · o note · L Claude · ? keys"

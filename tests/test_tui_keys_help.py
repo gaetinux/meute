@@ -53,3 +53,7 @@ def test_escape_closes_the_keys_help() -> None:
 def test_keys_still_work_while_the_help_is_open() -> None:
     footers = _footers("question_mark", "x")
     assert footers[1].startswith("Stop ")
+
+
+def test_keys_help_tells_the_orphan_keys() -> None:
+    assert "a adopt · x close on an orphan pane" in KEYS_HELP.splitlines()
