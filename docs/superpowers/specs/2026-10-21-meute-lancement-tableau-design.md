@@ -120,7 +120,7 @@ Un orphelin est un panneau qui porte un `@meute_id` inconnu de la base (§ 5.4).
   - `launch_form.py` : l'état figé du formulaire et ses transitions (`move`, `choose`, `type_text`, `validate`, `to_action`) ;
   - `resume_target(entry) -> Session | str` (la session à reprendre, ou le texte du refus) ;
   - `Orphan` et `adoption(orphan, repos) -> NewSession | str` (la session à créer, ou le texte du refus).
-- **Actions du tableau** : `LaunchBash` et `LaunchClaude` gardent leur nom et gagnent des champs facultatifs (`title` ; `task_id` et `permission_mode` pour Claude), décision 1 du plan ; `ResumeSession(session_id)`, `ShowPane(pane_id)`, `AdoptOrphan(orphan)`, `CloseOrphan(pane_id, agent)`.
+- **Actions du tableau** : `LaunchBash` et `LaunchClaude` gardent leur nom et gagnent des champs facultatifs (`title` ; `task_id` et `permission_mode` pour Claude), décision 1 du plan ; `ResumeSession(session_id)`, `ShowPane(pane_id)`, `AdoptOrphan(orphan)`, `CloseOrphan(meute_id, agent)`.
 - **`meute.tmux`** : relevé enrichi ; `respawn_pane` ; la fermeture réutilise la séquence d'arrêt.
 - **`meute.cli`** : `resume_claude` (même construction de commande que `launch_claude`) ; l'adoption écrit en base et refuse un `id` existant ; reprise et fermeture tournent dans `BoardWorkers`, comme l'arrêt et `L`.
 - **`meute.tui`** : le bloc du formulaire dans l'onglet Sessions (même mécanique de capture des touches que `task_input`) ; les lignes orphelines sélectionnables dans `sessions_cursor`.

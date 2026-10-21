@@ -41,3 +41,4 @@ LaunchEntry = SessionEntry | RepoEntry
 """The entries a launch, a stop or a resume can start from: not an orphan pane."""
 
 BoardEntry = LaunchEntry | OrphanEntry
+"""Anything the board lets the user select: a session, a repository or an orphan pane."""

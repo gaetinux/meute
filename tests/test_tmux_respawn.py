@@ -1,4 +1,4 @@
-"""Restarting a dead pane in place with `respawn-pane -k`."""
+"""Restarting a dead pane in place with `respawn-pane`, without `-k`: tmux refuses a live one."""
 
 import os
 from dataclasses import replace
