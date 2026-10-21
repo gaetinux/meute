@@ -8,21 +8,24 @@ from meute.core.project import ProjectId, RepoId
 from meute.core.repo import Repo
 from meute.core.selection import keep_selected
 from meute.core.session import Session, SessionId
-from meute.core.sessions_view_cards import (
-    OTHER_GROUP,
+from meute.core.sessions_view_bottom import (
     REPOS_FOLDED_ABOVE,
-    CardLine,
-    HeaderLine,
     InfoLine,
-    RefLine,
+    OrphanLine,
     RepoLine,
     SectionLine,
+    ViewState,
+    section_key,
+)
+from meute.core.sessions_view_cards import (
+    OTHER_GROUP,
+    CardLine,
+    HeaderLine,
+    RefLine,
     SessionLine,
     SessionsView,
     ViewLine,
-    ViewState,
     build_view,
-    section_key,
 )
 from meute.core.sessions_view_text import SessionInfo, attention_reason, details_lines
 
@@ -31,6 +34,7 @@ __all__ = [
     "CardLine",
     "HeaderLine",
     "InfoLine",
+    "OrphanLine",
     "RefLine",
     "RepoLine",
     "SectionLine",
@@ -78,7 +82,7 @@ def fold_key(line: ViewLine) -> str | None:
             return line.group
         case SectionLine():
             return section_key(line.section)
-        case SessionLine() | CardLine() | RefLine() | RepoLine() | InfoLine():
+        case SessionLine() | CardLine() | RefLine() | RepoLine() | OrphanLine() | InfoLine():
             return None
         case _:
             assert_never(line)
@@ -91,6 +95,8 @@ def line_key(line: ViewLine) -> str | None:
             return f"session:{line.session_id}"
         case RepoLine():
             return f"repo:{line.repo_id}"
+        case OrphanLine():
+            return f"orphan:{line.meute_id}"
         case HeaderLine() | SectionLine():
             return f"group:{fold_key(line)}" if line.collapsed else None
         case CardLine() | RefLine() | InfoLine():
@@ -100,7 +106,7 @@ def line_key(line: ViewLine) -> str | None:
 
 
 def selectable(view: SessionsView) -> tuple[int, ...]:
-    """Return the indexes of the selectable lines: sessions, repositories, folded headings."""
+    """Return the indexes of the selectable lines: sessions, repos, orphans, folded headings."""
     return tuple(i for i, line in enumerate(view.lines) if line_key(line) is not None)
 
 

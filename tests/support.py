@@ -16,6 +16,7 @@ from meute.core.db.task_update import update_task
 from meute.core.db.tasks import create_task
 from meute.core.instants import parse_zoned
 from meute.core.json_types import JsonObject, JsonValue
+from meute.core.orphans import Orphan
 from meute.core.project import ProjectId, RepoId
 from meute.core.repo import Repo
 from meute.core.session import AgentKind, Session, SessionId
@@ -198,7 +199,15 @@ def board_data() -> BoardData:
             SessionRow(session=BOARD_SESSION_B, has_pane=True, displayed=False),
         ),
         repos=(BOARD_REPO_1, BOARD_REPO_2),
-        orphans=("%7",),
+        orphans=(
+            Orphan(
+                meute_id="%7",
+                pane_id="%7",
+                command="claude",
+                cwd=str(BOARD_HOME / "git"),
+                dead=False,
+            ),
+        ),
         home=BOARD_HOME,
     )
 

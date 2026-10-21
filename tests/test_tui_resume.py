@@ -64,6 +64,7 @@ def _claude(*, exited: bool, native_id: str | None = "abc") -> tuple[Session, Bo
         board_data(),
         sessions=(SessionRow(session=session, has_pane=False, displayed=False),),
         repos=(),
+        orphans=(),
         details=details,
     )
     return session, data

@@ -23,8 +23,17 @@ from meute.core.board_actions import (
     StopSession,
     TaskAction,
 )
+from meute.core.board_entries import (
+    BoardEntry,
+    LaunchEntry,
+    OrphanEntry,
+    RepoEntry,
+    SessionEntry,
+    SessionRow,
+)
 from meute.core.claude_session import ClaudeDetails
 from meute.core.last_agent import last_agent
+from meute.core.orphans import Orphan
 from meute.core.paths import display_path
 from meute.core.project import ProjectId, ProjectRef, RepoId
 from meute.core.quota_view import QuotaLine
@@ -35,19 +44,26 @@ from meute.core.statusline import StatuslineData
 from meute.core.task import Note, Task, TaskId, task_label
 from meute.core.text import printable
 
-# The actions live in `board_actions`; they stay importable from here.
+# The actions live in `board_actions` and the entries in `board_entries`; both stay importable
+# from here.
 __all__ = [
     "AddNote",
     "BoardAction",
+    "BoardEntry",
     "ChangeTask",
     "CreateTask",
     "DeleteTask",
     "Detach",
     "LaunchBash",
     "LaunchClaude",
+    "LaunchEntry",
     "LaunchOnTask",
     "MoveToRepoProject",
+    "OrphanEntry",
+    "RepoEntry",
     "ResumeSession",
+    "SessionEntry",
+    "SessionRow",
     "ShowSession",
     "StopSession",
     "TaskAction",
@@ -78,15 +94,6 @@ TASKS_KEYS_HELP = (
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class SessionRow:
-    """A session with what tmux says about it."""
-
-    session: Session
-    has_pane: bool
-    displayed: bool
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
 class BoardData:
     """Everything the board draws; `now` is the clock the ages are measured by.
 
@@ -96,7 +103,7 @@ class BoardData:
 
     sessions: tuple[SessionRow, ...]
     repos: tuple[Repo, ...]
-    orphans: tuple[str, ...]
+    orphans: tuple[Orphan, ...]
     home: Path | None
     outside: tuple[AgentInfo, ...] = ()
     ended: tuple[SessionRow, ...] = ()
@@ -116,24 +123,7 @@ class BoardData:
     last_agents: Mapping[RepoId, AgentKind] = field(default_factory=dict[RepoId, AgentKind])
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
-class SessionEntry:
-    """A selectable session."""
-
-    row: SessionRow
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class RepoEntry:
-    """A selectable repository."""
-
-    repo: Repo
-
-
-BoardEntry = SessionEntry | RepoEntry
-
-
-def enter_action(entry: BoardEntry) -> ShowSession | LaunchBash:
+def enter_action(entry: LaunchEntry) -> ShowSession | LaunchBash:
     """Return what Enter does: show a session, or launch Bash in a repository."""
     match entry:
         case SessionEntry():
@@ -144,7 +134,7 @@ def enter_action(entry: BoardEntry) -> ShowSession | LaunchBash:
             assert_never(entry)
 
 
-def _launch_place(entry: BoardEntry) -> tuple[Path, RepoId | None]:
+def _launch_place(entry: LaunchEntry) -> tuple[Path, RepoId | None]:
     """Return the folder and repository a launch from `entry` uses."""
     match entry:
         case SessionEntry():
@@ -156,7 +146,7 @@ def _launch_place(entry: BoardEntry) -> tuple[Path, RepoId | None]:
             assert_never(entry)
 
 
-def new_action(entry: BoardEntry, data: BoardData) -> LaunchBash | LaunchClaude:
+def new_action(entry: LaunchEntry, data: BoardData) -> LaunchBash | LaunchClaude:
     """Return what `n` does: launch the repository's last session type where `entry` is."""
     cwd, repo_id = _launch_place(entry)
     own = entry.row.session.agent if isinstance(entry, SessionEntry) else None
@@ -165,7 +155,7 @@ def new_action(entry: BoardEntry, data: BoardData) -> LaunchBash | LaunchClaude:
     return LaunchClaude(cwd=cwd, repo_id=repo_id)
 
 
-def claude_action(entry: BoardEntry) -> LaunchClaude:
+def claude_action(entry: LaunchEntry) -> LaunchClaude:
     """Return what `c` does: launch Claude where `n` would launch."""
     cwd, repo_id = _launch_place(entry)
     return LaunchClaude(cwd=cwd, repo_id=repo_id)
@@ -183,7 +173,7 @@ def ended_text(title: str, agent: AgentKind = AgentKind.BASH) -> str:
             assert_never(agent)
 
 
-def ended_notice(entry: BoardEntry) -> str | None:
+def ended_notice(entry: LaunchEntry) -> str | None:
     """Return what Enter says instead of showing an ended session without a pane, else None.
 
     An ended session that kept its dead pane still shows: the pane holds its last output.
@@ -200,7 +190,7 @@ def ended_notice(entry: BoardEntry) -> str | None:
             assert_never(entry)
 
 
-def stop_target(entry: BoardEntry) -> Session | None:
+def stop_target(entry: LaunchEntry) -> Session | None:
     """Return the session `x` would stop; a repository has none."""
     match entry:
         case SessionEntry():
@@ -211,7 +201,7 @@ def stop_target(entry: BoardEntry) -> Session | None:
             assert_never(entry)
 
 
-def resume_target(entry: BoardEntry, details: Mapping[SessionId, ClaudeDetails]) -> Session | str:
+def resume_target(entry: LaunchEntry, details: Mapping[SessionId, ClaudeDetails]) -> Session | str:
     """Return the session `r` resumes, or the footer text saying why it cannot."""
     match entry:
         case SessionEntry():

@@ -94,7 +94,7 @@ def load_board_data(
     return BoardData(
         sessions=snapshot.sessions,
         repos=tuple(repos),
-        orphans=snapshot.orphans,
+        orphans=snapshot.orphan_panes,
         home=Path.home(),
         outside=snapshot.outside,
         ended=recently_ended(ctx, {row.session.id for row in snapshot.sessions}, clock),

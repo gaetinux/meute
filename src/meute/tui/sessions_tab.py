@@ -13,7 +13,8 @@ from meute.core.board_view import (
     KEYS_HELP,
     BoardAction,
     BoardData,
-    BoardEntry,
+    LaunchEntry,
+    OrphanEntry,
     claude_action,
     confirm_stop_text,
     ended_notice,
@@ -22,11 +23,13 @@ from meute.core.board_view import (
     resume_target,
     stop_target,
 )
+from meute.core.orphans import ORPHAN_KEYS
 from meute.core.session import Session, SessionId
 from meute.core.sessions_view import (
     CardLine,
     HeaderLine,
     InfoLine,
+    OrphanLine,
     RefLine,
     RepoLine,
     SectionLine,
@@ -38,6 +41,7 @@ from meute.tui.sessions_cursor import SessionsCursor
 from meute.tui.sessions_pane import details_content, quota_content, view_content
 
 _ACTION_KEYS = frozenset({"enter", "c", "n", "r", "x"})
+_SESSION_ONLY_KEYS = frozenset({"c", "n", "r"})
 
 
 class SessionsTab:
@@ -112,6 +116,9 @@ class SessionsTab:
             group = line_group(self.cursor.model, self.cursor.selected)  # a folded group's header
             if key == "enter" and group is not None:
                 self.cursor.fold(group, fold=False)
+        elif isinstance(entry, OrphanEntry):
+            if key in _SESSION_ONLY_KEYS:
+                self._notice(ORPHAN_KEYS)
         elif key == "enter":
             self._show(entry)
         elif key == "c":
@@ -124,7 +131,7 @@ class SessionsTab:
             target = stop_target(entry)
             self._confirming = None if target is None or self._is_stopping(target.id) else target
 
-    def _resume_entry(self, entry: BoardEntry) -> None:
+    def _resume_entry(self, entry: LaunchEntry) -> None:
         """Resume the entry's session, or say why not; a resume already running is left alone."""
         target = resume_target(entry, self.cursor.model.data.details)
         if isinstance(target, str):
@@ -143,9 +150,9 @@ class SessionsTab:
             case SessionLine():
                 self.cursor.selected = y
                 entry = line_entry(self.cursor.model, y)
-                if entry is not None:
+                if entry is not None and not isinstance(entry, OrphanEntry):
                     self._show(entry)
-            case RepoLine():
+            case RepoLine() | OrphanLine():
                 self.cursor.selected = y
             case CardLine() | RefLine():  # the card's first line, in "Needs you" for a reference
                 index = session_index(self.cursor.model.view, line.session_id)
@@ -159,7 +166,7 @@ class SessionsTab:
             case _:
                 assert_never(line)
 
-    def _show(self, entry: BoardEntry) -> None:
+    def _show(self, entry: LaunchEntry) -> None:
         """Do what Enter does on `entry`, or say why an ended session cannot show."""
         notice = ended_notice(entry)
         if notice is None:
