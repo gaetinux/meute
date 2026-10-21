@@ -300,7 +300,9 @@ def test_brackets_in_data_are_shown_literally() -> None:
     data = BoardData(
         sessions=(SessionRow(session=session, has_pane=True, displayed=False),),
         repos=(repo,),
-        orphans=(Orphan(meute_id="x", pane_id="%7", command="[link=x]", cwd="/srv", dead=False),),
+        orphans=(
+            Orphan(meute_id="[link=x]", pane_id="%7", command="[link=x]", cwd="/srv", dead=False),
+        ),
         home=BOARD_HOME,
     )
     backend = FakeBackend(data)
