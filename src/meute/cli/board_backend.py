@@ -13,6 +13,7 @@ from meute.cli.board_data import load_board_data
 from meute.cli.context import ENVIRONMENT_ERRORS, CliContext, open_database
 from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
+from meute.cli.session_resume import resume_session
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.status_publish import publish_status
@@ -31,6 +32,7 @@ from meute.core.board_view import (
     LaunchClaude,
     LaunchOnTask,
     MoveToRepoProject,
+    ResumeSession,
     ShowSession,
     StopSession,
 )
@@ -143,7 +145,7 @@ class CliBoardBackend:
             # Reset on exit too: a slow action may end after a load that missed its effect.
             self._read_at = None
 
-    def _perform(self, action: BoardAction) -> None:  # noqa: C901 — one case per board action
+    def _perform(self, action: BoardAction) -> None:  # noqa: C901, PLR0912 — one case per board action
         match action:
             case ShowSession():
                 show_session(self._ctx, self._env, action.session_id)
@@ -163,6 +165,8 @@ class CliBoardBackend:
                 show_session(self._ctx, self._env, session.id)
             case StopSession():
                 self._stop(action.session_id)
+            case ResumeSession():
+                self._resume(action.session_id)
             case Detach():
                 detach_client(self._env.tmux)
             # Task writes go as the TUI user, with the version the board last read.
@@ -204,3 +208,10 @@ class CliBoardBackend:
         """
         with open_database(self._ctx.paths, self._ctx.db.clock) as db:
             _ = stop_session(replace(self._ctx, db=db), self._env, session_id)
+
+    def _resume(self, session_id: SessionId) -> None:
+        """Resume a session on a connection of its own: the board runs this in a worker thread."""
+        with open_database(self._ctx.paths, self._ctx.db.clock) as db:
+            ctx = replace(self._ctx, db=db)
+            session = resume_session(ctx, self._env, session_id, self._environ)
+            show_session(ctx, self._env, session.id)

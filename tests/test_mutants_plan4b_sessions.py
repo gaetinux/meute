@@ -292,7 +292,7 @@ def test_ended_notice_only_for_an_ended_session_without_a_pane() -> None:
     live = _session("live", Running())
     assert ended_notice(
         SessionEntry(row=SessionRow(session=ended, has_pane=False, displayed=False))
-    ) == ended_text("done")
+    ) == ended_text("done", AgentKind.CLAUDE)
     assert (
         ended_notice(SessionEntry(row=SessionRow(session=ended, has_pane=True, displayed=False)))
         is None

@@ -9,8 +9,10 @@ from textual.app import App
 from meute.core.board_view import (
     BoardAction,
     LaunchOnTask,
+    ResumeSession,
     StopSession,
     launching_text,
+    resuming_text,
     stopping_text,
 )
 from meute.core.errors import MeuteError, PromptNotPasted
@@ -22,7 +24,7 @@ Finished = Callable[[str | None, str | None], None]
 
 
 class BoardWorkers:
-    """Runs the stops and the launches on tasks off the app's thread, one at a time each."""
+    """Runs the stops, resumes and launches on tasks off the app's thread, one at a time each."""
 
     def __init__(
         self, app: App[None], perform: Callable[[BoardAction], None], finished: Finished
@@ -32,6 +34,7 @@ class BoardWorkers:
         self._finished = finished
         self._stopping: dict[SessionId, str] = {}  # sessions being stopped: id -> title
         self._launching: dict[TaskId, None] = {}  # tasks being launched on, in order
+        self._resuming: dict[SessionId, str] = {}  # sessions being resumed: id -> title
 
     def is_stopping(self, session_id: SessionId) -> bool:
         """Whether the session is being stopped."""
@@ -49,10 +52,23 @@ class BoardWorkers:
         self._launching[task_id] = None
         self._run(LaunchOnTask(task_id=task_id), partial(self._launching.pop, task_id))
 
+    def is_resuming(self, session_id: SessionId) -> bool:
+        """Whether the session is being resumed."""
+        return session_id in self._resuming
+
+    def resume(self, session: Session) -> None:
+        """Resume `session` in a thread worker; ignored while that resume runs."""
+        if session.id in self._resuming:
+            return
+        self._resuming[session.id] = session.title
+        self._run(ResumeSession(session_id=session.id), partial(self._resuming.pop, session.id))
+
     def footer(self) -> str | None:
         """What the latest running action says in the footer, if any action runs."""
         if self._stopping:
             return stopping_text(next(reversed(self._stopping.values())))
+        if self._resuming:
+            return resuming_text(next(reversed(self._resuming.values())))
         if self._launching:
             return launching_text(next(reversed(self._launching)))
         return None

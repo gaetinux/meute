@@ -19,6 +19,7 @@ from meute.core.board_view import (
     ended_notice,
     enter_action,
     new_action,
+    resume_target,
     stop_target,
 )
 from meute.core.session import Session, SessionId
@@ -36,7 +37,7 @@ from meute.core.sessions_view import (
 from meute.tui.sessions_cursor import SessionsCursor
 from meute.tui.sessions_pane import details_content, quota_content, view_content
 
-_ACTION_KEYS = frozenset({"enter", "c", "n", "x"})
+_ACTION_KEYS = frozenset({"enter", "c", "n", "r", "x"})
 
 
 class SessionsTab:
@@ -49,6 +50,8 @@ class SessionsTab:
         notice: Callable[[str], None],
         stop: Callable[[Session], None],
         is_stopping: Callable[[SessionId], bool],
+        resume: Callable[[Session], None],
+        is_resuming: Callable[[SessionId], bool],
         local: tzinfo,
         show_details: bool,
     ) -> None:
@@ -56,6 +59,8 @@ class SessionsTab:
         self._notice = notice
         self._stop = stop
         self._is_stopping = is_stopping
+        self._resume = resume
+        self._is_resuming = is_resuming
         self._local = local
         self._show_details = show_details
         self.cursor = SessionsCursor()
@@ -113,9 +118,19 @@ class SessionsTab:
             self._perform(claude_action(entry))
         elif key == "n":
             self._perform(new_action(entry, self.cursor.model.data))
+        elif key == "r":
+            self._resume_entry(entry)
         elif key == "x":
             target = stop_target(entry)
             self._confirming = None if target is None or self._is_stopping(target.id) else target
+
+    def _resume_entry(self, entry: BoardEntry) -> None:
+        """Resume the entry's session, or say why not; a resume already running is left alone."""
+        target = resume_target(entry, self.cursor.model.data.details)
+        if isinstance(target, str):
+            self._notice(target)
+        elif not self._is_resuming(target.id):
+            self._resume(target)
 
     def click(self, y: int, x: int) -> None:
         """Select or fold the line at row `y`; like a key, a click only cancels a stop."""

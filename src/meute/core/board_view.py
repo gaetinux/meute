@@ -18,6 +18,7 @@ from meute.core.board_actions import (
     LaunchClaude,
     LaunchOnTask,
     MoveToRepoProject,
+    ResumeSession,
     ShowSession,
     StopSession,
     TaskAction,
@@ -46,6 +47,7 @@ __all__ = [
     "LaunchClaude",
     "LaunchOnTask",
     "MoveToRepoProject",
+    "ResumeSession",
     "ShowSession",
     "StopSession",
     "TaskAction",
@@ -59,6 +61,7 @@ FOOTER = "↑↓ select · Enter show · c/n new · x stop · ? keys"
 KEYS_HELP = (
     "↑↓ select · Enter show · Space ←→ fold a group\n"
     "c new Claude session · x stop\n"
+    "r resume an ended Claude session\n"
     "n new (this repository's last type)\n"
     "a attention only · e ended sessions · Tab tasks · q detach\n"
     "? or Esc close this list"
@@ -168,9 +171,16 @@ def claude_action(entry: BoardEntry) -> LaunchClaude:
     return LaunchClaude(cwd=cwd, repo_id=repo_id)
 
 
-def ended_text(title: str) -> str:
+def ended_text(title: str, agent: AgentKind = AgentKind.BASH) -> str:
     """Return the footer notice for an ended session that has no pane left to show."""
-    return f'"{printable(title)}" has ended: c starts a new Claude session here'
+    name = printable(title)
+    match agent:
+        case AgentKind.CLAUDE:
+            return f'"{name}" has ended: r resumes · c starts a new session'
+        case AgentKind.BASH:
+            return f'"{name}" has ended: c starts a new Claude session here'
+        case _:
+            assert_never(agent)
 
 
 def ended_notice(entry: BoardEntry) -> str | None:
@@ -183,7 +193,7 @@ def ended_notice(entry: BoardEntry) -> str | None:
             row = entry.row
             if row.has_pane or is_live(row.session.state):
                 return None
-            return ended_text(row.session.title)
+            return ended_text(row.session.title, row.session.agent)
         case RepoEntry():
             return None
         case _:
@@ -197,6 +207,26 @@ def stop_target(entry: BoardEntry) -> Session | None:
             return entry.row.session
         case RepoEntry():
             return None
+        case _:
+            assert_never(entry)
+
+
+def resume_target(entry: BoardEntry, details: Mapping[SessionId, ClaudeDetails]) -> Session | str:
+    """Return the session `r` resumes, or the footer text saying why it cannot."""
+    match entry:
+        case SessionEntry():
+            session = entry.row.session
+            if session.agent is not AgentKind.CLAUDE:
+                return "only Claude sessions resume"
+            title = printable(session.title)
+            if is_live(session.state):
+                return f'"{title}" is still running'
+            known = details.get(session.id)
+            if known is None or known.native_id is None:
+                return f'"{title}" cannot be resumed: Claude never confirmed its id'
+            return session
+        case RepoEntry():
+            return "only Claude sessions resume"
         case _:
             assert_never(entry)
 
@@ -233,6 +263,11 @@ def conflict_text(task_id: TaskId) -> str:
 def stopping_text(title: str) -> str:
     """Return the footer text while a session is being stopped."""
     return f'Stopping "{printable(title)}"…'
+
+
+def resuming_text(title: str) -> str:
+    """Return the footer text while a session is being resumed."""
+    return f'Resuming "{printable(title)}"…'
 
 
 def launching_text(task_id: TaskId) -> str:

@@ -43,6 +43,13 @@ class StopSession:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class ResumeSession:
+    """Resume an ended Claude session with `claude --resume`."""
+
+    session_id: SessionId
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class Detach:
     """Detach the terminal from meute, stopping nothing."""
 
@@ -97,4 +104,6 @@ class MoveToRepoProject:
 
 
 TaskAction = CreateTask | ChangeTask | MoveToRepoProject | AddNote | DeleteTask | LaunchOnTask
-BoardAction = ShowSession | LaunchBash | LaunchClaude | StopSession | Detach | TaskAction
+BoardAction = (
+    ShowSession | LaunchBash | LaunchClaude | StopSession | ResumeSession | Detach | TaskAction
+)
