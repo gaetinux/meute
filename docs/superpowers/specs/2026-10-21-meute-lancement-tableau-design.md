@@ -21,7 +21,7 @@ Décision de l'auteur : le « dernier type » est celui du dépôt.
 - Sur une session : on prend son dépôt et la règle ci-dessus ; une session sans dépôt relance son propre type. Le dossier est celui de la session, comme aujourd'hui.
 - Rien de nouveau n'est stocké : une fonction pure de `meute.core` décide à partir des sessions déjà chargées par le tableau.
 - `c` lance toujours Claude ; Bash reste accessible par `N`.
-- Le pied et l'aide `?` indiquent ce que fera `n` (`n new Claude`, `n new Bash`).
+- L'aide `?` indique ce que fait `n` ; le pied reste `↑↓ select · Enter show · c/n new · x stop · ? keys` (décision 3 du plan, plus sobre que la conception, voir « Écarts »).
 
 ## `N` : formulaire de lancement
 
@@ -71,7 +71,7 @@ Enter launch · Tab next · ←→ choose · Esc cancel
 Décision de l'auteur : la touche `r`, sans confirmation (rien n'est détruit).
 
 - `r` n'agit que sur une session Claude terminée (`Exited` ou `Unreachable`) dont le `native_id` est connu. Sinon le pied explique : `"<titre>" cannot be resumed: Claude never confirmed its id`, `only Claude sessions resume`, ou `"<titre>" is still running`.
-- **Panneau** : si la session a gardé son panneau mort, `respawn-pane -k` y relance la commande (même place à l'écran) ; sinon un nouveau panneau est ouvert dans `meute-bg`, comme un lancement.
+- **Panneau** : si la session a gardé son panneau mort, `respawn-pane` (sans `-k`, voir « Écarts ») y relance la commande (même place à l'écran) ; sinon un nouveau panneau est ouvert dans `meute-bg`, comme un lancement.
 - **Commande** : celle d'un lancement Claude normal (`MEUTE_SESSION=<même id>`, `--settings`, `--permission-mode` d'origine, `-n <titre>`), avec `--resume <native_id>` à la place de `--session-id`. Le mode d'origine est le dernier `permission_mode` connu de la session, à défaut celui de la configuration.
 - **Base** : la session redevient vivante (`unknown`, puis `SessionStart` prend le relais), `exit_code` et `ended_at` sont effacés ; l'`id` interne, le dépôt, la tâche, le projet et le titre sont conservés (§ 6.5). La réconciliation ne ressuscite toujours rien d'elle-même : seule l'action `r` le fait.
 - **Concurrence** : un second `r` pendant que la reprise tourne ne fait rien (comme `x`).
@@ -92,14 +92,14 @@ Si l'identifiant change, meute enregistre le nouveau `native_id` reçu par `Sess
 
 Un orphelin est un panneau qui porte un `@meute_id` inconnu de la base (§ 5.4).
 
-- **Relevé** : le relevé tmux lit en plus `pane_id`, `pane_current_command`, `pane_current_path` et `pane_dead` ; la réconciliation renvoie des `Orphan(meute_id, pane_id, command, cwd, dead)` au lieu de simples identifiants (`meute session list --json` suit).
+- **Relevé** : le relevé tmux lit `pane_dead` avec les huit champs inchangés ; la commande et le dossier de chaque orphelin sont lus à part (`display-message -p -t <pane>`, décision 4 du plan). Le relevé renvoie des `Orphan(meute_id, pane_id, command, cwd, dead)` en plus des identifiants (`Snapshot.orphan_panes`, voir « Écarts ») ; `meute session list --json` garde la liste d'identifiants.
 - **Affichage** : la section « Orphans » devient sélectionnable, une ligne par panneau : `? claude  ~/git/meute  orphan` (`dead` pour un panneau mort).
 - **Touches** sur un orphelin :
 
   | Touche | Effet |
   |---|---|
   | `Entrée` | affiche le panneau dans la zone principale (refusé pour un panneau mort) |
-  | `a` | adopte |
+  | `a` | adopte (sur un orphelin sélectionné ; ailleurs `a` reste le filtre « attention ») |
   | `x` | ferme, avec la confirmation `y` de l'arrêt |
 
   Le pied devient `Enter show · a adopt · x close`. Les autres touches de session (`c`, `n`, `N`, `r`) n'agissent pas sur un orphelin.
@@ -119,7 +119,7 @@ Un orphelin est un panneau qui porte un `@meute_id` inconnu de la base (§ 5.4).
   - `launch_form.py` : l'état figé du formulaire et ses transitions (`move`, `choose`, `type_text`, `validate`, `to_action`) ;
   - `resume_target(entry) -> Session | str` (la session à reprendre, ou le texte du refus) ;
   - `Orphan` et `adoption(orphan, repos) -> NewSession | str` (la session à créer, ou le texte du refus).
-- **Actions du tableau** : `Launch(agent, cwd, repo_id, title, task_id, permission_mode)` remplace `LaunchBash` et `LaunchClaude` ; `ResumeSession(session_id)`, `ShowPane(pane_id)`, `AdoptOrphan(orphan)`, `CloseOrphan(pane_id, agent)`.
+- **Actions du tableau** : `LaunchBash` et `LaunchClaude` gardent leur nom et gagnent des champs facultatifs (`title` ; `task_id` et `permission_mode` pour Claude), décision 1 du plan ; `ResumeSession(session_id)`, `ShowPane(pane_id)`, `AdoptOrphan(orphan)`, `CloseOrphan(pane_id, agent)`.
 - **`meute.tmux`** : relevé enrichi ; `respawn_pane` ; la fermeture réutilise la séquence d'arrêt.
 - **`meute.cli`** : `resume_claude` (même construction de commande que `launch_claude`) ; l'adoption écrit en base et refuse un `id` existant ; reprise et fermeture tournent dans `BoardWorkers`, comme l'arrêt et `L`.
 - **`meute.tui`** : le bloc du formulaire dans l'onglet Sessions (même mécanique de capture des touches que `task_input`) ; les lignes orphelines sélectionnables dans `sessions_cursor`.
@@ -142,3 +142,20 @@ Un orphelin est un panneau qui porte un `@meute_id` inconnu de la base (§ 5.4).
 - Un `@meute_id` reçu de tmux est une entrée externe : validé avant toute écriture, et affiché par `printable`.
 - Le chemin du panneau et la commande peuvent contenir n'importe quoi (`;` final, caractères de contrôle) : `literal_word` pour tmux, `printable` à l'affichage.
 - Le formulaire ne doit jamais perdre la saisie sur une relecture du tableau ou un conflit.
+
+## Écarts à la conception, relevés à la mise en œuvre (plan 4c)
+
+Les décisions 1 à 8 du plan et les arbitrages du contrôleur ajustent ce document :
+
+- **Décision 1 : pas d'action `Launch` unique.** `LaunchBash` et `LaunchClaude` restent, avec des champs facultatifs ; même effet, et les tests qui les construisent restent valables.
+- **Décision 3 : pied inchangé.** `FOOTER` ne change pas ; seul l'aide `?` dit ce que fait `n`. Sur un orphelin, le pied devient `Enter show · a adopt · x close`, et une notice `orphan pane: Enter show · a adopt · x close` répond à `c`, `n`, `r`.
+- **Décision 4 : détail des orphelins lu à part.** `PANE_FORMAT` ne change pas ; un `display-message -p -t <pane> "#{pane_current_command}\t#{pane_current_path}"` par panneau orphelin seulement. Un panneau absent répond avec des champs vides : l'orphelin est alors omis (R8).
+- **Décision 5 : `meute session list --json`** garde `"orphans"` en liste d'identifiants, et la sortie texte `orphan: <id>` ne change pas. En conséquence, `Snapshot.orphans` reste un tuple d'identifiants et un nouveau `Snapshot.orphan_panes` porte les `Orphan` du tableau (R7).
+- **Décision 7 : projet d'un dépôt** (tâches proposées par le formulaire) : le projet lié par `project_repos` (le plus petit identifiant), à défaut le projet qui porte le nom du dépôt, à défaut aucun (Task : `none` seulement).
+- **Décision 8 : dossier saisi** : `~` développé, espaces de début et de fin retirés, chemin absolu (`folder must be absolute: <texte>`) puis existant (`folder not found: <texte>`) ; un dossier vide donne `folder is empty` (R15).
+- **R3 : aide `?`.** La ligne de `KEYS_HELP` du plan dépassait 58 colonnes ; elle est coupée en deux lignes de mots identiques pour rester lisible à 60 colonnes.
+- **R4 : `respawn-pane` sans `-k`.** Avec `-k`, deux reprises simultanées passent toutes deux le test « panneau mort » et la seconde tue le Claude de la première. Sans `-k`, tmux refuse lui-même un panneau vivant. Pas de `-c <cwd>` non plus (R5) : la commande fait déjà `cd -- "$1"`.
+- **R12 : `a`** adopte quand la sélection est un orphelin, et reste le filtre « attention » ailleurs.
+- **R14 : l'avertissement du formulaire** compte aussi le dossier de la session vivante sélectionnée : la nouvelle session le partagerait.
+- **R1 : `N` sur un orphelin** se comporte comme sans sélection (aucun dépôt ni dossier préremplis).
+- **Adoption** : l'`id` doit être canonique (36 caractères, minuscules), car la réconciliation compare le tag exactement ; `IntegrityError` seul est traité comme « déjà en base ».
