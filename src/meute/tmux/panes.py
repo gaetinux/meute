@@ -56,13 +56,17 @@ def _in_folder(spawn: Spawn) -> tuple[str, ...]:
     return ("/bin/sh", "-c", _CD_THEN_EXEC, "meute", str(spawn.cwd), *spawn.command)
 
 
+def _env_args(spawn: Spawn) -> list[str]:
+    return [arg for key, value in spawn.env for arg in ("-e", f"{key}={value}")]
+
+
 def spawn_window(tmux: Tmux, spawn: Spawn) -> PaneId:
     """Start `spawn.command` in a new window, then set the pane options in order."""
     if tmux.has_session(spawn.session):
         create = ["new-window", "-d", "-t", f"={spawn.session}:"]
     else:
         create = ["new-session", "-d", "-s", spawn.session]
-    env_args = [arg for key, value in spawn.env for arg in ("-e", f"{key}={value}")]
+    env_args = _env_args(spawn)
     pane = PaneId(
         tmux.run(
             *create,
@@ -74,6 +78,18 @@ def spawn_window(tmux: Tmux, spawn: Spawn) -> PaneId:
             *_in_folder(spawn),
         )
     )
+    for name, value in spawn.pane_options:
+        set_pane_option(tmux, pane, name, value)
+    return pane
+
+
+def respawn_window(tmux: Tmux, pane: PaneId, spawn: Spawn) -> PaneId:
+    """Restart `spawn.command` in the dead `pane` (kept in place), then set the pane options.
+
+    Raises:
+        CommandFailed: tmux failed (the pane is gone, for one).
+    """
+    _ = tmux.run("respawn-pane", "-k", "-t", pane, *_env_args(spawn), "--", *_in_folder(spawn))
     for name, value in spawn.pane_options:
         set_pane_option(tmux, pane, name, value)
     return pane

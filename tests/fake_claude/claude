@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """A fake `claude` for tests: replays captured hook payloads through the --settings commands.
 
-Usage: `claude --settings <file> --session-id <id> ...` or `claude agents --json`.
+Usage: `claude --settings <file> --session-id <id> ...` (or `--resume <id>`, which makes
+SessionStart say `source: resume`) or `claude agents --json`.
 A first Ctrl-C is ignored, a second within a second ends the session.
 MEUTE_FAKE_CLAUDE_SCRIPT picks the sequence (permission, done, exit, end, paste); `paste`
 starts like a session, then appends every byte typed or pasted to MEUTE_FAKE_CLAUDE_INPUT.
@@ -64,7 +65,7 @@ def run_command(command: str, payload: dict[str, object]) -> None:
     )
 
 
-def replay(settings_path: str, session_id: str, script: str) -> None:
+def replay(settings_path: str, session_id: str, script: str, *, resumed: bool = False) -> None:
     """Replay the sequence `script` through the commands of the settings file."""
     settings = json.loads(Path(settings_path).read_text(encoding="utf-8"))
     for step in SEQUENCES[script]:
@@ -78,6 +79,8 @@ def replay(settings_path: str, session_id: str, script: str) -> None:
             path = FIXTURES / f"{step}.json"
         payload = json.loads(path.read_text(encoding="utf-8"))
         payload["session_id"] = session_id
+        if resumed and step.startswith("hook:SessionStart"):
+            payload["source"] = "resume"
         run_command(command, payload)
 
 
@@ -116,15 +119,17 @@ def main(args: list[str]) -> int:
         return 0
     if recorded := os.environ.get("MEUTE_FAKE_CLAUDE_ARGS"):
         Path(recorded).write_text(json.dumps(args), encoding="utf-8")
-    settings, session_id = option(args, "--settings"), option(args, "--session-id")
+    settings = option(args, "--settings")
+    resumed = "--resume" in args
+    session_id = option(args, "--resume" if resumed else "--session-id")
     if settings is None or session_id is None:
-        sys.stderr.write("fake claude: --settings and --session-id are required\n")
+        sys.stderr.write("fake claude: --settings and --session-id (or --resume) are required\n")
         return 2
     script = os.environ.get("MEUTE_FAKE_CLAUDE_SCRIPT", "permission")
     signal.signal(signal.SIGINT, interrupt_handler(settings, session_id))
     if script == "paste":
         raw_terminal()  # ready before SessionStart tells meute it may paste
-    replay(settings, session_id, script)
+    replay(settings, session_id, script, resumed=resumed)
     if script == "exit":
         return 0
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))

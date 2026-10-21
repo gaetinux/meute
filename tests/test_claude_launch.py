@@ -47,3 +47,15 @@ def test_find_claude(tmp_path: Path) -> None:
     binary.chmod(0o755)
     assert find_claude({"PATH": str(tmp_path)}) == binary
     assert find_claude({"PATH": str(tmp_path / "none")}) is None
+
+
+def test_resume_argv_replaces_session_id_with_resume() -> None:
+    argv = claude_argv(
+        claude=Path("/bin/claude"), settings=Path("/s/settings.json"), session_id=SID,
+        permission_mode="plan", title="Fix it", resume=True,
+    )  # fmt: skip
+    assert argv == (
+        "/bin/claude", "--settings", "/s/settings.json", "--resume", SID,
+        "--permission-mode", "plan", "--name=Fix it",
+    )  # fmt: skip
+    assert "--session-id" not in argv

@@ -9,15 +9,19 @@ from meute.core.errors import InvalidInput
 from meute.core.session import SessionId
 
 
-def claude_argv(
+def claude_argv(  # noqa: PLR0913 — keyword-only: each argument is a distinct part of the command
     *,
     claude: Path,
     settings: Path,
     session_id: SessionId,
     permission_mode: str,
     title: str,
+    resume: bool = False,
 ) -> tuple[str, ...]:
-    """Build the argv; the title is glued to `--name=` so a leading dash stays data."""
+    """Build the argv; the title is glued to `--name=` so a leading dash stays data.
+
+    With `resume`, `--resume <id>` replaces `--session-id <id>`: Claude refuses both together.
+    """
     if permission_mode not in PERMISSION_MODES:
         message = f"unknown permission mode: {permission_mode}"
         raise InvalidInput(message)
@@ -25,7 +29,7 @@ def claude_argv(
         str(claude),
         "--settings",
         str(settings),
-        "--session-id",
+        "--resume" if resume else "--session-id",
         session_id,
         "--permission-mode",
         permission_mode,

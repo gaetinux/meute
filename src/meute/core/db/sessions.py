@@ -17,7 +17,14 @@ from meute.core.errors import InvalidInput, NotFound
 from meute.core.instants import to_db
 from meute.core.project import ProjectId, RepoId
 from meute.core.session import AgentKind, NewSession, Session, SessionId
-from meute.core.session_state import Exited, SessionState, is_live, state_from_parts, state_id
+from meute.core.session_state import (
+    Exited,
+    SessionState,
+    Unknown,
+    is_live,
+    state_from_parts,
+    state_id,
+)
 from meute.core.task import TaskId
 
 _SELECT = (
@@ -180,6 +187,28 @@ def set_session_state(db: Database, session_id: SessionId, state: SessionState) 
     """
     with db.transaction() as conn:
         write_state(conn, _require(conn, session_id), state, db.now())
+        return _require(conn, session_id)
+
+
+def reopen_session(db: Database, session_id: SessionId) -> Session:
+    """Make an ended session live again: unknown state, exit code and end time cleared.
+
+    The last activity is now. Nothing else changes.
+
+    Raises:
+        InvalidInput: the session is still live; nothing was written.
+        NotFound: no such session.
+    """
+    with db.transaction() as conn:
+        session = _require(conn, session_id)
+        if is_live(session.state):
+            message = f'"{session.title}" is still running'
+            raise InvalidInput(message)
+        conn.execute(
+            "UPDATE sessions SET state = ?, exit_code = NULL, ended_at = NULL,"
+            " last_activity_at = ? WHERE id = ?",
+            (state_id(Unknown()), to_db(db.now()), session_id),
+        )
         return _require(conn, session_id)
 
 
