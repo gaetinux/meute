@@ -170,9 +170,9 @@ def last_agent_by_repo(db: Database) -> dict[RepoId, AgentKind]:
     """
     rows = fetch_all(
         db.conn,
-        "SELECT repo_id, agent FROM sessions s WHERE repo_id IS NOT NULL AND NOT EXISTS ("
-        " SELECT 1 FROM sessions o WHERE o.repo_id = s.repo_id"
-        " AND (o.created_at, o.id) > (s.created_at, s.id))",
+        "SELECT repo_id, agent FROM (SELECT repo_id, agent, ROW_NUMBER() OVER ("
+        " PARTITION BY repo_id ORDER BY created_at DESC, id DESC) AS rn"
+        " FROM sessions WHERE repo_id IS NOT NULL) WHERE rn = 1",
     )
     return {RepoId(as_integer(row[0])): AgentKind(as_text(row[1])) for row in rows}
 
