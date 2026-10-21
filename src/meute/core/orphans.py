@@ -19,6 +19,7 @@ ORPHAN_FOOTER = "Enter show · a adopt · x close"
 
 _NOT_A_MEUTE_ID = "not a meute id: only x closes it"
 _DEAD_PANE = "dead pane: only x closes it"
+_UNKNOWN_FOLDER = "unknown folder: only x closes it"
 _UNTITLED = "orphan"
 
 
@@ -62,9 +63,9 @@ def orphan_agent(orphan: Orphan) -> AgentKind:
 def adoption(orphan: Orphan, repos: Sequence[Repo]) -> NewSession | str:
     """Return the session that adopts `orphan`, or the reason it cannot be adopted.
 
-    Nothing reaches the database unless `orphan.meute_id` is a canonical session identifier
-    and the pane is alive. The repository is the known one with the longest path that holds
-    the pane's folder.
+    Nothing reaches the database unless `orphan.meute_id` is a canonical session identifier,
+    the pane is alive and its folder is an absolute path. The repository is the known one
+    with the longest path that holds the pane's folder.
     """
     try:
         session_id = parse_session_id(orphan.meute_id)
@@ -75,6 +76,8 @@ def adoption(orphan: Orphan, repos: Sequence[Repo]) -> NewSession | str:
     if orphan.dead:
         return _DEAD_PANE
     cwd = Path(orphan.cwd)
+    if not cwd.is_absolute():  # tmux may not know it: an empty path would read as `.`
+        return _UNKNOWN_FOLDER
     holders = [repo for repo in repos if cwd.is_relative_to(repo.path)]
     repo = max(holders, key=lambda held: len(held.path.parts), default=None)
     agent = orphan_agent(orphan)

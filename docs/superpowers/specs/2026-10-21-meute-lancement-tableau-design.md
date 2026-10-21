@@ -109,7 +109,7 @@ Un orphelin est un panneau qui porte un `@meute_id` inconnu de la base (§ 5.4).
   - dossier : celui du panneau ; dépôt : le dépôt connu dont le chemin contient le dossier (le plus long), sinon aucun ;
   - titre : le nom du dossier ;
   - état : `running` pour Bash ; `unknown` pour Claude jusqu'au hook suivant, qui donnera aussi le `native_id` (le panneau porte déjà `MEUTE_SESSION=<id>`, et `apply_hook` accepte un `native_id` tant qu'aucun n'est connu) ;
-  - un panneau mort ne s'adopte pas ; un `id` déjà en base (adopté entre-temps ailleurs) ne fait rien, la session apparaît au relevé suivant.
+  - un panneau mort ne s'adopte pas, ni un panneau dont le dossier n'est pas un chemin absolu (`unknown folder: only x closes it` : tmux peut renvoyer un dossier vide) ; un `id` déjà en base (adopté entre-temps ailleurs) ne fait rien, la session apparaît au relevé suivant.
 - **Fermer** suit la séquence de l'arrêt (`C-c` deux fois pour Claude, une fois pour Bash, puis `kill-pane` après 5 s), sans rien écrire en base. Un panneau déjà disparu ne fait rien.
 
 ## Architecture
@@ -159,3 +159,4 @@ Les décisions 1 à 8 du plan et les arbitrages du contrôleur ajustent ce docum
 - **R14 : l'avertissement du formulaire** compte aussi le dossier de la session vivante sélectionnée : la nouvelle session le partagerait.
 - **R1 : `N` sur un orphelin** se comporte comme sans sélection (aucun dépôt ni dossier préremplis).
 - **Adoption** : l'`id` doit être canonique (36 caractères, minuscules), car la réconciliation compare le tag exactement ; `IntegrityError` seul est traité comme « déjà en base ».
+- **Adoption, relecture finale** : un orphelin dont le dossier n'est pas absolu (vide, relatif) est refusé (`unknown folder: only x closes it`), au lieu d'enregistrer un chemin relatif.

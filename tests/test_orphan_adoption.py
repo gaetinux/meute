@@ -76,3 +76,8 @@ def test_the_texts_show_the_command_through_printable() -> None:
         == 'Close orphan pane "claude�[2J"? y: yes · any other key: no'
     )
     assert closing_text("a\nb") == 'Closing "a�b"…'
+
+
+def test_an_orphan_without_an_absolute_folder_is_refused() -> None:
+    for cwd in ("", "relative/x", "."):
+        assert adoption(_orphan(cwd=cwd), ()) == "unknown folder: only x closes it"
