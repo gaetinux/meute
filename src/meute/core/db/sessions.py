@@ -155,6 +155,21 @@ def list_sessions(db: Database, *, include_ended: bool = False) -> list[Session]
     return [_row_to_session(row) for row in rows]
 
 
+def last_agent_by_repo(db: Database) -> dict[RepoId, AgentKind]:
+    """Return, for each repository, the type of its most recent session (ended ones too).
+
+    The most recent is the greatest `(created_at, id)`; sessions without a repository are
+    ignored.
+    """
+    rows = fetch_all(
+        db.conn,
+        "SELECT repo_id, agent FROM sessions s WHERE repo_id IS NOT NULL AND NOT EXISTS ("
+        " SELECT 1 FROM sessions o WHERE o.repo_id = s.repo_id"
+        " AND (o.created_at, o.id) > (s.created_at, s.id))",
+    )
+    return {RepoId(as_integer(row[0])): AgentKind(as_text(row[1])) for row in rows}
+
+
 def set_session_state(db: Database, session_id: SessionId, state: SessionState) -> Session:
     """Set the state of a session and its last activity to now.
 

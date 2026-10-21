@@ -17,6 +17,7 @@ from meute.core.board_view import (
     BoardAction,
     BoardData,
     LaunchBash,
+    LaunchClaude,
     SessionRow,
     ShowSession,
     StopSession,
@@ -154,8 +155,8 @@ def test_enter_and_n_on_repo_launch_bash_there() -> None:
     _ = _run(backend, "j", "j", "enter", "n", "j", "n")
     assert backend.actions == [
         LaunchBash(cwd=BOARD_REPO_1.path, repo_id=RepoId(1)),
-        LaunchBash(cwd=BOARD_REPO_1.path, repo_id=RepoId(1)),
-        LaunchBash(cwd=BOARD_REPO_2.path, repo_id=RepoId(2)),
+        LaunchClaude(cwd=BOARD_REPO_1.path, repo_id=RepoId(1)),
+        LaunchClaude(cwd=BOARD_REPO_2.path, repo_id=RepoId(2)),
     ]
 
 

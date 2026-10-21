@@ -24,7 +24,7 @@ from meute.core.board_view import (
 from meute.core.claude_session import ClaudeDetails
 from meute.core.project import RepoId
 from meute.core.quota_view import QuotaLine
-from meute.core.session import SessionId
+from meute.core.session import AgentKind, SessionId
 from meute.core.session_details import details_card
 from meute.core.session_state import Exited, PermissionRequested, Running, SessionState
 from meute.core.sessions_view import HeaderLine, RepoLine, SessionLine, ViewState
@@ -265,6 +265,24 @@ def test_n_and_c_on_a_session_launch_in_its_repository() -> None:
         LaunchBash(cwd=cwd, repo_id=RepoId(1)),
         LaunchClaude(cwd=cwd, repo_id=RepoId(1)),
     ]
+
+
+def test_n_on_a_repository_whose_last_type_is_bash_launches_bash() -> None:
+    async def steps(pilot: Pilot[None], _app: BoardApp) -> None:
+        await pilot.press("n")
+
+    data = replace(_calm_data(), last_agents={RepoId(1): AgentKind.BASH})
+    cwd = BOARD_HOME / "git" / "build"
+    assert _scenario(data, steps).actions == [LaunchBash(cwd=cwd, repo_id=RepoId(1))]
+
+
+def test_n_on_a_repository_whose_last_type_is_claude_launches_claude() -> None:
+    async def steps(pilot: Pilot[None], _app: BoardApp) -> None:
+        await pilot.press("n")
+
+    data = replace(_calm_data(), last_agents={RepoId(1): AgentKind.CLAUDE})
+    cwd = BOARD_HOME / "git" / "build"
+    assert _scenario(data, steps).actions == [LaunchClaude(cwd=cwd, repo_id=RepoId(1))]
 
 
 def test_enter_on_a_folded_group_unfolds_it() -> None:

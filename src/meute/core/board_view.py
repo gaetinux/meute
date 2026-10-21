@@ -7,16 +7,49 @@ from pathlib import Path
 from typing import assert_never
 
 from meute.core.agents import AgentInfo
+from meute.core.board_actions import (
+    AddNote,
+    BoardAction,
+    ChangeTask,
+    CreateTask,
+    DeleteTask,
+    Detach,
+    LaunchBash,
+    LaunchClaude,
+    LaunchOnTask,
+    MoveToRepoProject,
+    ShowSession,
+    StopSession,
+    TaskAction,
+)
 from meute.core.claude_session import ClaudeDetails
+from meute.core.last_agent import last_agent
 from meute.core.paths import display_path
 from meute.core.project import ProjectId, ProjectRef, RepoId
 from meute.core.quota_view import QuotaLine
 from meute.core.repo import Repo
-from meute.core.session import Session, SessionId
+from meute.core.session import AgentKind, Session, SessionId
 from meute.core.session_state import is_live
 from meute.core.statusline import StatuslineData
-from meute.core.task import Note, Task, TaskId, TaskPatch, task_label
+from meute.core.task import Note, Task, TaskId, task_label
 from meute.core.text import printable
+
+# The actions live in `board_actions`; they stay importable from here.
+__all__ = [
+    "AddNote",
+    "BoardAction",
+    "ChangeTask",
+    "CreateTask",
+    "DeleteTask",
+    "Detach",
+    "LaunchBash",
+    "LaunchClaude",
+    "LaunchOnTask",
+    "MoveToRepoProject",
+    "ShowSession",
+    "StopSession",
+    "TaskAction",
+]
 
 BOARD_TITLE = "meute"
 ORPHANS_HEADING = "Orphans"
@@ -25,7 +58,8 @@ NO_SESSIONS = "No sessions. Pick a repository and press n."
 FOOTER = "↑↓ select · Enter show · c/n new · x stop · ? keys"
 KEYS_HELP = (
     "↑↓ select · Enter show · Space ←→ fold a group\n"
-    "c new Claude session · n new Bash session · x stop\n"
+    "c new Claude session · x stop\n"
+    "n new (this repository's last type)\n"
     "a attention only · e ended sessions · Tab tasks · q detach\n"
     "? or Esc close this list"
 )
@@ -76,94 +110,7 @@ class BoardData:
     notes: Mapping[TaskId, tuple[Note, ...]] = field(default_factory=dict[TaskId, tuple[Note, ...]])
     project_refs: tuple[ProjectRef, ...] = ()
     displayed_project: ProjectRef | None = None
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class ShowSession:
-    """Bring a session's pane into the main area."""
-
-    session_id: SessionId
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class LaunchBash:
-    """Start a Bash session in `cwd`."""
-
-    cwd: Path
-    repo_id: RepoId | None
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class LaunchClaude:
-    """Start a Claude session in `cwd`."""
-
-    cwd: Path
-    repo_id: RepoId | None
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class StopSession:
-    """Stop a session."""
-
-    session_id: SessionId
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class Detach:
-    """Detach the terminal from meute, stopping nothing."""
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class CreateTask:
-    """Create a task from a quick entry; `project` is the default when it has no `@`."""
-
-    text: str
-    project: ProjectRef | None
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class ChangeTask:
-    """Apply `patch` to a task still at `version`."""
-
-    task_id: TaskId
-    version: int
-    patch: TaskPatch
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class AddNote:
-    """Attach a note to a task."""
-
-    task_id: TaskId
-    body: str
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class DeleteTask:
-    """Delete a task still at `version`."""
-
-    task_id: TaskId
-    version: int
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class LaunchOnTask:
-    """Start a Claude session on a task."""
-
-    task_id: TaskId
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class MoveToRepoProject:
-    """Move a task still at `version` to the project to create from the repository `name`."""
-
-    task_id: TaskId
-    version: int
-    name: str
-
-
-TaskAction = CreateTask | ChangeTask | MoveToRepoProject | AddNote | DeleteTask | LaunchOnTask
-BoardAction = ShowSession | LaunchBash | LaunchClaude | StopSession | Detach | TaskAction
+    last_agents: Mapping[RepoId, AgentKind] = field(default_factory=dict[RepoId, AgentKind])
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -194,22 +141,31 @@ def enter_action(entry: BoardEntry) -> ShowSession | LaunchBash:
             assert_never(entry)
 
 
-def new_action(entry: BoardEntry) -> LaunchBash:
-    """Return what `n` does: launch Bash in the repository, or where the session runs."""
+def _launch_place(entry: BoardEntry) -> tuple[Path, RepoId | None]:
+    """Return the folder and repository a launch from `entry` uses."""
     match entry:
         case SessionEntry():
             session = entry.row.session
-            return LaunchBash(cwd=session.cwd, repo_id=session.repo_id)
+            return session.cwd, session.repo_id
         case RepoEntry():
-            return LaunchBash(cwd=entry.repo.path, repo_id=entry.repo.id)
+            return entry.repo.path, entry.repo.id
         case _:
             assert_never(entry)
 
 
+def new_action(entry: BoardEntry, data: BoardData) -> LaunchBash | LaunchClaude:
+    """Return what `n` does: launch the repository's last session type where `entry` is."""
+    cwd, repo_id = _launch_place(entry)
+    own = entry.row.session.agent if isinstance(entry, SessionEntry) else None
+    if last_agent(data, repo_id, own) is AgentKind.BASH:
+        return LaunchBash(cwd=cwd, repo_id=repo_id)
+    return LaunchClaude(cwd=cwd, repo_id=repo_id)
+
+
 def claude_action(entry: BoardEntry) -> LaunchClaude:
-    """Return what `c` does: launch Claude where `n` would launch Bash."""
-    launch = new_action(entry)
-    return LaunchClaude(cwd=launch.cwd, repo_id=launch.repo_id)
+    """Return what `c` does: launch Claude where `n` would launch."""
+    cwd, repo_id = _launch_place(entry)
+    return LaunchClaude(cwd=cwd, repo_id=repo_id)
 
 
 def ended_text(title: str) -> str:

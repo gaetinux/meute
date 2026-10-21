@@ -148,11 +148,17 @@ class CliBoardBackend:
             case ShowSession():
                 show_session(self._ctx, self._env, action.session_id)
             case LaunchBash():
-                request = BashLaunch(cwd=action.cwd, repo_id=action.repo_id)
+                request = BashLaunch(cwd=action.cwd, repo_id=action.repo_id, title=action.title)
                 session = launch_bash(self._ctx, self._env, request, self._environ)
                 show_session(self._ctx, self._env, session.id)
             case LaunchClaude():
-                claude = ClaudeLaunch(cwd=action.cwd, repo_id=action.repo_id)
+                claude = ClaudeLaunch(
+                    cwd=action.cwd,
+                    repo_id=action.repo_id,
+                    title=action.title,
+                    permission_mode=action.permission_mode,
+                    task_id=action.task_id,
+                )
                 session = launch_claude(self._ctx, self._env, claude, self._environ)
                 show_session(self._ctx, self._env, session.id)
             case StopSession():

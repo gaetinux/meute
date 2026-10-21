@@ -112,7 +112,7 @@ class SessionsTab:
         elif key == "c":
             self._perform(claude_action(entry))
         elif key == "n":
-            self._perform(new_action(entry))
+            self._perform(new_action(entry, self.cursor.model.data))
         elif key == "x":
             target = stop_target(entry)
             self._confirming = None if target is None or self._is_stopping(target.id) else target

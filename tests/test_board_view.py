@@ -4,6 +4,7 @@ from pathlib import Path
 
 from meute.core.board_view import (
     LaunchBash,
+    LaunchClaude,
     RepoEntry,
     SessionEntry,
     ShowSession,
@@ -29,13 +30,15 @@ def test_enter_on_session_shows_and_on_repo_launches_there() -> None:
 
 def test_new_on_session_launches_in_its_cwd_and_repo() -> None:
     data = _data()
-    assert new_action(SessionEntry(row=data.sessions[0])) == LaunchBash(
+    assert new_action(SessionEntry(row=data.sessions[0]), data) == LaunchBash(
         cwd=_SESSION_A.cwd, repo_id=None
     )
-    assert new_action(SessionEntry(row=data.sessions[1])) == LaunchBash(
+    assert new_action(SessionEntry(row=data.sessions[1]), data) == LaunchBash(
         cwd=Path("/srv/work"), repo_id=None
     )
-    assert new_action(RepoEntry(repo=_REPO_2)) == LaunchBash(cwd=_REPO_2.path, repo_id=RepoId(2))
+    assert new_action(RepoEntry(repo=_REPO_2), data) == LaunchClaude(
+        cwd=_REPO_2.path, repo_id=RepoId(2)
+    )
 
 
 def test_stop_target_is_none_for_a_repo() -> None:

@@ -8,7 +8,7 @@ import pytest
 from meute.cli.board_backend import CliBoardBackend
 from meute.cli.context import CliContext
 from meute.cli.tmux_env import TmuxEnv
-from meute.core.board_view import LaunchClaude
+from meute.core.board_view import LaunchBash, LaunchClaude
 from meute.core.errors import MeuteError
 from meute.core.session import AgentKind
 from meute.tmux.layout import ensure_layout
@@ -48,3 +48,28 @@ def test_launch_claude_without_claude_is_a_meute_error(
             backend.perform(LaunchClaude(cwd=tmp_path, repo_id=None))
     finally:
         backend.close()
+
+
+def test_launch_fields_reach_the_launch_functions(
+    ctx: CliContext,  # noqa: F811 — fixture
+    env: TmuxEnv,  # noqa: F811 — fixture
+    tmp_path: Path,
+) -> None:
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    script = fake / "claude"
+    script.write_text("#!/bin/sh\nexec sleep 3600\n")
+    script.chmod(script.stat().st_mode | stat.S_IXUSR)
+    ensure_layout(env.tmux, _SPEC)
+    backend = CliBoardBackend(ctx, env, {"PATH": str(fake)})
+    try:
+        backend.perform(LaunchClaude(cwd=tmp_path, repo_id=None, title="Named claude"))
+        backend.perform(LaunchBash(cwd=tmp_path, repo_id=None, title="Named bash"))
+        with pytest.raises(MeuteError, match=r"^unknown permission mode: bogus$"):
+            backend.perform(LaunchClaude(cwd=tmp_path, repo_id=None, permission_mode="bogus"))
+        data = backend.load()
+    finally:
+        backend.close()
+    assert data is not None
+    assert sorted(row.session.title for row in data.sessions) == ["Named bash", "Named claude"]
+    assert data.last_agents == {}  # neither session has a repository

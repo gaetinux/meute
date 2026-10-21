@@ -14,7 +14,7 @@ from meute.core.db.claude_sessions import claude_details_by_session
 from meute.core.db.projects import project_refs
 from meute.core.db.repos import list_repos
 from meute.core.db.samples import latest_metrics_by_session, latest_quota, quota_history
-from meute.core.db.sessions import list_sessions
+from meute.core.db.sessions import last_agent_by_repo, list_sessions
 from meute.core.db.task_reads import latest_notes
 from meute.core.db.tasks import TaskFilter, list_tasks
 from meute.core.quota_view import PROJECTION_WINDOW, QuotaLine, current_quota, projected_limit
@@ -106,6 +106,7 @@ def load_board_data(
         tasks=tasks,
         notes=latest_notes(db, task_ids=[task.id for task in tasks]),
         project_refs=refs,
+        last_agents=last_agent_by_repo(db),
         displayed_project=None
         if displayed is None
         else session_project(displayed, projects=refs, repos=repo_by_id),

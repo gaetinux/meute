@@ -134,7 +134,8 @@ def test_a_repo_line_without_its_repository_has_no_entry() -> None:
 def test_new_action_on_a_session_keeps_its_repository() -> None:
     session = board_session(BOARD_ID_A, "t", Path("/w/x"), RepoId(4), exited=False)
     entry = SessionEntry(row=SessionRow(session=session, has_pane=True, displayed=False))
-    assert new_action(entry) == LaunchBash(cwd=Path("/w/x"), repo_id=RepoId(4))
+    data = replace(board_data(), sessions=(entry.row,))
+    assert new_action(entry, data) == LaunchBash(cwd=Path("/w/x"), repo_id=RepoId(4))
 
 
 def test_stopping_text_neutralises_control_characters() -> None:
