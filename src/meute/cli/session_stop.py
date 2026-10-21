@@ -10,7 +10,7 @@ from meute.core.session import AgentKind, Session, SessionId
 from meute.core.session_state import Exited, Unreachable, is_live
 from meute.tmux.errors import CommandFailed
 from meute.tmux.layout import ensure_layout, find_layout
-from meute.tmux.panes import kill_pane, list_panes, send_keys
+from meute.tmux.panes import kill_pane, pane_of_session, send_keys
 from meute.tmux.parse import PaneInfo
 
 STOP_GRACE_SECONDS = 5.0
@@ -18,27 +18,23 @@ _POLL_SECONDS = 0.1
 CLAUDE_SECOND_INTERRUPT_SECONDS = 0.3  # Claude quits on a second Ctrl-C shortly after the first
 
 
-def _pane_of(env: TmuxEnv, session_id: SessionId) -> PaneInfo | None:
-    return next((p for p in list_panes(env.tmux) if p.meute_id == session_id), None)
-
-
 def _interrupt(
     env: TmuxEnv, session_id: SessionId, grace: float, *, twice: bool
 ) -> PaneInfo | None:
     """Send Ctrl-C (twice for Claude) and wait until the pane is dead or gone, `grace` at most."""
-    pane = _pane_of(env, session_id)
+    pane = pane_of_session(env.tmux, session_id)
     if pane is None or pane.dead:
         return pane
     send_keys(env.tmux, pane.id, "C-c")
     if twice:
         time.sleep(CLAUDE_SECOND_INTERRUPT_SECONDS)
-        pane = _pane_of(env, session_id)
+        pane = pane_of_session(env.tmux, session_id)
         if pane is None or pane.dead:
             return pane
         send_keys(env.tmux, pane.id, "C-c")
     deadline = time.monotonic() + grace
     while True:
-        pane = _pane_of(env, session_id)
+        pane = pane_of_session(env.tmux, session_id)
         if pane is None or pane.dead or time.monotonic() >= deadline:
             return pane
         time.sleep(_POLL_SECONDS)
@@ -49,7 +45,7 @@ def _kill(env: TmuxEnv, pane: PaneInfo, session_id: SessionId) -> None:
         kill_pane(env.tmux, pane.id)
     except CommandFailed:
         # The pane may have died by itself in the meantime: only a pane still there is an error.
-        if _pane_of(env, session_id) is not None:
+        if pane_of_session(env.tmux, session_id) is not None:
             raise
 
 

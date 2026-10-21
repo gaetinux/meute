@@ -44,7 +44,7 @@ stuck_after_minutes = 10
 
 [ui]
 # Dashboard width, in columns.
-board_width = 60
+board_width = 72
 # Below this terminal width, the dashboard goes full screen.
 narrow_threshold = 120
 # Show the details of the selected session under the list.
@@ -58,6 +58,8 @@ focus_main = "M-o"
 next_attention = "M-n"
 previous_attention = "M-N"
 detach = "M-q"
+# Quick task from anywhere.
+quick_task = "M-t"
 
 [quotas]
 # Peak hours: weekdays, from peak_start_hour to peak_end_hour, in this time zone.
@@ -91,6 +93,7 @@ def _flatten(config: Config) -> dict[str, object]:
         "keys.next_attention": config.keys.next_attention,
         "keys.previous_attention": config.keys.previous_attention,
         "keys.detach": config.keys.detach,
+        "keys.quick_task": config.keys.quick_task,
         "quotas.peak_timezone": config.quotas.peak_timezone,
         "quotas.peak_start_hour": config.quotas.peak_start_hour,
         "quotas.peak_end_hour": config.quotas.peak_end_hour,

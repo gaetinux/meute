@@ -19,6 +19,11 @@ from meute.tmux.panes import (
 )
 
 
+def unreachable(title: str) -> InvalidInput:
+    """Return the error of a session that has no pane any more."""
+    return InvalidInput(f"session unreachable: {title}")
+
+
 def show_session(ctx: CliContext, env: TmuxEnv, session_id: SessionId) -> None:
     """Bring the pane of a session into the main area and give it the focus.
 
@@ -39,8 +44,7 @@ def show_session(ctx: CliContext, env: TmuxEnv, session_id: SessionId) -> None:
     panes = list_panes(env.tmux)
     pane = next((p for p in panes if p.meute_id == session_id), None)
     if pane is None:
-        message = f"session unreachable: {session.title}"
-        raise InvalidInput(message)
+        raise unreachable(session.title)
     if layout.zoomed:
         switch_client_to(env.tmux, pane.id)
         return

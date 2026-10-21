@@ -154,7 +154,7 @@ def test_stop_displayed_session_restores_welcome(sandbox: Sandbox) -> None:
     widths = sandbox.tmux().run(
         "list-panes", "-t", "=meute:main", "-F", "#{@meute_role} #{pane_width}"
     )
-    assert "board 60" in widths.splitlines()
+    assert "board 72" in widths.splitlines()
 
 
 def test_stop_without_confirmation_cancels(sandbox: Sandbox) -> None:

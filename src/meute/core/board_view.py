@@ -9,16 +9,16 @@ from typing import assert_never
 from meute.core.agents import AgentInfo
 from meute.core.claude_session import ClaudeDetails
 from meute.core.paths import display_path
-from meute.core.project import ProjectId, RepoId
+from meute.core.project import ProjectId, ProjectRef, RepoId
 from meute.core.quota_view import QuotaLine
 from meute.core.repo import Repo
 from meute.core.session import Session, SessionId
 from meute.core.session_state import is_live
 from meute.core.statusline import StatuslineData
+from meute.core.task import Note, Task, TaskId, TaskPatch, task_label
 from meute.core.text import printable
 
 BOARD_TITLE = "meute"
-REPOS_HEADING = "Repositories"
 ORPHANS_HEADING = "Orphans"
 OUTSIDE_HEADING = "Outside meute"
 NO_SESSIONS = "No sessions. Pick a repository and press n."
@@ -26,7 +26,16 @@ FOOTER = "↑↓ select · Enter show · c/n new · x stop · ? keys"
 KEYS_HELP = (
     "↑↓ select · Enter show · Space ←→ fold a group\n"
     "c new Claude session · n new Bash session · x stop\n"
-    "a attention only · e ended sessions · q detach\n"
+    "a attention only · e ended sessions · Tab tasks · q detach\n"
+    "? or Esc close this list"
+)
+TASKS_FOOTER = "a add · s status · d postpone · o note · L Claude · ? keys"
+EDIT_FOOTER = "Enter confirm · Esc cancel"
+MULTILINE_DESCRIPTION = "multi-line description: edit it with meute task edit"
+TASKS_KEYS_HELP = (
+    "↑↓ select · Enter show its session · Space ←→ fold · f filter · g group\n"
+    "a add · s status · p priority · d postpone · e title · D description\n"
+    "@ project · o note · L launch Claude on it · Del delete · Tab sessions\n"
     "? or Esc close this list"
 )
 
@@ -63,6 +72,10 @@ class BoardData:
     projects: Mapping[ProjectId, str] = field(default_factory=dict[ProjectId, str])
     quota: QuotaLine | None = None
     now: datetime | None = None
+    tasks: tuple[Task, ...] = ()
+    notes: Mapping[TaskId, tuple[Note, ...]] = field(default_factory=dict[TaskId, tuple[Note, ...]])
+    project_refs: tuple[ProjectRef, ...] = ()
+    displayed_project: ProjectRef | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -100,7 +113,57 @@ class Detach:
     """Detach the terminal from meute, stopping nothing."""
 
 
-BoardAction = ShowSession | LaunchBash | LaunchClaude | StopSession | Detach
+@dataclass(frozen=True, slots=True, kw_only=True)
+class CreateTask:
+    """Create a task from a quick entry; `project` is the default when it has no `@`."""
+
+    text: str
+    project: ProjectRef | None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ChangeTask:
+    """Apply `patch` to a task still at `version`."""
+
+    task_id: TaskId
+    version: int
+    patch: TaskPatch
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AddNote:
+    """Attach a note to a task."""
+
+    task_id: TaskId
+    body: str
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class DeleteTask:
+    """Delete a task still at `version`."""
+
+    task_id: TaskId
+    version: int
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class LaunchOnTask:
+    """Start a Claude session on a task."""
+
+    task_id: TaskId
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class MoveToRepoProject:
+    """Move a task still at `version` to the project to create from the repository `name`."""
+
+    task_id: TaskId
+    version: int
+    name: str
+
+
+TaskAction = CreateTask | ChangeTask | MoveToRepoProject | AddNote | DeleteTask | LaunchOnTask
+BoardAction = ShowSession | LaunchBash | LaunchClaude | StopSession | Detach | TaskAction
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -201,9 +264,24 @@ def confirm_stop_text(title: str) -> str:
     return f'Stop "{printable(title)}"? y: yes · any other key: no'
 
 
+def confirm_delete_text(task_id: TaskId, title: str) -> str:
+    """Return the confirmation prompt shown before deleting a task."""
+    return f'Delete {task_label(task_id)} "{printable(title)}"? y: yes · any other key: no'
+
+
+def conflict_text(task_id: TaskId) -> str:
+    """Return the footer notice when a task changed since it was read."""
+    return f"{task_label(task_id)} was modified in the meantime: reloaded"
+
+
 def stopping_text(title: str) -> str:
     """Return the footer text while a session is being stopped."""
     return f'Stopping "{printable(title)}"…'
+
+
+def launching_text(task_id: TaskId) -> str:
+    """Return the footer text while Claude is being launched on a task."""
+    return f"Launching Claude on {task_label(task_id)}…"
 
 
 def error_text(message: str) -> str:

@@ -37,7 +37,7 @@ def test_footer_holds_on_one_line_of_the_default_board() -> None:
 
 
 def test_keys_help_lists_every_key() -> None:
-    for key in ("↑↓", "Enter", "Space", "c ", "n ", "x ", "a ", "e ", "q ", "Esc"):
+    for key in ("↑↓", "Enter", "Space", "c ", "n ", "x ", "a ", "e ", "Tab ", "q ", "Esc"):
         assert key in KEYS_HELP
     assert all(len(line) <= 58 for line in KEYS_HELP.splitlines())
 

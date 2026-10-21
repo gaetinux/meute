@@ -1,10 +1,13 @@
 """Panes: listing, spawning windows, options, swapping and killing."""
 
+import os
+import tempfile
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
 from meute.tmux.client import Tmux, is_no_server
-from meute.tmux.errors import CommandFailed
+from meute.tmux.errors import CommandFailed, TmuxError
 from meute.tmux.parse import PANE_FORMAT, PaneId, PaneInfo, parse_pane_line
 
 
@@ -33,6 +36,16 @@ def list_panes(tmux: Tmux) -> list[PaneInfo]:
             return []
         raise
     return [parse_pane_line(line) for line in output.splitlines()]
+
+
+def pane_of_session(tmux: Tmux, session_id: str) -> PaneInfo | None:
+    """Return the pane of the meute session `session_id`, or None when it has none.
+
+    Raises:
+        CommandFailed: tmux failed for a reason other than a missing server.
+        UnreadableOutput: a pane line could not be parsed.
+    """
+    return next((pane for pane in list_panes(tmux) if pane.meute_id == session_id), None)
 
 
 _CD_THEN_EXEC = 'cd -- "$1" || exit; shift; exec "$@"'
@@ -89,6 +102,32 @@ def select_pane(tmux: Tmux, pane: PaneId) -> None:
 def send_keys(tmux: Tmux, pane: PaneId, *keys: str) -> None:
     """Send keys to a pane."""
     tmux.run("send-keys", "-t", pane, "--", *keys)
+
+
+def paste_text(tmux: Tmux, pane: PaneId, text: str, *, private_dir: Path) -> None:
+    """Paste `text` into a pane as a bracketed paste, without pressing Enter.
+
+    The text goes through a private (0600) file in `private_dir` loaded into a tmux buffer:
+    never a command argument, which tmux would parse (a final `;` ends a command). The file
+    is removed and the buffer deleted whatever happens.
+
+    Raises:
+        CommandFailed: tmux failed.
+    """
+    buffer = f"meute-paste-{pane.removeprefix('%')}"
+    fd, name = tempfile.mkstemp(prefix="paste-", dir=private_dir)  # created 0600
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as file:
+            _ = file.write(text)
+        tmux.run("load-buffer", "-b", buffer, name)
+        try:
+            tmux.run("paste-buffer", "-p", "-d", "-b", buffer, "-t", pane)
+        except TmuxError:
+            with suppress(TmuxError):  # `-d` did not run: the text must not linger in tmux
+                tmux.run("delete-buffer", "-b", buffer)
+            raise
+    finally:
+        Path(name).unlink(missing_ok=True)
 
 
 def kill_pane(tmux: Tmux, pane: PaneId) -> None:

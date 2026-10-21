@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from meute.core.task import Task
+    from meute.core.task import Task, TaskId
 
 
 class MeuteError(Exception):
@@ -52,3 +52,16 @@ class VersionConflict(MeuteError):  # noqa: N818 — name fixed by the specifica
         """Build the error carrying the `current` state of the task."""
         super().__init__(f"modified in the meantime (current version: {current.version})")
         self.current = current
+
+
+class PromptNotPasted(MeuteError):  # noqa: N818 — a result to report, not a failure
+    """Claude was launched on a task but not ready in time: the task text was not pasted."""
+
+    def __init__(self, task_id: "TaskId", *, timeout_seconds: float) -> None:
+        """Build the notice for the task `task_id`, not ready after `timeout_seconds`.
+
+        Its session stays launched.
+        """
+        message = f"#{task_id}: prompt not pasted (Claude not ready after {timeout_seconds:g} s)"
+        super().__init__(message)
+        self.task_id = task_id

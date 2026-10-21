@@ -10,7 +10,7 @@ from meute.tmux.panes import Spawn, list_panes, spawn_window
 from meute.tmux.parse import PaneId
 from meute.tmux.quote import format_literal
 from support import wait_until
-from tmux_support import TestServer
+from tmux_support import TestServer, run_format_job
 
 SLEEP = ("sh", "-c", "sleep 3600")
 PWD_TO_OUT = ("sh", "-c", 'pwd -P > "$OUT.tmp" && mv "$OUT.tmp" "$OUT"; sleep 3600')
@@ -43,13 +43,9 @@ def spawn_reporting_cwd(tmux: Tmux, tmp_path: Path, cwd: Path) -> tuple[PaneId, 
 def settle(tmux: Tmux, tmp_path: Path) -> None:
     """Wait for a later `#()` job to run, so that an earlier injected one had its chance."""
     sentinel = tmp_path / "sentinel"
-
-    def sentinel_ran() -> bool:
-        # A `-p` job dies with its short-lived client, so start it again until one has run.
-        tmux.run("display-message", "-p", f"#(touch {sentinel})")
-        return sentinel.exists()
-
-    wait_until("the sentinel job", sentinel_ran)
+    # A `-p` job dies with its short-lived client: the client waits for this one.
+    run_format_job(tmux, f"touch {sentinel}", sentinel)
+    wait_until("the sentinel job", sentinel.exists)
 
 
 @pytest.mark.parametrize("folder", [f"p{INJECTION}", "a#Hb"])

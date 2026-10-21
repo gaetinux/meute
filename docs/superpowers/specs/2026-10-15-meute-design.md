@@ -173,7 +173,7 @@ On évite ainsi un protocole de socket, la gestion des versions entre clients, u
 
 - `meute` utilise son propre serveur, `tmux -L meute`, avec un fichier de configuration généré par l'application. Le tmux personnel de l'utilisateur n'est jamais touché.
 - Ce serveur contient deux sessions tmux :
-  - `meute` : une fenêtre avec deux panneaux, la zone principale et le tableau de bord. Le tableau est à droite par défaut, sur 60 colonnes, réglable ;
+  - `meute` : une fenêtre avec deux panneaux, la zone principale et le tableau de bord. Le tableau est à droite par défaut, sur 72 colonnes (60 jusqu'au plan 4, élargi pour les fiches de session, décision de l'auteur du 2026-10-19), réglable ;
   - `meute-bg` : une fenêtre par session gérée.
 - **L'identité d'une session est portée par son panneau, pas par sa fenêtre.** `@meute_id=<uuid>` et `remain-on-exit on` sont posés comme **options de pane** (`set-option -p`). Lors d'un `swap-pane`, une option de fenêtre reste sur la fenêtre et ne suit pas le panneau. Pour la même raison, aucune option `@meute_*` n'est posée sur une fenêtre, puisqu'une option de pane hérite de celle de sa fenêtre (spike S4).
 - **Afficher une session** consiste à échanger, avec `swap-pane`, le panneau de la zone principale avec celui de la session. La session précédemment affichée retourne dans la fenêtre de `meute-bg` que l'autre panneau vient de libérer.
@@ -182,7 +182,7 @@ On évite ainsi un protocole de socket, la gestion des versions entre clients, u
   - `M-p` : focus sur le tableau de bord ;
   - `M-o` : focus sur la zone principale ;
   - `M-n` / `M-N` : session suivante / précédente parmi celles « needs attention ».
-- **La barre d'état tmux** affiche la session affichée et le nombre de sessions « needs attention ». Elle est remplacée par une ligne meute (§ 5.6).
+- **La barre d'état tmux** est remplacée par une ligne meute : les touches globales, et là où le tableau est masqué la session affichée et le nombre de sessions « needs attention » (§ 5.6).
 - **Se détacher** (`q` dans le tableau de bord, `M-q` partout, `prefix d` ou fermeture du terminal, voir § 5.6) laisse tout tourner. Relancer `meute` permet de se rattacher.
 
 ### 5.2 Mode étroit
@@ -223,10 +223,12 @@ Décision de l'auteur, 2026-10-18. Le but est que l'utilisateur n'ait pas à con
   - un clic sur un panneau lui donne le focus ;
   - la molette fait défiler ;
   - la sélection de texte se fait en maintenant `Shift`.
-- **Ligne d'état meute** : la barre d'état de tmux est remplacée par une ligne meute, qui affiche la session affichée, le nombre de sessions « needs attention » et le quota 5 h. Elle n'apparaît que là où le tableau de bord est masqué (mode étroit, session affichée en plein écran) : à côté du tableau, elle répéterait ce qu'il montre (précision de l'auteur, 2026-10-19).
-- **Pied du tableau** : une seule ligne avec les touches essentielles (`↑↓ select · Enter show · c/n new · x stop · ? keys`) ; `?` affiche la liste complète des touches, `?` ou `Échap` la referme.
+- **Ligne d'état meute** : la barre d'état de tmux est remplacée par une ligne meute, sur une ligne en bas de tout l'écran. Elle affiche toujours, à gauche et en gris (`colour245`), les touches globales, construites depuis `[keys]` : `M-p panel · M-o back · M-n/M-N next · M-t task · M-q detach` (décision de l'auteur, 2026-10-20 : depuis Claude, on ne savait pas comment revenir au tableau sans cliquer). Là où le tableau de bord est masqué (mode étroit, session affichée en plein écran), elle y ajoute à droite la session affichée, le nombre de sessions « needs attention », le quota 5 h et, s'il y en a, le nombre de tâches en retard (`· 2 overdue`, § 9.5) ; à côté du tableau, cette partie répéterait ce qu'il montre (précision de l'auteur, 2026-10-19).
+- **Pied du tableau** : une seule ligne avec les touches essentielles (`↑↓ select · Enter show · c/n new · x stop · ? keys`) ; `?` affiche la liste complète des touches, `?` ou `Échap` la referme. Dans l'onglet Tâches, le pied devient `a add · s status · d postpone · o note · L Claude · ? keys` (57 colonnes, pour tenir dans les 72 du tableau ; `p`, `e` et les autres touches sont dans `?`). Pendant qu'une saisie ou une liste de choix est ouverte, il affiche `Enter confirm · Esc cancel`.
+- **Session affichée** : sa carte porte une marque `▶` en première colonne, pour savoir ce que montre le panneau principal.
 - **Bordures** réduites à une ligne discrète.
-- **Focus visible** (précision de l'auteur, 2026-10-19) : le tableau affiche en haut un titre (`meute · Sessions`) en inverse et sa sélection en inverse quand il a le focus, le titre en gris et la sélection sur fond gris sinon (tmux lui transmet le focus, `focus-events`) ; tmux grise légèrement le fond du panneau qui n'a pas le focus (`window-style`). La passe visuelle complète du tableau est faite au début du plan 4b, pour les deux onglets.
+- **`M-t`** (§ 9.6) ouvre une fenêtre flottante tmux (`display-popup`) ; l'option `-B` (sans bordure) demande tmux 3.3 ou plus. Sur tmux 3.2, appuyer sur `M-t` affiche une erreur de tmux ; le reste de la configuration n'est pas affecté, car le `display-popup` est dans des chaînes d'un `if-shell`, analysées seulement à l'appui sur la touche, jamais au chargement du fichier.
+- **Focus visible** (précision de l'auteur, 2026-10-19) : le tableau affiche en haut la ligne des onglets (`Sessions  Tasks`, § 9.5) : quand il a le focus, l'onglet actif est en inverse sur la couleur d'accent et la sélection en inverse ; sans le focus, l'onglet actif est seulement souligné et la sélection sur fond gris (tmux lui transmet le focus, `focus-events`) ; tmux grise légèrement le fond du panneau qui n'a pas le focus (`window-style`). La passe visuelle complète du tableau est faite au début du plan 4b, pour les deux onglets.
 - **Détacher sans rien arrêter** : `q` dans le tableau et `M-q` partout.
 - **Messages et alertes de tmux masqués.**
 - **Le préfixe tmux** reste utilisable, mais n'est plus nécessaire.
@@ -450,13 +452,39 @@ Fonctionnalités reprises du mod :
 
 La suppression demande une confirmation et n'est possible que depuis le TUI ou la CLI.
 
+Précisions de l'auteur, 2026-10-19. L'usage principal est de noter vite une idée ou un rappel pendant que Claude travaille, et de voir ce qui est en retard ; le pilotage des tâches vient ensuite.
+
+- **Onglets** : le tableau de bord a deux onglets, Sessions et Tâches, dans le même panneau. Le titre affiche `Sessions · Tasks 2!` (nombre de tâches en retard) ; `Tab` ou un clic sur le nom change d'onglet.
+- **Contenu de l'onglet** : la ligne de filtres (`f` les fait défiler ; « this project » est le projet de la session affichée), les compteurs (`12 open · 2 overdue`), les groupes (urgence par défaut, `g` pour le regroupement par projet, repliables comme dans la vue Sessions), une ligne par tâche (les tâches en retard en rouge), puis le détail de la tâche sélectionnée sous la liste (description, dernières notes, sessions liées).
+- **Touches** : `a` ajoute une tâche par la saisie rapide, en bas du tableau ; sur une tâche, `s` statut, `p` priorité, `d` reports rapides, `e` titre, `D` description, `@` projet, `o` note, `L` « launch Claude on this task », `Del` supprimer ; `Entrée` sur une session liée l'affiche. Le texte se saisit dans une ligne en bas du tableau, les choix (statut, priorité, report) dans une courte liste.
+- **Launch Claude on this task** : la session est liée à la tâche et s'ouvre dans le dépôt de la tâche, à défaut le premier dépôt lié à son projet, à défaut le dépôt qui porte le nom du projet (casse et espaces ignorés, décision de l'auteur, 2026-10-20) ; sans aucun des trois, rien n'est lancé et un message l'indique. Une fois Claude prêt (hook `SessionStart` reçu), meute colle dans sa saisie, sans l'envoyer, le texte de la tâche (`#12 Titre`, la description et les notes) ; l'utilisateur le relit et appuie sur `Entrée`. Si Claude n'est pas prêt au bout de 10 s, la session reste lancée et le tableau affiche « prompt not pasted ». Le statut de la tâche ne change pas (§ 9.4). Le contexte composé du § 8 remplace ce texte au plan 5.
+- **Détails de la vue Sessions** : `Espace` / `←` / `→` sur une carte « Needs you » replient la section « Needs you », pas le groupe de la session plus bas ; les libellés du détail (`Reply`, `Folder`, `Waiting for`) sont alignés sur 12 colonnes. Mise en page de la maquette C2 (décision de l'auteur, 2026-10-20) : un filet `─` grisé sur toute la largeur sous les quotas et un autre au-dessus des sections du bas (`Without session`, `Outside meute`, `Orphans`), non sélectionnables ; une ligne vide après « Needs you » et entre les blocs de projets, aucune entre les sections du bas ; le fond du bandeau « Needs you » et du groupe « Overdue » est `#4a1c22`, lisible sur un terminal sombre.
+- **Formats gardés** : les nombres gardent les formats de l'interface (`62%`, `1h19`, `4m ago`, `$4.40`, `6pm`) ; les espaces des maquettes (`62 %`, `1 h 19`) relevaient de la typographie française.
+- **Reports rapides** (`d`) : `+1h` = maintenant + 1 h ; `tonight 6pm` = aujourd'hui 18:00, ou demain si 18:00 est passé ; `tomorrow 9am` = demain 9:00 ; `Monday 9am` = le premier lundi 9:00 strictement après maintenant ; `clear` retire l'échéance. Les heures sont celles du fuseau local, comme pour `>due` (§ 9.3). Dans la ligne de statut d'une tâche bloquée, l'échéance n'est pas répétée : la raison du blocage tient la place.
+- **Projet d'une session** (filtre « this project », projet par défaut de `M-t`) : son `project_id`, à défaut le projet qui porte le nom de son dépôt, à défaut aucun. Les projets ne sont créés automatiquement qu'au plan 6, sauf par un `@nom` de dépôt dans une saisie de tâche (ci-dessous).
+- **« Without session »** (vue Sessions) est replié par défaut seulement au-delà de 5 dépôts ; il n'y a pas de « + N more » dans les groupes de tâches : la liste défile, comme la vue Sessions. Les compteurs `open` et `overdue` portent sur toutes les tâches, quels que soient le filtre et les groupes repliés.
+- **Branche** : la fiche d'une session n'affiche la branche que si la statusline la donne (`worktree_branch`) ; l'état Git et les PR viennent au plan 6 et en V1.1.
+- **Aides à la saisie** : `D` (description) sur une description de plusieurs lignes n'ouvre rien et affiche « multi-line description: edit it with meute task edit » (une ligne de saisie perdrait les sauts de ligne) ; `Entrée` sur une saisie vide dans `M-t` répond « Error: empty title ».
+- **Collage** : le texte de la tâche passe par un fichier privé (`0600`, dossier d'état) chargé par `tmux load-buffer`, puis collé sans être envoyé ; jamais par un argument de commande, parce que tmux coupe un argument qui se termine par `;` et n'interprète rien dans un fichier. Les mots se terminant par `;` envoyés par `send-keys` sont aussi échappés. Tout texte venu de la base, de Claude ou de l'utilisateur passe par `printable` avant d'être affiché ou collé. Le lancement attend Claude dans un fil de travail à connexion SQLite propre : le tableau ne se bloque pas.
+- **Erreurs** : un projet inconnu dans `@projet` est signalé dans l'aperçu et bloque la création, sauf si un dépôt connu porte ce nom (casse et espaces ignorés, comme les noms de projets) ; un conflit de version affiche « modified in the meantime », recharge la tâche et garde la saisie en cours. La suggestion d'un nom proche cherche parmi les projets et les dépôts.
+- **Projet créé depuis un dépôt** (décision de l'auteur, 2026-10-20, en avance sur le plan 6) : quand `@nom` ne désigne aucun projet mais un dépôt connu, la création de la tâche (`a`, `M-t`) ou le champ `@` crée le projet au nom du dépôt et lui rattache les dépôts de ce nom (`project_repos`), puis la tâche. L'aperçu affiche `Project   nom  (new project from repository)`. Une saisie refusée pour une autre raison (titre vide, conflit de version) n'écrit rien. Un projet existant passe toujours avant un dépôt du même nom.
+
+### 9.6 Saisie rapide globale
+
+Décision de l'auteur, 2026-10-19.
+
+- `M-t` (configurable, `[keys] quick_task`) ouvre de partout une petite fenêtre tmux par-dessus l'écran (`display-popup`), avec le champ de saisie rapide (§ 9.3) et l'aperçu en direct.
+- Sans `@projet`, la tâche est rattachée au projet de la session affichée ; l'aperçu l'indique et `@none` force une tâche volante.
+- **Dimensions** : 12 lignes de haut, 76 colonnes de large ou 100 % du client s'il fait moins de 76 colonnes (tmux refuse une fenêtre plus large que le client) ; `-B` : pas de bordure ; `-EE` : la fenêtre ne se ferme d'elle-même que si la commande réussit (`Entrée` et `Échap` sortent avec 0), pour qu'une erreur au démarrage reste lisible jusqu'à l'appui sur une touche ; le `#` n'est pas doublé dans la commande de `display-popup`, qui n'étend aucun format. Cela demande tmux 3.3 ou plus (§ 5.6).
+- `Entrée` crée la tâche et ferme la fenêtre : l'utilisateur reste exactement où il était. `Échap` annule. En cas d'erreur (base verrouillée, projet inconnu), la fenêtre reste ouverte avec le texte et l'erreur. Un `@nom` de dépôt connu crée le projet de ce dépôt, comme au § 9.5.
+
 ## 10. Projets et dépôts
 
 - **Dépôt** : découvert dans les racines configurées (par défaut `~/git`) par un parcours limité à une profondeur de 3. Les worktrees sont rattachés à leur dépôt principal et ne sont pas comptés en double. Le type de dépôt (fastapi, angular, node, python, rust…) est déduit par des règles simples sur les fichiers présents.
 - **Projet** : un nom, une description, des consignes, et un ou plusieurs dépôts. Au premier lancement d'une session dans un dépôt sans projet, un projet du même nom est créé automatiquement et lié à ce dépôt. Plusieurs dépôts peuvent ensuite être regroupés dans un même projet.
 - **Vue Sessions** :
   - les sessions sont regroupées par projet, à défaut par dépôt, à défaut sous `Other`, en attendant la création automatique des projets (plan 6) ;
-  - l'en-tête de chaque projet affiche son nom, son type, son temps et son coût, et se replie en une ligne de résumé ;
+  - l'en-tête de chaque projet affiche son nom, son type, le nombre de sessions vivantes et son coût (le temps n'y figure plus, selon la maquette validée le 2026-10-19), et se replie en une ligne de résumé ;
   - les projets sans session vivante sont listés en bas, avec l'action « + session ».
 
 ## 11. Worktrees et Git

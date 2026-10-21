@@ -27,7 +27,6 @@ from meute.core.session_state import (
     WaitingInput,
 )
 from meute.core.sessions_view import (
-    InfoLine,
     RepoLine,
     SessionInfo,
     SessionLine,
@@ -36,6 +35,7 @@ from meute.core.sessions_view import (
     build_view,
 )
 from meute.core.statusline_render import peak_text
+from meute.core.styled import Span
 from support import BOARD_HOME, BOARD_ID_A, board_data, board_session
 
 
@@ -107,13 +107,15 @@ def test_outside_agents_and_orphans_are_in_the_view_with_a_short_home() -> None:
     )
     data = replace(board_data(), outside=(agent,), orphans=("%7",))
     texts = [line.text for line in board_sessions(data, ViewState()).view.lines]
-    assert "alone  busy  ~/git/x" in texts
-    assert "%7" in texts
+    assert "  alone  busy  ~/git/x" in texts
+    assert "  %7" in texts
 
 
 def test_a_session_line_without_its_session_has_no_entry() -> None:
     line = SessionLine(
-        session_id=SessionId("ffffffff-aaaa-4aaa-8aaa-aaaaaaaaaaaa"), text="t", attention=False
+        session_id=SessionId("ffffffff-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+        spans=(Span("t"),),
+        attention=False,
     )
     board = replace(
         board_sessions(board_data(), ViewState()), infos={}, view=SessionsView(lines=(line,))
@@ -124,7 +126,7 @@ def test_a_session_line_without_its_session_has_no_entry() -> None:
 def test_a_repo_line_without_its_repository_has_no_entry() -> None:
     board = replace(
         board_sessions(board_data(), ViewState()),
-        view=SessionsView(lines=(RepoLine(repo_id=RepoId(99), text="t"),)),
+        view=SessionsView(lines=(RepoLine(repo_id=RepoId(99), spans=(Span("t"),)),)),
     )
     assert line_entry(board, 0) is None
 
@@ -194,7 +196,7 @@ def _infos(*states: SessionState) -> list[SessionInfo]:
 
 
 def _session_titles(infos: list[SessionInfo], state: ViewState) -> list[str]:
-    view = build_view(infos, [], [], [], state, now=NOW, home=None)
+    view = build_view(infos, [], [], [], state, now=NOW, home=None, width=72)
     return [line.text for line in view.lines if isinstance(line, SessionLine)]
 
 
@@ -210,6 +212,13 @@ def test_ended_sessions_do_not_hide_the_live_ones_after_them() -> None:
 
 def test_every_ended_session_is_counted() -> None:
     view = build_view(
-        _infos(Exited(code=0), Exited(code=1)), [], [], [], ViewState(), now=NOW, home=None
+        _infos(Exited(code=0), Exited(code=1)),
+        [],
+        [],
+        [],
+        ViewState(),
+        now=NOW,
+        home=None,
+        width=72,
     )
-    assert InfoLine("2 ended (e to show)") in view.lines
+    assert "  + 2 ended (e to show)" in [line.text for line in view.lines]

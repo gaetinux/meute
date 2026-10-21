@@ -4,9 +4,10 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from meute.core.db.connection import Database
+from meute.core.db.projects import create_project, project_by_name
 from meute.core.db.rows import as_integer, as_text, fetch_all
 from meute.core.instants import from_db, to_db
-from meute.core.project import RepoId
+from meute.core.project import Project, ProjectId, RepoId
 from meute.core.repo import NewRepo, Repo
 
 _text = as_text
@@ -45,3 +46,29 @@ def list_repos(db: Database) -> list[Repo]:
         (_row_to_repo(row) for row in rows),
         key=lambda repo: (repo.name.casefold(), str(repo.path)),
     )
+
+
+def link_repo(db: Database, project_id: ProjectId, repo_id: RepoId) -> None:
+    """Attach a repository to a project; attaching it again changes nothing."""
+    with db.transaction() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO project_repos (project_id, repo_id) VALUES (?, ?)",
+            (project_id, repo_id),
+        )
+
+
+def create_repo_project(db: Database, name: str) -> Project:
+    """Return the project `name` (ignoring case), with every repository of that name attached.
+
+    The project is created if needed; one of that name made meanwhile, by another window or
+    a failed attempt, is reused.
+
+    Raises:
+        InvalidInput: the name is empty.
+    """
+    project = project_by_name(db, name) or create_project(db, name)
+    key = project.name.casefold()
+    for repo in list_repos(db):
+        if repo.name.strip().casefold() == key:
+            link_repo(db, project.id, repo.id)
+    return project

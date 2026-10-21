@@ -39,6 +39,11 @@ def main_window_panes(tmux: Tmux) -> list[PaneInfo]:
     return [p for p in list_panes(tmux) if p.session == MAIN_SESSION and p.window == MAIN_WINDOW]
 
 
+def displayed_meute_id(tmux: Tmux) -> str | None:
+    """Return the meute identifier of the session shown in the main area, if any."""
+    return next((pane.meute_id for pane in main_window_panes(tmux) if pane.meute_id), None)
+
+
 def _is_board(pane: PaneInfo) -> bool:
     return pane.role == ROLE_BOARD
 
@@ -136,9 +141,8 @@ def ensure_layout(tmux: Tmux, spec: LayoutSpec) -> Layout:
         _repair(tmux, spec)
     else:
         _create_session(tmux, spec)
-    # The dashboard already shows what the status line says: keep it for the other
-    # sessions, where a session is displayed full screen in narrow mode (spec 5.6).
-    tmux.run("set-option", "-t", f"={MAIN_SESSION}:", "status", "off")
+    # The status line shows the key hints everywhere (spec 5.6): drop any session override.
+    tmux.run("set-option", "-u", "-t", f"={MAIN_SESSION}:", "status")
     layout = _require_layout(tmux)
     narrow = is_narrow(layout.width, spec.narrow_threshold)
     if narrow == layout.zoomed and narrow:

@@ -53,7 +53,7 @@ def _keyword(word: str, now: datetime) -> Due | None:
     if word == "tomorrow":
         return DueDate(day=today + timedelta(days=1))
     if word == "tonight":
-        return _local(today, _TONIGHT, now)
+        return local_due(today, _TONIGHT, now)
     if word in _WEEKDAYS:
         return DueDate(day=_next_weekday(word, today))
     return None
@@ -63,7 +63,7 @@ def _weekday_time(name: str, hour: int, half: str, now: datetime) -> DueAt | Non
     if not 1 <= hour <= _NOON:
         return None
     pm_offset = _NOON if half == "pm" else 0
-    return _local(_next_weekday(name, now.date()), time(hour % _NOON + pm_offset), now)
+    return local_due(_next_weekday(name, now.date()), time(hour % _NOON + pm_offset), now)
 
 
 def _next_weekday(name: str, today: date) -> date:
@@ -71,7 +71,11 @@ def _next_weekday(name: str, today: date) -> date:
     return today + timedelta(days=ahead)
 
 
-def _local(day: date, at: time, now: datetime) -> DueAt:
+def local_due(day: date, at: time, now: datetime) -> DueAt:
+    """Return the due at the wall-clock `at` of `day` in the zone of `now`.
+
+    A time in the spring DST gap is shifted forward by an hour.
+    """
     return DueAt(at=datetime.combine(day, at, tzinfo=now.tzinfo))
 
 
@@ -79,7 +83,7 @@ def _delta(count: int, unit: str, now: datetime) -> DueAt | None:
     if count == 0:
         return None
     if unit == "d":
-        return _local(now.date() + timedelta(days=count), now.time(), now)
+        return local_due(now.date() + timedelta(days=count), now.time(), now)
     step = timedelta(hours=count) if unit == "h" else timedelta(minutes=count)
     return DueAt(at=now.astimezone(UTC) + step)
 
@@ -96,4 +100,4 @@ def _iso_datetime(token: str, now: datetime) -> DueAt | None:
         local = datetime.fromisoformat(token)
     except ValueError:
         return None
-    return _local(local.date(), local.time(), now)
+    return local_due(local.date(), local.time(), now)

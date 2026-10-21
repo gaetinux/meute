@@ -1,6 +1,7 @@
 """Creating and reading tasks."""
 
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from meute.core.actor import Actor
 from meute.core.db.connection import Database
@@ -45,11 +46,15 @@ ProjectFilter = AnyProject | InProject | Floating
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class TaskFilter:
-    """Which tasks to list; asking for the `DONE` status implies finished tasks."""
+    """Which tasks to list; asking for the `DONE` status implies finished tasks.
+
+    Without `include_done`, the tasks finished at or after `done_since` are listed too.
+    """
 
     include_done: bool = False
     project: ProjectFilter = field(default_factory=AnyProject)
     status: StatusKind | None = None
+    done_since: datetime | None = None
 
 
 def create_task(db: Database, new: NewTask, actor: Actor) -> Task:
@@ -113,7 +118,11 @@ def list_tasks(db: Database, task_filter: TaskFilter) -> list[Task]:
         clauses.append("t.status = ?")
         params.append(task_filter.status.value)
     if not task_filter.include_done and task_filter.status is not StatusKind.DONE:
-        clauses.append("t.status != 'done'")
+        if task_filter.done_since is None:
+            clauses.append("t.status != 'done'")
+        else:
+            clauses.append("(t.status != 'done' OR t.completed_at >= ?)")
+            params.append(to_db(task_filter.done_since))
     match task_filter.project:
         case AnyProject():
             pass

@@ -7,7 +7,7 @@
 
 meute passe de Rust à Python, pour que l'auteur, qui maîtrise Python et non Rust, puisse comprendre et relire le code que Claude écrit. Conception : `docs/superpowers/specs/2026-10-16-migration-python-design.md`. Le code Rust est conservé sous deux tags, qui servent de référence de comportement : `rust-plan-1` (`main` à la fin du plan 1 Rust) et `rust-plan-2-wip` (plan 2 Rust largement implémenté, non mergé). Le découpage en six plans ne change pas.
 
-La V1 est découpée en six plans. Chacun produit un logiciel utilisable et testé, et donne lieu à une PR. Le plan N+1 n'est rédigé qu'une fois le plan N mergé, pour tenir compte de ce que son implémentation a appris.
+La V1 est découpée en six plans ; le plan 4 est lui-même découpé en 4, 4b et 4c. Chacun produit un logiciel utilisable et testé, et donne lieu à une PR. Le plan N+1 n'est rédigé qu'une fois le plan N mergé, pour tenir compte de ce que son implémentation a appris.
 
 | # | Plan | Livrable | Sections de la spécification |
 |---|---|---|---|
@@ -15,9 +15,10 @@ La V1 est découpée en six plans. Chacun produit un logiciel utilisable et test
 | 2 | tmux, dépôts et sessions Bash — *fait en Python* : `docs/superpowers/plans/2026-10-18-meute-plan-2-python-tmux-sessions-bash.md` (référence : plan Rust sous `rust-plan-2-wip`) | `meute` démarre son serveur tmux, sa disposition (zone principale et tableau de bord minimal), découvre les dépôts et lance, échange, réconcilie et arrête des sessions Bash | § 5, 6.1, 6.3–6.5, 10 (découverte) |
 | 3 | Adaptateur Claude — *fait en Python* : `docs/superpowers/plans/2026-10-18-meute-plan-3-python-adaptateur-claude.md` | Lancement de Claude (§ 6.2), `meute ingest hook` / `statusline`, rendu de la statusline, `claude agents --json` | § 5.5, 6.2, 7 |
 | 4 | Vue Sessions et interface transparente — *fait en Python* : `docs/superpowers/plans/2026-10-18-meute-plan-4-python-vue-sessions.md` | Vue Sessions (projets, « à traiter », quotas et projection, détails), mode étroit, interface transparente (souris, ligne d'état meute, détacher) | § 4.5, 5.2, 5.6, 7.4, 10 |
-| 4b | **Vue Tâches** | Vue Tâches (saisie rapide avec aperçu, regroupements, détail) | § 9.5 |
+| 4b | Vue Tâches — *fait en Python* : `docs/superpowers/plans/2026-10-20-meute-plan-4b-python-vue-taches.md` | Onglet Tâches (filtres, regroupements, détail et ses actions, « launch Claude on this task »), saisie rapide globale `M-t` avec aperçu | § 9.5, 9.6 |
+| 4c | Lancement depuis le tableau | Formulaire `N`, « dernier type utilisé » de `n`, actions sur les panneaux orphelins (adopter, fermer), reprise d'une session Claude terminée (`claude --resume`, avancée du plan 6 par l'auteur le 2026-10-19) | § 5.4, 6.4, 6.5 |
 | 5 | MCP | `meute mcp` et les outils de tâches, contexte composé (§ 8) | § 8, 12 |
-| 6 | Finitions de la V1 | Worktrees, reprise, états sauvegardés, projets créés automatiquement, `meute doctor`, README | § 6.5, 6.6, 10, 11, 13 |
+| 6 | Finitions de la V1 | Worktrees, états sauvegardés, projets créés automatiquement, `meute doctor`, README | § 6.5, 6.6, 10, 11, 13 |
 
 Règles communes à tous les plans :
 
@@ -47,7 +48,7 @@ Décisions prises à la revue finale du plan 1, à traiter au début des plans s
 
 Ce que le plan 2 laisse volontairement de côté, à traiter dans les plans indiqués :
 
-- **Plan 4b — tableau de bord** : les actions sur les panneaux orphelins (adopter, fermer), qui sont seulement affichés ; le formulaire `N`, la recommandation de worktree et le « dernier type utilisé » de `n` (qui lance toujours Bash) ; la vue Sessions alimentée par tmux seul quand la base est indisponible ou verrouillée (§ 16 ; le tableau de bord affiche l'erreur dans son pied de page).
+- **Plan 4c — tableau de bord** : les actions sur les panneaux orphelins (adopter, fermer), qui sont seulement affichés ; le formulaire `N`, la recommandation de worktree et le « dernier type utilisé » de `n` (qui lance toujours Bash) ; la vue Sessions alimentée par tmux seul quand la base est indisponible ou verrouillée (§ 16 ; le tableau de bord affiche l'erreur dans son pied de page).
 - **Défauts connus du tableau de bord** (`M-o` en mode étroit et l'arrêt qui figeait le tableau sont corrigés par le plan 4) :
   - le hook `client-resized` relance `meute layout sync` à chaque redimensionnement, sans regroupement ;
   - après un changement de `[keys]`, les anciens raccourcis restent liés jusqu'au redémarrage du serveur.
@@ -57,7 +58,7 @@ Ce que le plan 2 laisse volontairement de côté, à traiter dans les plans indi
 
 Ce que le plan 3 laisse volontairement de côté, à traiter dans les plans indiqués :
 
-- **Plan 4b — tableau de bord** : formulaire `N`, « dernier type utilisé » de `n` (la touche `c` lance Claude, `n` lance toujours Bash). La vue Sessions, « needs attention », `M-n` / `M-N`, le compteur de la barre d'état, les quotas et la projection et le mode de permission dans la ligne de session sont faits au plan 4.
+- **Plan 4c — tableau de bord** : formulaire `N`, « dernier type utilisé » de `n` (la touche `c` lance Claude, `n` lance toujours Bash). La vue Sessions, « needs attention », `M-n` / `M-N`, le compteur de la barre d'état, les quotas et la projection et le mode de permission dans la ligne de session sont faits au plan 4.
 - **Plan 5 — MCP** : `meute mcp`, `--mcp-config`, `--append-system-prompt` et le contexte composé du § 8.
 - **Plan 6 — finitions** : reprise `--resume`, états sauvegardés, worktrees, `meute doctor` ; purge de `session_events`, qui grandit sans limite et garde des extraits de commandes de 80 caractères.
 
@@ -77,7 +78,8 @@ Limites connues, relevées pendant le plan 3 :
 
 Ce que le plan 4 laisse volontairement de côté, à traiter dans les plans indiqués :
 
-- **Plan 4b — vue Tâches** (§ 9.5), avec les actions du détail et les actions sur les panneaux orphelins (adopter, fermer).
+- **Plan 4b — vue Tâches** (§ 9.5, 9.6), avec les actions du détail.
+- **Plan 4c — lancement depuis le tableau** : formulaire `N`, « dernier type utilisé » de `n`, actions sur les panneaux orphelins (adopter, fermer), reprise d'une session Claude terminée (§ 6.5). En attendant, `Entrée` sur une session terminée sans panneau l'indique dans le pied du tableau (PR #10).
 - **Plan 5 — MCP** et contexte composé.
 - **Plan 6 — finitions** : état Git des sessions, worktrees, reprise et « recent sessions to resume », états sauvegardés, projets créés automatiquement (le regroupement se fait par projet, à défaut par dépôt, à défaut `Other`).
 
@@ -85,3 +87,11 @@ Limites connues, relevées pendant le plan 4 :
 
 - **Barre d'état** : le texte publié est mis en cache par le tableau de bord et n'est pas republié si le serveur tmux redémarre sans lui.
 - **Essai réel** : la souris, `M-n` / `M-N`, détacher puis rattacher et le mode étroit n'ont été essayés qu'avec un faux `claude` et `send-keys` ; l'essai avec le vrai Claude dans un vrai terminal reste à faire par l'auteur.
+
+## Reports issus du plan 4b
+
+Ce que le plan 4b laisse volontairement de côté, à traiter dans les plans indiqués. Le plan 4b livre la passe visuelle du tableau, l'onglet Tâches avec toutes les actions du détail, « launch Claude on this task » (collage par fichier, sans envoi) et `M-t` (§ 9.5, 9.6).
+
+- **Plan 4c — lancement depuis le tableau** : le formulaire `N`, le « dernier type utilisé » de `n`, les actions sur les panneaux orphelins (adopter, fermer) et `claude --resume` d'une session terminée, comme prévu.
+- **Plan 6 — finitions** : l'état Git des sessions (la fiche n'affiche que la branche de la statusline) et les projets créés automatiquement (le projet d'une session est son `project_id`, à défaut le projet qui porte le nom de son dépôt, à défaut aucun).
+- **Limites connues** : `M-t` demande tmux 3.3 ou plus (`display-popup -B`) ; sur tmux 3.2, la touche affiche une erreur de tmux et le reste de la configuration n'est pas affecté. `D` refuse une description de plusieurs lignes (à éditer par `meute task edit`). Le dernier essai, avec le vrai Claude dans un vrai terminal, reste à faire par l'auteur (liste dans le rapport de mutation et dans la PR).

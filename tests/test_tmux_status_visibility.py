@@ -1,4 +1,4 @@
-"""The meute status line only shows where the dashboard is hidden (§ 5.6)."""
+"""The status line shows in every session, beside the dashboard too (§ 5.6)."""
 
 from meute.tmux.client import Tmux
 from meute.tmux.layout import ensure_layout
@@ -10,10 +10,10 @@ def _status(tmux: Tmux, session: str) -> str:
     return tmux.run("display-message", "-p", "-t", f"={session}:", "#{status}").strip()
 
 
-def test_status_line_is_hidden_beside_the_dashboard(tmux_server: TestServer) -> None:
+def test_status_line_shows_beside_the_dashboard(tmux_server: TestServer) -> None:
     tmux = tmux_server.tmux
     _ = ensure_layout(tmux, SPEC)
-    assert _status(tmux, "meute") == "off"
+    assert _status(tmux, "meute") == "on"
 
 
 def test_status_line_still_shows_in_other_sessions(tmux_server: TestServer) -> None:
@@ -23,9 +23,9 @@ def test_status_line_still_shows_in_other_sessions(tmux_server: TestServer) -> N
     assert _status(tmux, "elsewhere") == "on"
 
 
-def test_status_line_is_hidden_again_after_a_repair(tmux_server: TestServer) -> None:
+def test_status_line_is_shown_again_after_a_repair(tmux_server: TestServer) -> None:
     tmux = tmux_server.tmux
     _ = ensure_layout(tmux, SPEC)
-    _ = tmux.run("set-option", "-t", "=meute:", "status", "on")
+    _ = tmux.run("set-option", "-t", "=meute:", "status", "off")
     _ = ensure_layout(tmux, SPEC)
-    assert _status(tmux, "meute") == "off"
+    assert _status(tmux, "meute") == "on"

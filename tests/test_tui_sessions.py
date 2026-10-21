@@ -25,10 +25,13 @@ from meute.core.claude_session import ClaudeDetails
 from meute.core.project import RepoId
 from meute.core.quota_view import QuotaLine
 from meute.core.session import SessionId
+from meute.core.session_details import details_card
 from meute.core.session_state import Exited, PermissionRequested, Running, SessionState
-from meute.core.sessions_view import HeaderLine, RepoLine, SessionLine, ViewState, details_lines
+from meute.core.sessions_view import HeaderLine, RepoLine, SessionLine, ViewState
 from meute.core.statusline import StatuslineData
+from meute.core.styled import plain
 from meute.tui.board import BoardApp, BoardOptions
+from meute.tui.sessions_pane import SELECTED_STYLE
 from support import (
     BOARD_AT,
     BOARD_HOME,
@@ -38,6 +41,7 @@ from support import (
     BOARD_REPO_2,
     board_data,
     board_session,
+    selected_row,
 )
 from test_tui_board import FakeBackend, SnapCompare
 
@@ -81,6 +85,14 @@ def _rich_data() -> BoardData:
     )
 
 
+def _calm_data() -> BoardData:
+    """`_rich_data()` with "review" running: no session needs attention, no "Needs you"."""
+    rich = _rich_data()
+    review = rich.sessions[1]
+    calm = replace(review, session=replace(review.session, state=Running()))
+    return replace(rich, sessions=(rich.sessions[0], calm, rich.sessions[2]))
+
+
 def _content(app: BoardApp, widget_id: str) -> Content:
     content = app.query_one(f"#{widget_id}", Static).content
     assert isinstance(content, Content)
@@ -89,7 +101,7 @@ def _content(app: BoardApp, widget_id: str) -> Content:
 
 def _colours_parse(content: Content) -> bool:
     """Tell whether every colour of the spans is one Textual knows (it ignores the others)."""
-    words = {"bold", "reverse"}
+    words = {"bold", "reverse", "on", "underline"}
     for span in content.spans:
         for token in str(span.style).split():
             if token not in words:
@@ -99,7 +111,7 @@ def _colours_parse(content: Content) -> bool:
 
 def _selected(app: BoardApp) -> list[str]:
     content = _content(app, "board")
-    return [content.plain[s.start : s.end] for s in content.spans if s.style == "reverse"]
+    return selected_row(content, (SELECTED_STYLE,))
 
 
 def _line_y(
@@ -201,23 +213,23 @@ def test_space_folds_the_selected_group_then_unfolds_it() -> None:
         await pilot.press("space")
         board = _content(app, "board").plain
         assert "build" not in board
-        assert _selected(app) == [line for line in board.splitlines() if "(collapsed)" in line]
-        assert _selected(app)[0].startswith("meute")
+        assert _selected(app) == [line for line in board.splitlines() if "▶ " in line]
+        assert _selected(app)[0].startswith("▶ meute")
         await pilot.press("space")
         assert "build" in _content(app, "board").plain
         assert "build" in _selected(app)[0]
 
-    _ = _scenario(_rich_data(), steps)
+    _ = _scenario(_calm_data(), steps)
 
 
 def test_left_folds_and_right_unfolds() -> None:
     async def steps(pilot: Pilot[None], app: BoardApp) -> None:
         await pilot.press("left", "left")
-        assert "(collapsed)" in _selected(app)[0]
+        assert "▶ " in _selected(app)[0]
         await pilot.press("right", "right")
         assert "build" in _selected(app)[0]
 
-    _ = _scenario(_rich_data(), steps)
+    _ = _scenario(_calm_data(), steps)
 
 
 def test_keys_skip_headers_and_info_lines() -> None:
@@ -232,7 +244,7 @@ def test_keys_skip_headers_and_info_lines() -> None:
             await pilot.press("up")
             seen += _selected(app)
         assert seen
-        assert all(text.lstrip(" ▶!").startswith(("build", "review", "notes")) for text in seen)
+        assert all(text.lstrip(" ▶!●○").startswith(("build", "review", "notes")) for text in seen)
 
     _ = _scenario(data, steps)
 
@@ -249,7 +261,7 @@ def test_n_and_c_on_a_session_launch_in_its_repository() -> None:
         await pilot.press("n", "c")
 
     cwd = BOARD_HOME / "git" / "build"
-    assert _scenario(_rich_data(), steps).actions == [
+    assert _scenario(_calm_data(), steps).actions == [
         LaunchBash(cwd=cwd, repo_id=RepoId(1)),
         LaunchClaude(cwd=cwd, repo_id=RepoId(1)),
     ]
@@ -260,7 +272,7 @@ def test_enter_on_a_folded_group_unfolds_it() -> None:
         await pilot.press("space", "enter")
         assert "build" in _content(app, "board").plain
 
-    assert _scenario(_rich_data(), steps).actions == []
+    assert _scenario(_calm_data(), steps).actions == []
 
 
 def test_click_on_a_session_selects_and_shows_it() -> None:
@@ -282,13 +294,13 @@ def test_click_on_a_repository_only_selects_it() -> None:
 
     async def steps(pilot: Pilot[None], app: BoardApp) -> None:
         assert await pilot.click("#board", offset=(3, y))
-        assert _selected(app)[0].startswith("idle")
+        assert _selected(app)[0].startswith("  idle")
 
     assert _scenario(data, steps).actions == []
 
 
 def test_click_on_a_header_folds_and_unfolds_its_group() -> None:
-    data = _rich_data()
+    data = _calm_data()
     y = _line_y(data, _is_header("notes"))
 
     async def steps(pilot: Pilot[None], app: BoardApp) -> None:
@@ -308,17 +320,17 @@ def test_click_outside_the_lines_does_nothing() -> None:
         _ = await pilot.click("#board", offset=(3, lines + 2))
         assert "build" in _selected(app)[0]
 
-    assert _scenario(_rich_data(), steps).actions == []
+    assert _scenario(_calm_data(), steps).actions == []
 
 
 def test_details_follow_the_selection() -> None:
-    data = _rich_data()
+    data = _calm_data()
     model = board_sessions(data, ViewState())
 
     def expected(session_id: SessionId) -> str:
         info = line_info(model, _line_y(data, _is_session(session_id)))
         assert info is not None
-        return "\n".join(details_lines(info, now=_NOW, home=BOARD_HOME))
+        return "\n".join(plain(row) for row in details_card(info, home=BOARD_HOME, width=_SIZE[0]))
 
     async def steps(pilot: Pilot[None], app: BoardApp) -> None:
         details = app.query_one("#details", Static)
@@ -326,7 +338,7 @@ def test_details_follow_the_selection() -> None:
         assert details.display
         await pilot.press("down")
         assert _content(app, "details").plain == expected(BOARD_ID_B)
-        assert "Waiting for: Bash(rm -rf x)" in _content(app, "details").plain
+        assert "Waiting for Bash(rm -rf x)" in _content(app, "details").plain
 
     _ = _scenario(data, steps)
 
@@ -337,7 +349,7 @@ def test_details_are_hidden_on_a_repository_and_when_disabled() -> None:
         assert _selected(app) == [
             line
             for line in _content(app, "board").plain.splitlines()
-            if line.startswith("meute (rust)")
+            if line.startswith("  meute (rust)")
         ]
         assert not app.query_one("#details", Static).display
 
@@ -349,16 +361,24 @@ def test_details_are_hidden_on_a_repository_and_when_disabled() -> None:
     _ = _scenario(_rich_data(), disabled, show_details=False)
 
 
-def test_quota_lines_are_coloured_by_level() -> None:
+def test_quota_lines_are_bars_coloured_by_level() -> None:
     async def steps(_pilot: Pilot[None], app: BoardApp) -> None:
         quota = _content(app, "quota")
         assert quota.plain.splitlines() == [
-            "5h 85% · resets 12:00 · limit around 10:30 at this rate",
-            "7d 55% · resets Tue 09:00",
-            "OFF-PEAK (weekend)",
+            "5h ████████░░ 85%  resets 12:00 · limit ~10:30",
+            "7d ██████░░░░ 55%  resets Tue 09:00 · OFF-PEAK (weekend)",
+            "─" * _SIZE[0],
         ]
         styled = {quota.plain[s.start : s.end]: str(s.style) for s in quota.spans}
-        assert styled == {"85%": "bold red", "55%": "yellow"}
+        assert styled == {
+            "████████░░ 85%": "bold #f16c6c",
+            "  resets 12:00": "#8a8a8a",
+            " · limit ~10:30": "#e8912d",
+            "██████░░░░ 55%": "#e5c07b",
+            "  resets Tue 09:00": "#8a8a8a",
+            " · OFF-PEAK (weekend)": "#23d18b",
+            "─" * _SIZE[0]: "#8a8a8a",
+        }
         assert _colours_parse(quota)
 
     _ = _scenario(_rich_data(), steps)
@@ -379,8 +399,8 @@ def test_low_quota_is_green_and_no_quota_hides_the_lines() -> None:
 
     async def steps(_pilot: Pilot[None], app: BoardApp) -> None:
         quota = _content(app, "quota")
-        assert quota.plain == "5h 10%"
-        assert [str(s.style) for s in quota.spans] == ["green"]
+        assert quota.plain == "5h █░░░░░░░░░ 10%\n" + "─" * _SIZE[0]
+        assert [str(s.style) for s in quota.spans] == ["#23d18b", "#8a8a8a"]
         assert _colours_parse(quota)
 
     _ = _scenario(low, steps)
@@ -394,8 +414,8 @@ def test_low_quota_is_green_and_no_quota_hides_the_lines() -> None:
 def test_risky_permission_mode_is_orange() -> None:
     async def steps(_pilot: Pilot[None], app: BoardApp) -> None:
         board = _content(app, "board")
-        orange = [board.plain[s.start : s.end] for s in board.spans if s.style == "darkorange"]
-        assert orange == ["[auto]"]
+        orange = [board.plain[s.start : s.end] for s in board.spans if s.style == "#e8912d"]
+        assert orange == ["auto"]
         assert _colours_parse(board)
 
     _ = _scenario(_rich_data(), steps)

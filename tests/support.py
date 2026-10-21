@@ -6,6 +6,8 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from textual.content import Content
+
 from meute.core.actor import Actor, Author, Channel
 from meute.core.board_view import BoardData, SessionRow
 from meute.core.db.connection import Database
@@ -199,3 +201,14 @@ def board_data() -> BoardData:
         orphans=("%7",),
         home=BOARD_HOME,
     )
+
+
+def selected_row(content: Content, styles: tuple[str, ...]) -> list[str]:
+    """Return the first row of `content` that carries one of the selection `styles` (or none)."""
+    start = 0
+    for row in content.plain.split("\n"):
+        end = start + len(row)
+        if any(str(s.style) in styles and s.start < end and s.end > start for s in content.spans):
+            return [row]
+        start = end + 1
+    return []

@@ -29,7 +29,7 @@ def test_default_config_loads_to_defaults(tmp_path: Path) -> None:
     assert load_config(path) == Config()
     assert Config().repos.roots == ("~/git",)
     assert Config().claude.permission_mode == "auto"
-    assert (Config().ui.board_width, Config().ui.narrow_threshold) == (60, 120)
+    assert (Config().ui.board_width, Config().ui.narrow_threshold) == (72, 120)
     assert (
         Config().quotas.peak_timezone,
         Config().quotas.peak_start_hour,
@@ -105,7 +105,7 @@ def test_config_key_splits_section_and_field() -> None:
 
 def test_absent_file_yields_defaults_everywhere(tmp_path: Path) -> None:
     assert load_config(tmp_path / "absent.toml") == Config()
-    assert config_get(tmp_path / "absent.toml", "ui.board_width") == "60"
+    assert config_get(tmp_path / "absent.toml", "ui.board_width") == "72"
 
 
 def test_unreadable_path_is_an_os_error_not_defaults(tmp_path: Path) -> None:

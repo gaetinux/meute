@@ -8,7 +8,8 @@ from meute.core.status import Done
 from meute.core.task import Due, DueAt, DueDate, Task
 
 _DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+"""English month abbreviations, January first."""
 
 
 class Bucket(Enum):
@@ -70,6 +71,11 @@ def is_overdue(task: Task, now: datetime) -> bool:
     return bucket_of(task, now) is Bucket.OVERDUE
 
 
+def count_overdue(tasks: Iterable[Task], now: datetime) -> int:
+    """Return how many of `tasks` are open and past their due date or instant."""
+    return sum(1 for task in tasks if is_overdue(task, now))
+
+
 def _due_instant(due: Due, now: datetime) -> datetime:
     match due:
         case DueDate(day=day):
@@ -98,11 +104,12 @@ def _format_day(day: date, now: datetime) -> str:
         return "today"
     if day == today + timedelta(days=1):
         return "tomorrow"
-    text = f"{_DAYS[day.weekday()]} {_MONTHS[day.month - 1]} {day.day}"
+    text = f"{_DAYS[day.weekday()]} {MONTHS[day.month - 1]} {day.day}"
     return text if day.year == today.year else f"{text} {day.year}"
 
 
-def _format_clock(moment: datetime) -> str:
+def format_clock(moment: datetime) -> str:
+    """Format the time of `moment` on a 12-hour clock: `6pm`, `2:30pm`, `12am`."""
     hour = moment.hour % 12 or 12
     minutes = f":{moment.minute:02d}" if moment.minute else ""
     return f"{hour}{minutes}{'am' if moment.hour < 12 else 'pm'}"  # noqa: PLR2004 — noon
@@ -118,4 +125,4 @@ def format_due(due: Due, now: datetime) -> str:
             return _format_day(day, now)
         case DueAt(at=at):
             local = at.astimezone(now.tzinfo)
-            return f"{_format_day(local.date(), now)} {_format_clock(local)}"
+            return f"{_format_day(local.date(), now)} {format_clock(local)}"

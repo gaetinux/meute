@@ -16,19 +16,31 @@ from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.status_publish import publish_status
+from meute.cli.task_launch import READY_TIMEOUT_SECONDS, launch_on_task
+from meute.cli.task_quick_create import TUI_ACTOR, create_quick_task, move_to_repo_project
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import (
+    AddNote,
     BoardAction,
     BoardData,
+    ChangeTask,
+    CreateTask,
+    DeleteTask,
     Detach,
     LaunchBash,
     LaunchClaude,
+    LaunchOnTask,
+    MoveToRepoProject,
     ShowSession,
     StopSession,
 )
 from meute.core.db.claude_sessions import purge_samples
-from meute.core.errors import MeuteError
+from meute.core.db.task_notes import add_note
+from meute.core.db.task_update import delete_task, update_task
+from meute.core.errors import MeuteError, PromptNotPasted
 from meute.core.session import SessionId
+from meute.core.task import TaskId
+from meute.core.views import count_overdue
 from meute.tmux.panes import detach_client
 
 if TYPE_CHECKING:
@@ -109,7 +121,10 @@ class CliBoardBackend:
         title = next((row.session.title for row in data.sessions if row.displayed), None)
         sessions = [row.session for row in data.sessions]
         pct = None if data.quota is None else data.quota.five_hour_pct
-        self._status = publish_status(self._env.tmux, title, sessions, pct, self._status)
+        overdue = 0 if data.now is None else count_overdue(data.tasks, data.now)
+        self._status = publish_status(
+            self._env.tmux, title, sessions, pct, self._status, overdue=overdue
+        )
 
     def close(self) -> None:
         """Stop the background `claude agents` run, if any."""
@@ -128,7 +143,7 @@ class CliBoardBackend:
             # Reset on exit too: a slow action may end after a load that missed its effect.
             self._read_at = None
 
-    def _perform(self, action: BoardAction) -> None:
+    def _perform(self, action: BoardAction) -> None:  # noqa: C901 — one case per board action
         match action:
             case ShowSession():
                 show_session(self._ctx, self._env, action.session_id)
@@ -144,8 +159,37 @@ class CliBoardBackend:
                 self._stop(action.session_id)
             case Detach():
                 detach_client(self._env.tmux)
+            # Task writes go as the TUI user, with the version the board last read.
+            case CreateTask():
+                _ = create_quick_task(self._ctx, action.text, action.project)
+            case ChangeTask():
+                _ = update_task(
+                    self._ctx.db, action.task_id, action.version, action.patch, TUI_ACTOR
+                )
+            case MoveToRepoProject():
+                move_to_repo_project(self._ctx.db, action.task_id, action.version, action.name)
+            case AddNote():
+                _ = add_note(self._ctx.db, action.task_id, action.body, TUI_ACTOR)
+            case DeleteTask():
+                delete_task(self._ctx.db, action.task_id, action.version, TUI_ACTOR)
+            case LaunchOnTask():
+                self._launch_on_task(action.task_id)
             case _:
                 assert_never(action)
+
+    def _launch_on_task(self, task_id: TaskId) -> None:
+        """Launch Claude on a task on a connection of its own: the board runs this in a worker.
+
+        Raises:
+            PromptNotPasted: Claude was launched but not ready in time for the task text.
+        """
+        with open_database(self._ctx.paths, self._ctx.db.clock) as db:
+            ctx = replace(self._ctx, db=db)
+            ready = launch_on_task(
+                ctx, self._env, task_id, self._environ, monotonic=time.monotonic, sleep=time.sleep
+            )
+        if not ready:
+            raise PromptNotPasted(task_id, timeout_seconds=READY_TIMEOUT_SECONDS)
 
     def _stop(self, session_id: SessionId) -> None:
         """Stop a session on a connection of its own: the board runs this in a worker thread.

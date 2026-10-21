@@ -22,6 +22,15 @@ def _exec(argv: list[str]) -> subprocess.CompletedProcess[str]:
         raise NotInstalled from error
 
 
+def literal_word(word: str) -> str:
+    """Return `word` as tmux must receive it to pass it on unchanged.
+
+    tmux takes an argument ending in `;` as the end of a command (the `;` is dropped) and turns
+    a final `\\;` into `;`. Escaping the final `;` as `\\;` keeps any such word intact.
+    """
+    return f"{word[:-1]}\\;" if word.endswith(";") else word
+
+
 def is_no_server(error: CommandFailed) -> bool:
     """Whether the command failed only because no tmux server is running."""
     return any(
@@ -47,11 +56,13 @@ class Tmux:
     def run(self, *args: str) -> str:
         """Run one tmux command and return its stdout without the final newline.
 
+        Every argument reaches tmux literally, even one ending in `;` (see `literal_word`).
+
         Raises:
             NotInstalled: the tmux binary is missing.
             CommandFailed: tmux exited with a non-zero status.
         """
-        done = _exec([*self.base_args(), *args])
+        done = _exec([*self.base_args(), *map(literal_word, args)])
         if done.returncode != 0:
             raise CommandFailed(args, done.stderr.rstrip())
         return done.stdout.removesuffix("\n")
