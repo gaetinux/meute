@@ -16,6 +16,7 @@ from meute.core.session import AgentKind, NewSession, SessionId
 from meute.core.session_state import Running, Unknown
 
 _ID = "11111111-1111-4111-8111-111111111111"
+_LETTERS = "abcdefab-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 _AT = datetime(2026, 10, 18, 9, 0, tzinfo=UTC)
 
 
@@ -60,7 +61,7 @@ def test_an_empty_folder_is_titled_orphan() -> None:
 
 
 def test_an_identifier_that_is_not_a_meute_id_is_refused() -> None:
-    for hostile in ("x;y", "x" * 37, "a\x1b[2J", "%7", ""):
+    for hostile in ("x;y", "x" * 37, "a\x1b[2J", "%7", "", _LETTERS.upper()):
         assert adoption(_orphan(meute_id=hostile), ()) == "not a meute id: only x closes it"
 
 

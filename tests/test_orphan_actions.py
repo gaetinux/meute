@@ -1,19 +1,22 @@
 """Showing, adopting and closing an orphan pane on a throw-away tmux server."""
 
+import sqlite3
 from pathlib import Path
 
 import pytest
 
+from meute.cli import orphan_actions
 from meute.cli.board_backend import CliBoardBackend
 from meute.cli.context import CliContext, open_database
 from meute.cli.orphan_actions import adopt_orphan, close_orphan, show_orphan
 from meute.cli.session_refresh import refresh
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import AdoptOrphan, CloseOrphan, ShowPane
+from meute.core.db.connection import Database
 from meute.core.db.sessions import get_session, list_sessions
 from meute.core.errors import InvalidInput
 from meute.core.orphans import Orphan
-from meute.core.session import AgentKind, new_session_id
+from meute.core.session import AgentKind, NewSession, Session, new_session_id
 from meute.core.session_state import Running
 from meute.tmux.layout import ensure_layout, find_layout
 from meute.tmux.names import ID_OPTION
@@ -142,3 +145,37 @@ def test_the_backend_routes_the_three_actions(
         assert [s.id for s in list_sessions(db)] == [orphan.meute_id]
     backend.perform(CloseOrphan(meute_id=orphan.meute_id, agent=AgentKind.BASH))
     assert all(pane.id != orphan.pane_id for pane in list_panes(env.tmux))
+
+
+def _integrity_failure(_db: Database, _new: NewSession) -> Session:
+    message = "FOREIGN KEY constraint failed"
+    raise sqlite3.IntegrityError(message)
+
+
+def test_an_integrity_failure_without_the_row_is_not_swallowed(
+    ctx: CliContext,  # noqa: F811 — fixture
+    env: TmuxEnv,  # noqa: F811 — fixture
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    orphan = _orphan_pane(env, tmp_path, str(new_session_id()))
+    monkeypatch.setattr(orphan_actions, "create_session", _integrity_failure)
+    with pytest.raises(sqlite3.IntegrityError):
+        _ = adopt_orphan(ctx, orphan)
+
+
+def test_an_integrity_failure_with_the_row_present_means_a_lost_race(
+    ctx: CliContext,  # noqa: F811 — fixture
+    env: TmuxEnv,  # noqa: F811 — fixture
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    orphan = _orphan_pane(env, tmp_path, str(new_session_id()))
+    real = orphan_actions.create_session
+
+    def lose_the_race(db: Database, new: NewSession) -> Session:
+        _ = real(db, new)  # the other adoption wrote first
+        return _integrity_failure(db, new)
+
+    monkeypatch.setattr(orphan_actions, "create_session", lose_the_race)
+    assert adopt_orphan(ctx, orphan) is None

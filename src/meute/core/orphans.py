@@ -70,6 +70,8 @@ def adoption(orphan: Orphan, repos: Sequence[Repo]) -> NewSession | str:
         session_id = parse_session_id(orphan.meute_id)
     except InvalidInput:
         return _NOT_A_MEUTE_ID
+    if session_id != orphan.meute_id:  # reconcile compares the tag exactly: only a canonical id
+        return _NOT_A_MEUTE_ID
     if orphan.dead:
         return _DEAD_PANE
     cwd = Path(orphan.cwd)

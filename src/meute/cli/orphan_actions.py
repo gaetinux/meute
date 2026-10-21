@@ -10,7 +10,7 @@ from meute.core.db.repos import list_repos
 from meute.core.db.sessions import create_session, get_session
 from meute.core.errors import InvalidInput, NotFound
 from meute.core.orphans import Orphan, adoption
-from meute.core.session import AgentKind, Session
+from meute.core.session import AgentKind, Session, SessionId
 from meute.tmux.layout import ensure_layout, find_layout
 from meute.tmux.panes import list_panes
 
@@ -31,6 +31,14 @@ def show_orphan(env: TmuxEnv, pane_id: str) -> None:
     show_pane(env, pane)
 
 
+def _recorded(ctx: CliContext, session_id: SessionId) -> bool:
+    try:
+        _ = get_session(ctx.db, session_id)
+    except NotFound:
+        return False
+    return True
+
+
 def adopt_orphan(ctx: CliContext, orphan: Orphan) -> Session | None:
     """Record the orphan pane as a session; `None` when its identifier is already recorded.
 
@@ -40,16 +48,14 @@ def adopt_orphan(ctx: CliContext, orphan: Orphan) -> Session | None:
     new = adoption(orphan, list_repos(ctx.db))
     if isinstance(new, str):
         raise InvalidInput(new)
-    try:
-        _ = get_session(ctx.db, new.id)
-    except NotFound:
-        pass
-    else:
+    if _recorded(ctx, new.id):
         return None
     try:
         return create_session(ctx.db, new)
-    except sqlite3.IntegrityError:  # another adoption won the race
-        return None
+    except sqlite3.IntegrityError:
+        if _recorded(ctx, new.id):  # another adoption won the race
+            return None
+        raise
 
 
 def close_orphan(env: TmuxEnv, meute_id: str, agent: AgentKind) -> None:
