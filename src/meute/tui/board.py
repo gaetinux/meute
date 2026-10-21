@@ -83,6 +83,9 @@ class BoardApp(App[None]):
             is_stopping=self._background.is_stopping,
             resume=self._background.resume,
             is_resuming=self._background.is_resuming,
+            adopt=self._background.adopt,
+            close=self._background.close,
+            is_closing=self._background.is_closing,
             local=options.local,
             show_details=options.show_details,
         )

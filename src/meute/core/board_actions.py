@@ -3,8 +3,9 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from meute.core.orphans import Orphan
 from meute.core.project import ProjectRef, RepoId
-from meute.core.session import SessionId
+from meute.core.session import AgentKind, SessionId
 from meute.core.task import TaskId, TaskPatch
 
 
@@ -47,6 +48,28 @@ class ResumeSession:
     """Resume an ended Claude session with `claude --resume`."""
 
     session_id: SessionId
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ShowPane:
+    """Bring an orphan pane into the main area."""
+
+    pane_id: str
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AdoptOrphan:
+    """Record an orphan pane as a session."""
+
+    orphan: Orphan
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class CloseOrphan:
+    """Close the orphan pane tagged `meute_id`; `agent` tells how many Ctrl-C it takes."""
+
+    meute_id: str
+    agent: AgentKind
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -104,6 +127,14 @@ class MoveToRepoProject:
 
 
 TaskAction = CreateTask | ChangeTask | MoveToRepoProject | AddNote | DeleteTask | LaunchOnTask
+OrphanAction = ShowPane | AdoptOrphan | CloseOrphan
 BoardAction = (
-    ShowSession | LaunchBash | LaunchClaude | StopSession | ResumeSession | Detach | TaskAction
+    ShowSession
+    | LaunchBash
+    | LaunchClaude
+    | StopSession
+    | ResumeSession
+    | OrphanAction
+    | Detach
+    | TaskAction
 )

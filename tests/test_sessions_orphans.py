@@ -8,7 +8,7 @@ from textual.content import Content
 from textual.widgets import Static
 
 from meute.core.board_sessions import BoardSessions, board_sessions, line_entry
-from meute.core.board_view import FOOTER, OrphanEntry
+from meute.core.board_view import OrphanEntry
 from meute.core.orphans import ORPHAN_KEYS, Orphan
 from meute.core.sessions_view import (
     OrphanLine,
@@ -92,9 +92,3 @@ def _press(key: str) -> tuple[FakeBackend, str]:
 def test_session_keys_on_an_orphan_name_its_keys_and_launch_nothing(key: str) -> None:
     backend, footer = _press(key)
     assert (backend.actions, footer) == ([], ORPHAN_KEYS)
-
-
-@pytest.mark.parametrize("key", ["enter", "x"])
-def test_enter_and_x_on_an_orphan_do_nothing_yet(key: str) -> None:
-    backend, footer = _press(key)
-    assert (backend.actions, footer) == ([], FOOTER)

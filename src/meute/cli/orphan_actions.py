@@ -1,0 +1,66 @@
+"""What the board does with an orphan pane: show it, adopt it as a session, close it."""
+
+import sqlite3
+
+from meute.cli.context import CliContext
+from meute.cli.session_show import show_pane
+from meute.cli.session_stop import STOP_GRACE_SECONDS, interrupt_and_kill
+from meute.cli.tmux_env import TmuxEnv
+from meute.core.db.repos import list_repos
+from meute.core.db.sessions import create_session, get_session
+from meute.core.errors import InvalidInput, NotFound
+from meute.core.orphans import Orphan, adoption
+from meute.core.session import AgentKind, Session
+from meute.tmux.layout import ensure_layout, find_layout
+from meute.tmux.panes import list_panes
+
+
+def show_orphan(env: TmuxEnv, pane_id: str) -> None:
+    """Bring the orphan pane `pane_id` into the main area.
+
+    Only a pane tmux lists reaches the commands: `pane_id` selects among them.
+
+    Raises:
+        InvalidInput: meute is not open, the pane is gone or dead.
+        TmuxError: tmux failed.
+    """
+    pane = next((p for p in list_panes(env.tmux) if p.id == pane_id), None)
+    if pane is None:
+        message = "pane is gone"
+        raise InvalidInput(message)
+    show_pane(env, pane)
+
+
+def adopt_orphan(ctx: CliContext, orphan: Orphan) -> Session | None:
+    """Record the orphan pane as a session; `None` when its identifier is already recorded.
+
+    Raises:
+        InvalidInput: the orphan cannot be adopted (not a meute id, dead pane).
+    """
+    new = adoption(orphan, list_repos(ctx.db))
+    if isinstance(new, str):
+        raise InvalidInput(new)
+    try:
+        _ = get_session(ctx.db, new.id)
+    except NotFound:
+        pass
+    else:
+        return None
+    try:
+        return create_session(ctx.db, new)
+    except sqlite3.IntegrityError:  # another adoption won the race
+        return None
+
+
+def close_orphan(env: TmuxEnv, meute_id: str, agent: AgentKind) -> None:
+    """Interrupt and kill the orphan pane tagged `meute_id`; nothing is written to the database.
+
+    `meute_id` may be anything tmux holds: it only selects among the listed panes. A pane
+    already gone does nothing. The layout is repaired afterwards, like after a stop.
+
+    Raises:
+        TmuxError: tmux failed.
+    """
+    _ = interrupt_and_kill(env, meute_id, STOP_GRACE_SECONDS, twice=agent is AgentKind.CLAUDE)
+    if find_layout(env.tmux) is not None:
+        _ = ensure_layout(env.tmux, env.spec)

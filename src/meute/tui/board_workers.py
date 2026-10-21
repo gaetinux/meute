@@ -7,7 +7,9 @@ from functools import partial
 from textual.app import App
 
 from meute.core.board_view import (
+    AdoptOrphan,
     BoardAction,
+    CloseOrphan,
     LaunchOnTask,
     ResumeSession,
     StopSession,
@@ -16,6 +18,7 @@ from meute.core.board_view import (
     stopping_text,
 )
 from meute.core.errors import MeuteError, PromptNotPasted
+from meute.core.orphans import Orphan, closing_text, orphan_agent
 from meute.core.session import Session, SessionId
 from meute.core.task import TaskId
 
@@ -35,6 +38,9 @@ class BoardWorkers:
         self._stopping: dict[SessionId, str] = {}  # sessions being stopped: id -> title
         self._launching: dict[TaskId, None] = {}  # tasks being launched on, in order
         self._resuming: dict[SessionId, str] = {}  # sessions being resumed: id -> title
+        # Orphans being adopted or closed, by their tmux identifier: the selection may move.
+        self._adopting: dict[str, None] = {}
+        self._closing: dict[str, str] = {}  # id -> command
 
     def is_stopping(self, session_id: SessionId) -> bool:
         """Whether the session is being stopped."""
@@ -63,12 +69,36 @@ class BoardWorkers:
         self._resuming[session.id] = session.title
         self._run(ResumeSession(session_id=session.id), partial(self._resuming.pop, session.id))
 
+    def is_closing(self, orphan: Orphan) -> bool:
+        """Whether the orphan pane is being closed."""
+        return orphan.meute_id in self._closing
+
+    def adopt(self, orphan: Orphan) -> None:
+        """Adopt `orphan` in a thread worker; ignored while it is being adopted or closed."""
+        key = orphan.meute_id
+        if key in self._adopting or key in self._closing:
+            return
+        self._adopting[key] = None
+        self._run(AdoptOrphan(orphan=orphan), partial(self._adopting.pop, key))
+
+    def close(self, orphan: Orphan) -> None:
+        """Close the orphan pane in a thread worker; ignored while it is adopted or closed."""
+        key = orphan.meute_id
+        if key in self._adopting or key in self._closing:
+            return
+        self._closing[key] = orphan.command
+        self._run(
+            CloseOrphan(meute_id=key, agent=orphan_agent(orphan)), partial(self._closing.pop, key)
+        )
+
     def footer(self) -> str | None:
         """What the latest running action says in the footer, if any action runs."""
         if self._stopping:
             return stopping_text(next(reversed(self._stopping.values())))
         if self._resuming:
             return resuming_text(next(reversed(self._resuming.values())))
+        if self._closing:
+            return closing_text(next(reversed(self._closing.values())))
         if self._launching:
             return launching_text(next(reversed(self._launching)))
         return None

@@ -13,8 +13,10 @@ from meute.core.board_view import (
     KEYS_HELP,
     BoardAction,
     BoardData,
+    BoardEntry,
     LaunchEntry,
     OrphanEntry,
+    ShowPane,
     claude_action,
     confirm_stop_text,
     ended_notice,
@@ -23,7 +25,7 @@ from meute.core.board_view import (
     resume_target,
     stop_target,
 )
-from meute.core.orphans import ORPHAN_KEYS
+from meute.core.orphans import ORPHAN_FOOTER, ORPHAN_KEYS, Orphan, adoption, confirm_close_text
 from meute.core.session import Session, SessionId
 from meute.core.sessions_view import (
     CardLine,
@@ -56,6 +58,9 @@ class SessionsTab:
         is_stopping: Callable[[SessionId], bool],
         resume: Callable[[Session], None],
         is_resuming: Callable[[SessionId], bool],
+        adopt: Callable[[Orphan], None],
+        close: Callable[[Orphan], None],
+        is_closing: Callable[[Orphan], bool],
         local: tzinfo,
         show_details: bool,
     ) -> None:
@@ -65,10 +70,13 @@ class SessionsTab:
         self._is_stopping = is_stopping
         self._resume = resume
         self._is_resuming = is_resuming
+        self._adopt = adopt
+        self._close = close
+        self._is_closing = is_closing
         self._local = local
         self._show_details = show_details
         self.cursor = SessionsCursor()
-        self._confirming: Session | None = None
+        self._confirming: Session | Orphan | None = None
 
     @property
     def width(self) -> int:
@@ -101,7 +109,16 @@ class SessionsTab:
         confirming, self._confirming = self._confirming, None
         if confirming is not None:  # a pending stop swallows any key
             if key == "y":
-                self._stop(confirming)
+                match confirming:
+                    case Session():
+                        self._stop(confirming)
+                    case Orphan():
+                        self._close(confirming)
+                    case _:
+                        assert_never(confirming)
+            return True
+        if key == "a" and isinstance(self._selected_entry(), OrphanEntry):
+            self._act(key)  # on an orphan pane `a` adopts; elsewhere it filters the view
             return True
         if self.cursor.handle_key(key):
             return True
@@ -110,15 +127,17 @@ class SessionsTab:
             return True
         return False
 
+    def _selected_entry(self) -> BoardEntry | None:
+        return line_entry(self.cursor.model, self.cursor.selected)
+
     def _act(self, key: str) -> None:
-        entry = line_entry(self.cursor.model, self.cursor.selected)
+        entry = self._selected_entry()
         if entry is None:
             group = line_group(self.cursor.model, self.cursor.selected)  # a folded group's header
             if key == "enter" and group is not None:
                 self.cursor.fold(group, fold=False)
         elif isinstance(entry, OrphanEntry):
-            if key in _SESSION_ONLY_KEYS:
-                self._notice(ORPHAN_KEYS)
+            self._act_on_orphan(key, entry.orphan)
         elif key == "enter":
             self._show(entry)
         elif key == "c":
@@ -130,6 +149,21 @@ class SessionsTab:
         elif key == "x":
             target = stop_target(entry)
             self._confirming = None if target is None or self._is_stopping(target.id) else target
+
+    def _act_on_orphan(self, key: str, orphan: Orphan) -> None:
+        """Enter shows the pane, `a` adopts it, `x` asks before closing it."""
+        if key in _SESSION_ONLY_KEYS:
+            self._notice(ORPHAN_KEYS)
+        elif key == "enter":
+            self._perform(ShowPane(pane_id=orphan.pane_id))
+        elif key == "a":
+            refusal = adoption(orphan, self.cursor.model.data.repos)
+            if isinstance(refusal, str):
+                self._notice(refusal)
+            else:
+                self._adopt(orphan)
+        elif key == "x" and not self._is_closing(orphan):
+            self._confirming = orphan
 
     def _resume_entry(self, entry: LaunchEntry) -> None:
         """Resume the entry's session, or say why not; a resume already running is left alone."""
@@ -194,11 +228,19 @@ class SessionsTab:
 
     def prompt(self) -> str | None:
         """The pending stop confirmation, which takes over the footer."""
-        return None if self._confirming is None else confirm_stop_text(self._confirming.title)
+        match self._confirming:
+            case None:
+                return None
+            case Session():
+                return confirm_stop_text(self._confirming.title)
+            case Orphan():
+                return confirm_close_text(self._confirming.command)
+            case _:
+                assert_never(self._confirming)
 
     def footer(self) -> str:
-        """The one-line keys."""
-        return FOOTER
+        """The one-line keys; an orphan pane has its own."""
+        return ORPHAN_FOOTER if isinstance(self._selected_entry(), OrphanEntry) else FOOTER
 
     def keys_help(self) -> str:
         """The full list of keys."""

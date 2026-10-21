@@ -11,6 +11,7 @@ from meute.claude.launch import find_claude
 from meute.cli.agents_poller import AgentsPoller
 from meute.cli.board_data import load_board_data
 from meute.cli.context import ENVIRONMENT_ERRORS, CliContext, open_database
+from meute.cli.orphan_actions import adopt_orphan, close_orphan, show_orphan
 from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
 from meute.cli.session_resume import resume_session
@@ -22,9 +23,11 @@ from meute.cli.task_quick_create import TUI_ACTOR, create_quick_task, move_to_re
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import (
     AddNote,
+    AdoptOrphan,
     BoardAction,
     BoardData,
     ChangeTask,
+    CloseOrphan,
     CreateTask,
     DeleteTask,
     Detach,
@@ -32,7 +35,9 @@ from meute.core.board_view import (
     LaunchClaude,
     LaunchOnTask,
     MoveToRepoProject,
+    OrphanAction,
     ResumeSession,
+    ShowPane,
     ShowSession,
     StopSession,
 )
@@ -167,6 +172,8 @@ class CliBoardBackend:
                 self._stop(action.session_id)
             case ResumeSession():
                 self._resume(action.session_id)
+            case ShowPane() | AdoptOrphan() | CloseOrphan():
+                self._perform_orphan(action)
             case Detach():
                 detach_client(self._env.tmux)
             # Task writes go as the TUI user, with the version the board last read.
@@ -184,6 +191,18 @@ class CliBoardBackend:
                 delete_task(self._ctx.db, action.task_id, action.version, TUI_ACTOR)
             case LaunchOnTask():
                 self._launch_on_task(action.task_id)
+            case _:
+                assert_never(action)
+
+    def _perform_orphan(self, action: OrphanAction) -> None:
+        match action:
+            case ShowPane():
+                show_orphan(self._env, action.pane_id)
+            case AdoptOrphan():  # in a worker: a connection of its own, like a stop
+                with open_database(self._ctx.paths, self._ctx.db.clock) as db:
+                    _ = adopt_orphan(replace(self._ctx, db=db), action.orphan)
+            case CloseOrphan():
+                close_orphan(self._env, action.meute_id, action.agent)
             case _:
                 assert_never(action)
 
