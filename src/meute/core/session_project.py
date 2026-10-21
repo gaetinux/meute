@@ -2,7 +2,7 @@
 
 from collections.abc import Mapping, Sequence
 
-from meute.core.project import ProjectRef, RepoId
+from meute.core.project import ProjectId, ProjectRef, RepoId
 from meute.core.repo import Repo
 from meute.core.session import Session
 
@@ -22,3 +22,21 @@ def session_project(
         return None
     key = repo.name.casefold()
     return next((p for p in projects if p.name.casefold() == key), None)
+
+
+def repo_projects(
+    links: Mapping[RepoId, ProjectId], repos: Sequence[Repo], projects: Sequence[ProjectRef]
+) -> dict[RepoId, ProjectId]:
+    """Return the project of each repository: its linked one, else the one named like it.
+
+    Names are compared ignoring case; a repository with neither is left out.
+    """
+    by_name: dict[str, ProjectId] = {}
+    for project in reversed(projects):
+        by_name[project.name.casefold()] = project.id
+    result = dict(links)
+    for repo in repos:
+        found = by_name.get(repo.name.strip().casefold())
+        if repo.id not in result and found is not None:
+            result[repo.id] = found
+    return result

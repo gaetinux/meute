@@ -1,0 +1,53 @@
+# serializer version: 1
+# name: test_bash_form_hides_task_and_mode
+  list([
+    '── New session ─────────────────────────────────────────────────────────',
+    'Type      ◂ Bash ▸',
+    'Repo      ◂ meute ▸',
+    'Folder    ~/git/meute',
+    'Title     ',
+    '⚠ another live session works in this folder',
+    'Enter launch · Tab next · ←→ choose · Esc cancel',
+  ])
+# ---
+# name: test_claude_form_with_warning
+  list([
+    '── New session ─────────────────────────────────────────────────────────',
+    'Type      ◂ Claude ▸',
+    'Repo      ◂ meute ▸',
+    'Folder    ~/git/meute',
+    'Title     ',
+    'Task      ◂ #12 Fix the bug ▸',
+    'Mode      ◂ auto ▸',
+    '⚠ another live session works in this folder',
+    'Enter launch · Tab next · ←→ choose · Esc cancel',
+  ])
+# ---
+# name: test_error_form
+  list([
+    '── New session ─────────────────────────────────────────────────────────',
+    'Type      ◂ Claude ▸',
+    'Repo      ◂ none ▸',
+    'Folder    ~/git/meute',
+    'Title     ',
+    'Task      ◂ #12 Fix the bug ▸',
+    'Mode      ◂ auto ▸',
+    '⚠ another live session works in this folder',
+    "Error: folder not found: /n'existe/pas�[2J",
+    'Enter launch · Tab next · ←→ choose · Esc cancel',
+  ])
+# ---
+# name: test_no_line_overflows_a_narrow_width[60]
+  list([
+    '── New session ─────────────────────────────────────────────',
+    'Type      ◂ Claude ▸',
+    'Repo      ◂ meute ▸',
+    'Folder    ~/git/meute',
+    'Title     a very long title a very long title a very long t…',
+    'Task      ◂ #12 An extremely long task title An extremely… ▸',
+    'Mode      ◂ auto ▸',
+    '⚠ another live session works in this folder',
+    'Error: something went wrong something went wrong something …',
+    'Enter launch · Tab next · ←→ choose · Esc cancel',
+  ])
+# ---

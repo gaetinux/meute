@@ -129,6 +129,7 @@ class BoardData:
     project_refs: tuple[ProjectRef, ...] = ()
     displayed_project: ProjectRef | None = None
     last_agents: Mapping[RepoId, AgentKind] = field(default_factory=dict[RepoId, AgentKind])
+    repo_projects: Mapping[RepoId, ProjectId] = field(default_factory=dict[RepoId, ProjectId])
 
 
 def enter_action(entry: LaunchEntry) -> ShowSession | LaunchBash:
