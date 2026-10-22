@@ -254,3 +254,18 @@ def set_assumed_state(db: Database, judged: Session, state: SessionState) -> boo
             ),
         )
         return cursor.rowcount == 1
+
+
+def link_session_task(db: Database, session_id: SessionId, task_id: TaskId) -> Session:
+    """Link a session to a task.
+
+    Raises:
+        NotFound: no such session or task.
+    """
+    with db.transaction() as conn:
+        _require(conn, session_id)
+        if fetch_one(conn, "SELECT 1 FROM tasks WHERE id = ?", (task_id,)) is None:
+            entity = "task"
+            raise NotFound(entity, str(task_id))
+        conn.execute("UPDATE sessions SET task_id = ? WHERE id = ?", (task_id, session_id))
+        return _require(conn, session_id)

@@ -78,3 +78,14 @@ def create_repo_project(db: Database, name: str) -> Project:
         if repo.name.strip().casefold() == key:
             link_repo(db, project.id, repo.id)
     return project
+
+
+def project_repos(db: Database, project_id: ProjectId) -> list[Repo]:
+    """Return the repositories attached to a project, sorted as `list_repos`."""
+    linked = {
+        as_integer(row[0])
+        for row in fetch_all(
+            db.conn, "SELECT repo_id FROM project_repos WHERE project_id = ?", (project_id,)
+        )
+    }
+    return [repo for repo in list_repos(db) if repo.id in linked]
