@@ -202,7 +202,12 @@ Si `meute` est lancé depuis un tmux (variable `$TMUX` définie), il se rattache
 
 - **panneau absent** : la session passe à l'état `Unreachable` ;
 - **panneau mort** (`pane_dead=1`) : elle passe à l'état `Exited(code)`, avec `code = pane_dead_status` ;
-- **panneau `@meute_id` inconnu de la base** : il est affiché comme « orphan », avec deux actions possibles, l'adopter ou le fermer.
+- **panneau `@meute_id` inconnu de la base** : il est affiché comme « orphan », une ligne sélectionnable par panneau (`? claude  ~/git/meute  orphan`, `dead` pour un panneau mort), avec trois actions (plan 4c) :
+  - `Entrée` l'affiche dans la zone principale (refusé pour un panneau mort) ;
+  - `a` l'adopte : la session est créée en base avec l'`id` du `@meute_id`, le type `claude` si la commande du panneau est `claude` (sinon `bash`), le dossier du panneau, le dépôt connu dont le chemin le contient (le plus long), le nom du dossier comme titre, l'état `unknown` (Claude, jusqu'au hook suivant) ou `running` (Bash). Un `@meute_id` qui n'est pas un identifiant canonique (36 caractères, minuscules) ou un panneau mort ne s'adopte pas ;
+  - `x` le ferme (confirmation `y`), par la séquence de l'arrêt, sans rien écrire en base.
+
+  Le détail de chaque orphelin (commande, dossier) est lu à part par `display-message -p -t <pane>` ; tout ce qui vient de tmux passe par `printable` à l'affichage. `meute session list --json` garde `"orphans"` en liste d'identifiants.
 
 Aucune relance n'est automatique.
 
@@ -304,17 +309,21 @@ Une nouvelle fenêtre de `meute-bg` est ouverte avec `$SHELL` dans le `cwd` choi
 
 ### 6.4 Lancement rapide
 
-Depuis la vue Sessions :
-- `n` lance, sur le projet ou dépôt sélectionné, le dernier type utilisé (Claude par défaut) dans le répertoire principal ;
-- `N` ouvre le formulaire de lancement : type, dépôt, répertoire, worktree (aucun / nouveau / existant) et tâche, avec les valeurs connues préremplies.
+Depuis la vue Sessions (plan 4c) :
+- `n` lance, sur le dépôt ou la session sélectionnés, le **dernier type utilisé dans ce dépôt** (Claude par défaut, et pour un dépôt sans session). Ce type est celui de la session la plus récente du dépôt, terminées comprises, lu en base ; à défaut, celui de la session la plus récente du tableau ; une session sans dépôt relance son propre type. `c` lance toujours Claude. Le pied reste `↑↓ select · Enter show · c/n new · x stop · ? keys` : c'est l'aide `?` qui dit ce que fait `n` ;
+- `N` ouvre le formulaire de lancement, un bloc au-dessus du pied du tableau : Type (Claude / Bash), Repo, Folder, Title, et pour Claude seulement Task (les tâches ouvertes du projet du dépôt, par urgence) et Mode (modes de permission acceptés, celui de la configuration en tête). Les valeurs connues sont préremplies depuis la sélection ; sur un orphelin, `N` se comporte comme sans sélection. `Tab` / `↓` et `Shift-Tab` / `↑` changent de champ, `←` / `→` changent un choix, le texte se tape à la fin du champ (`Backspace` efface, un collage est ajouté), `Entrée` lance, `Échap` annule. La relecture du tableau toutes les 2 s ne touche ni la saisie ni le champ courant.
+- Le dossier saisi : `~` est développé, les espaces de début et de fin sont retirés, le chemin doit être absolu (`folder must be absolute: …`) puis exister (`folder not found: …`) ; un dossier vide donne `folder is empty`. Un échec de lancement garde le formulaire ouvert avec l'erreur.
+- Si une autre session vivante travaille dans le même dossier (chemins résolus), le formulaire affiche l'avertissement `⚠ another live session works in this folder` (la session sélectionnée compte) ; il n'empêche rien.
 
-Si une autre session vivante travaille déjà dans le même répertoire, le formulaire recommande un worktree, sans l'imposer.
+**Reste au plan 6** : le champ worktree du formulaire (aucun / nouveau / existant) et la recommandation de worktree, qui remplacera l'avertissement.
 
 ### 6.5 Arrêt et reprise
 
 - **Arrêter** (`x`, avec confirmation) envoie `C-c` deux fois pour une session Claude (une fois pour une session Bash) puis, après 5 s, tue le panneau. La session passe à l'état `Exited`.
-- **Reprendre** n'est proposé que pour les sessions Claude dont le panneau a disparu ou dont le processus est terminé. Cette action ouvre un nouveau panneau avec `claude --resume <native_id>`, réutilise l'`id` interne et remplace l'état.
-- La liste « recent sessions to resume » affiche les sessions Claude terminées depuis moins de 7 jours (valeur réglable).
+- **Reprendre** (`r`, sans confirmation, plan 4c) n'agit que sur les sessions Claude terminées (`Exited` ou `Unreachable`) dont le `native_id` est connu ; sinon le pied explique pourquoi. La commande est celle d'un lancement normal avec `--resume <native_id>` à la place de `--session-id` ; Claude garde le même `session_id` et `SessionStart` arrive avec `source=resume` (spike S10, § 14). Si la session a gardé son panneau mort, `respawn-pane` y relance la commande (même `pane_id`, même place), **sans `-k`** : tmux refuse lui-même de relancer un panneau vivant, ce qui rend le test atomique quand deux reprises se croisent ; sinon un nouveau panneau est ouvert dans `meute-bg`. L'`id` interne, le dépôt, la tâche, le projet et le titre sont conservés ; l'état redevient `unknown`, `exit_code` et `ended_at` sont effacés. Rien ne ressuscite une session d'elle-même : seule `r` le fait. Une conversation que Claude ne retrouve plus s'arrête aussitôt : le panneau mort reste, la session repasse en `Exited` et `r` est de nouveau possible.
+- **Entrée** sur une session Claude terminée sans panneau affiche `"<titre>" has ended: r resumes · c starts a new session`.
+
+**Reste au plan 6** : la liste « recent sessions to resume » (sessions Claude terminées depuis moins de 7 jours, valeur réglable).
 
 ### 6.6 États sauvegardés
 
@@ -540,6 +549,7 @@ Les spikes S1 à S5 ont été réalisés le 2026-10-15 sur Claude Code 2.1.301 e
 | S4 | Disposition tmux | ✅ Échange entre sessions, imbrication et raccourcis `M-*`. Options de pane uniquement (§ 5.1) |
 | S5 | Worktrees natifs | Ils existent, mais on garde la convention du § 11 |
 | S6 | Démarrage de `meute ingest` en Python | ✅ Médiane ≈ 46,7 ms avec `--compile-bytecode` (bande 35–50 ms) : on continue, le test `importtime` reste un garde-fou strict (§ 4.3, § 7.3). [Rapport](../spikes/2026-10-16-spike-s6-demarrage-python.md) |
+| S10 | `claude --resume` sous meute (2026-10-21, Claude Code 2.1.306) | ✅ Même `session_id`, `SessionStart` avec `source=resume` et `MEUTE_SESSION` ; `--settings`, `--permission-mode` et `--name` acceptés avec `--resume`, mais `--session-id` y est refusé ; `respawn-pane` sur un panneau mort garde le `pane_id` (§ 6.5). [Rapport](../spikes/2026-10-21-spike-s10.md) |
 
 Restent à vérifier pendant l'implémentation :
 - l'ajout des réglages de `--settings` à ceux de l'utilisateur ;

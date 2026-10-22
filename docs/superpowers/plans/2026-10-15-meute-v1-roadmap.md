@@ -16,7 +16,7 @@ La V1 est découpée en six plans ; le plan 4 est lui-même découpé en 4, 4b e
 | 3 | Adaptateur Claude — *fait en Python* : `docs/superpowers/plans/2026-10-18-meute-plan-3-python-adaptateur-claude.md` | Lancement de Claude (§ 6.2), `meute ingest hook` / `statusline`, rendu de la statusline, `claude agents --json` | § 5.5, 6.2, 7 |
 | 4 | Vue Sessions et interface transparente — *fait en Python* : `docs/superpowers/plans/2026-10-18-meute-plan-4-python-vue-sessions.md` | Vue Sessions (projets, « à traiter », quotas et projection, détails), mode étroit, interface transparente (souris, ligne d'état meute, détacher) | § 4.5, 5.2, 5.6, 7.4, 10 |
 | 4b | Vue Tâches — *fait en Python* : `docs/superpowers/plans/2026-10-20-meute-plan-4b-python-vue-taches.md` | Onglet Tâches (filtres, regroupements, détail et ses actions, « launch Claude on this task »), saisie rapide globale `M-t` avec aperçu | § 9.5, 9.6 |
-| 4c | Lancement depuis le tableau | Formulaire `N`, « dernier type utilisé » de `n`, actions sur les panneaux orphelins (adopter, fermer), reprise d'une session Claude terminée (`claude --resume`, avancée du plan 6 par l'auteur le 2026-10-19) | § 5.4, 6.4, 6.5 |
+| 4c | Lancement depuis le tableau — *fait en Python* : `docs/superpowers/plans/2026-10-21-meute-plan-4c-python-lancement.md` | Formulaire `N`, « dernier type utilisé » de `n`, actions sur les panneaux orphelins (adopter, fermer), reprise d'une session Claude terminée (`claude --resume`, avancée du plan 6 par l'auteur le 2026-10-19) | § 5.4, 6.4, 6.5 |
 | 5 | MCP | `meute mcp` et les outils de tâches, contexte composé (§ 8) | § 8, 12 |
 | 6 | Finitions de la V1 | Worktrees, états sauvegardés, projets créés automatiquement, `meute doctor`, README | § 6.5, 6.6, 10, 11, 13 |
 
@@ -95,3 +95,20 @@ Ce que le plan 4b laisse volontairement de côté, à traiter dans les plans ind
 - **Plan 4c — lancement depuis le tableau** : le formulaire `N`, le « dernier type utilisé » de `n`, les actions sur les panneaux orphelins (adopter, fermer) et `claude --resume` d'une session terminée, comme prévu.
 - **Plan 6 — finitions** : l'état Git des sessions (la fiche n'affiche que la branche de la statusline) et les projets créés automatiquement (le projet d'une session est son `project_id`, à défaut le projet qui porte le nom de son dépôt, à défaut aucun).
 - **Limites connues** : `M-t` demande tmux 3.3 ou plus (`display-popup -B`) ; sur tmux 3.2, la touche affiche une erreur de tmux et le reste de la configuration n'est pas affecté. `D` refuse une description de plusieurs lignes (à éditer par `meute task edit`). Le dernier essai, avec le vrai Claude dans un vrai terminal, reste à faire par l'auteur (liste dans le rapport de mutation et dans la PR).
+
+## Reports issus du plan 4c
+
+Ce que le plan 4c laisse volontairement de côté, à traiter dans les plans indiqués. Le plan 4c livre `n` (dernier type utilisé du dépôt), le formulaire `N` sans worktree, la reprise `r` (`claude --resume`, spike S10) et les actions sur les panneaux orphelins (afficher, adopter, fermer). Rapport de mutation : `docs/dev/mutants/2026-plan-4c-python.md`.
+
+- **Plan 6 — finitions** : le champ worktree de `N` (aucun / nouveau / existant) et la recommandation de worktree (l'avertissement `⚠ another live session works in this folder` la prépare) ; la liste « recent sessions to resume » ; les états sauvegardés.
+- **Plus tard (plan 6 ou petit plan 4d)** : la vue Sessions alimentée par tmux seul quand la base est indisponible (§ 16) ; la largeur en cellules ; `paste-buffer -r` ; la suppression de `quota_lines` / `details_lines`, qui ne servent plus qu'aux tests.
+
+Limites connues, relevées pendant le plan 4c :
+
+- **Reprise** : le `respawn-pane` est suivi de `reopen_session` ; un `SessionStart` arrivé entre les deux est ignoré, et la session reprise peut rester `unknown` jusqu'au hook suivant (masqué en pratique par le démarrage de Claude). Si `set_pane_option` échoue après le lancement (reprise comme lancement), le panneau reste sans étiquette ; la lacune existait déjà dans `spawn_and_record`.
+- **Adoption** : un orphelin au dossier vide est adopté avec `Path("")` ; `x` pendant une adoption puis `y` après sa fin ferme le panneau de la session adoptée, sans passer par `stop_session` (l'état est corrigé à la relecture suivante) ; le test « le dépôt contient le dossier » est lexical (`..` n'est pas résolu).
+- **Formulaire `N`** : le lancement se fait sur le fil de l'interface (comme `n`), contrairement à la reprise, à l'adoption et à la fermeture, qui passent par `BoardWorkers` ; `shares_folder` résout les chemins (`Path.resolve()`) à chaque rendu, ce qui bloque brièvement sur un système de fichiers lent ; la saisie de tâche redessine le tableau à chaque touche (avant : seulement à `Échap`).
+- **Base** : `last_agent_by_repo` (sous-requête corrélée) tourne à chaque relecture de 2 s ; vérifier l'index sur `sessions(repo_id)` si le nombre de sessions grandit.
+- **Dette de code** : `CliBoardBackend._perform` porte un `noqa PLR0912` et grossit ; `board_view.__all__` ne liste que les actions réexportées (préférer `X as X`) ; `tests/test_tui_launch_form.py` fait 319 lignes (limite visée : 300) ; deux tests de `test_resume_target.py` sont quasi vides ; la docstring de `tests/test_tmux_respawn.py` parle encore de `respawn-pane -k`.
+- **Tests sensibles à la charge** : `test_stopping_a_claude_session_takes_two_interrupts_and_is_quick` (2,06 s pour un plafond de 2,0 s sous charge) et, une fois, `test_survivors_finds_the_processes_a_test_left` ; les deux passent seuls. Les tests de reprise attendaient la mort du panneau sans borne : corrigé par `f91a152` (attente bornée).
+- **Essai réel** : la reprise, le formulaire et l'adoption n'ont été essayés qu'avec le faux `claude` ; l'essai avec le vrai Claude dans un vrai terminal reste à faire par l'auteur (liste dans le rapport de mutation et dans la PR). Le spike S10 a, lui, tourné avec le vrai Claude.

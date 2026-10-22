@@ -14,6 +14,7 @@ from meute.core.board_sessions import board_sessions, line_entry
 from meute.core.board_view import LaunchBash, SessionEntry, SessionRow, new_action, stopping_text
 from meute.core.config_validate import QuotasConfig
 from meute.core.db.connection import Database
+from meute.core.orphans import Orphan
 from meute.core.project import RepoId
 from meute.core.quota_view import QuotaLine, projected_limit, quota_lines
 from meute.core.session import Session, SessionId
@@ -105,10 +106,17 @@ def test_outside_agents_and_orphans_are_in_the_view_with_a_short_home() -> None:
         name="alone",
         status="busy",
     )
-    data = replace(board_data(), outside=(agent,), orphans=("%7",))
+    orphan = Orphan(
+        meute_id="%7",
+        pane_id="%7",
+        command="claude",
+        cwd=str(BOARD_HOME / "git" / "x"),
+        dead=False,
+    )
+    data = replace(board_data(), outside=(agent,), orphans=(orphan,))
     texts = [line.text for line in board_sessions(data, ViewState()).view.lines]
     assert "  alone  busy  ~/git/x" in texts
-    assert "  %7" in texts
+    assert "  ? claude  ~/git/x  orphan" in texts
 
 
 def test_a_session_line_without_its_session_has_no_entry() -> None:
@@ -134,7 +142,8 @@ def test_a_repo_line_without_its_repository_has_no_entry() -> None:
 def test_new_action_on_a_session_keeps_its_repository() -> None:
     session = board_session(BOARD_ID_A, "t", Path("/w/x"), RepoId(4), exited=False)
     entry = SessionEntry(row=SessionRow(session=session, has_pane=True, displayed=False))
-    assert new_action(entry) == LaunchBash(cwd=Path("/w/x"), repo_id=RepoId(4))
+    data = replace(board_data(), sessions=(entry.row,))
+    assert new_action(entry, data) == LaunchBash(cwd=Path("/w/x"), repo_id=RepoId(4))
 
 
 def test_stopping_text_neutralises_control_characters() -> None:

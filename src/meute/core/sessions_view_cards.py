@@ -7,63 +7,41 @@ from pathlib import Path
 
 from meute.core.agents import AgentInfo
 from meute.core.attention import needs_attention
-from meute.core.board_view import ORPHANS_HEADING, OUTSIDE_HEADING, outside_line
-from meute.core.board_view import repo_line as _board_repo_line
+from meute.core.orphans import Orphan
 from meute.core.project import RepoId
 from meute.core.repo import Repo
 from meute.core.session import SessionId
 from meute.core.session_state import is_live
+from meute.core.sessions_view_bottom import (
+    InfoLine,
+    OrphanLine,
+    RepoLine,
+    SectionLine,
+    TextLine,
+    ViewState,
+    bottom_blocks,
+    is_folded_in,
+    section_key,
+)
 from meute.core.sessions_view_text import (
     SessionInfo,
     card_first_line,
     card_more_lines,
     dim_line,
     header_line,
-    item_line,
     needs_you_first_line,
     needs_you_heading,
     ref_line,
-    section_line,
 )
-from meute.core.styled import Role, StyledLine, plain, title_rule
-from meute.core.text import printable
+from meute.core.styled import Role, StyledLine, title_rule
 
 OTHER_GROUP = "Other"
 NOTHING_TO_SHOW = "Nothing needs your attention."
 NEEDS_YOU = "Needs you"
-WITHOUT_SESSION = "Without session"
-REPOS_FOLDED_ABOVE = 5
-""""Without session" starts folded when it holds more repositories than this."""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class ViewState:
-    """What the user chose to fold, filter and reveal.
-
-    `collapsed` holds the folded groups and sections (by `fold_key`); `expanded` the sections
-    the user unfolded although they start folded.
-    """
-
-    collapsed: frozenset[str] = frozenset()
-    expanded: frozenset[str] = frozenset()
-    attention_only: bool = False
-    show_ended: bool = False
-
-
-class _Line:
-    """What every view line has: its styled segments, whose text is `text`."""
-
-    __slots__ = ()
-    spans: StyledLine
-
-    @property
-    def text(self) -> str:
-        """The text of the line without its roles."""
-        return plain(self.spans)
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class HeaderLine(_Line):
+class HeaderLine(TextLine):
     """The header of a group; `repo_id` is the repository of its first session, if known."""
 
     group: str
@@ -74,7 +52,7 @@ class HeaderLine(_Line):
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class SessionLine(_Line):
+class SessionLine(TextLine):
     """A selectable session: the first line of its card."""
 
     session_id: SessionId
@@ -84,7 +62,7 @@ class SessionLine(_Line):
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class CardLine(_Line):
+class CardLine(TextLine):
     """Line 2 or 3 of a session's card; not selectable, a click selects its session."""
 
     session_id: SessionId
@@ -93,7 +71,7 @@ class CardLine(_Line):
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class RefLine(_Line):
+class RefLine(TextLine):
     """Where a session shown in "Needs you" sits in its group; not selectable."""
 
     session_id: SessionId
@@ -101,34 +79,9 @@ class RefLine(_Line):
     band: bool = False
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
-class SectionLine(_Line):
-    """The heading of a section ("Needs you" or a bottom one); selectable when folded."""
-
-    section: str
-    spans: StyledLine
-    collapsed: bool = False
-    band: bool = False
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class RepoLine(_Line):
-    """A selectable repository without a live session."""
-
-    repo_id: RepoId
-    spans: StyledLine
-    band: bool = False
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class InfoLine(_Line):
-    """A line that cannot be selected."""
-
-    spans: StyledLine
-    band: bool = False
-
-
-ViewLine = HeaderLine | SessionLine | CardLine | RefLine | SectionLine | RepoLine | InfoLine
+ViewLine = (
+    HeaderLine | SessionLine | CardLine | RefLine | SectionLine | RepoLine | OrphanLine | InfoLine
+)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -136,15 +89,6 @@ class SessionsView:
     """The lines of the Sessions view, top to bottom."""
 
     lines: tuple[ViewLine, ...]
-
-
-def section_key(section: str) -> str:
-    """Return the key that folds `section` in `ViewState`, apart from the group names."""
-    return f"section:{section}"
-
-
-def _folded(state: ViewState, key: str, *, default: bool = False) -> bool:
-    return key in state.collapsed or (default and key not in state.expanded)
 
 
 def _group_order(name: str) -> tuple[bool, str, str]:
@@ -162,7 +106,7 @@ def _card(info: SessionInfo, first: StyledLine, width: int, *, band: bool) -> li
 
 
 def _needs_you(urgent: Sequence[SessionInfo], state: ViewState, width: int) -> list[ViewLine]:
-    folded = _folded(state, section_key(NEEDS_YOU))
+    folded = is_folded_in(state, section_key(NEEDS_YOU))
     heading = needs_you_heading(NEEDS_YOU, len(urgent), folded=folded)
     lines: list[ViewLine] = [SectionLine(section=NEEDS_YOU, spans=heading, collapsed=folded)]
     if not folded:
@@ -213,48 +157,11 @@ def _group_lines(  # noqa: PLR0913 — the group, its repository, the user's cho
     return lines
 
 
-def _section(
-    title: str, items: Sequence[ViewLine], state: ViewState, *, default: bool = False
-) -> list[ViewLine]:
-    folded = _folded(state, section_key(title), default=default)
-    heading = section_line(title, len(items), folded=folded)
-    return [SectionLine(section=title, spans=heading, collapsed=folded), *([] if folded else items)]
-
-
-def _bottom_blocks(  # noqa: PLR0913 — what the bottom sections list, the user's choices, width
-    infos: Sequence[SessionInfo],
-    repos: Sequence[Repo],
-    *,
-    outside: Sequence[AgentInfo],
-    orphans: Sequence[str],
-    state: ViewState,
-    home: Path | None,
-    width: int,
-) -> list[list[ViewLine]]:
-    busy = {i.row.session.repo_id for i in infos if is_live(i.row.session.state)}
-    idle = [
-        RepoLine(repo_id=r.id, spans=item_line(_board_repo_line(r), width))
-        for r in repos
-        if r.id not in busy
-    ]
-    agents = [InfoLine(spans=item_line(outside_line(a, home), width)) for a in outside]
-    panes = [InfoLine(spans=item_line(printable(o), width)) for o in orphans]
-    blocks: list[list[ViewLine]] = []
-    if idle:
-        folded = len(idle) > REPOS_FOLDED_ABOVE
-        blocks.append(_section(WITHOUT_SESSION, idle, state, default=folded))
-    if agents:
-        blocks.append(_section(OUTSIDE_HEADING, agents, state))
-    if panes:
-        blocks.append(_section(ORPHANS_HEADING, panes, state))
-    return blocks
-
-
 def build_view(  # noqa: PLR0913 — everything the view draws, the clock, home and width
     infos: Sequence[SessionInfo],
     repos: Sequence[Repo],
     outside: Sequence[AgentInfo],
-    orphans: Sequence[str],
+    orphans: Sequence[Orphan | str],
     state: ViewState,
     *,
     now: datetime,
@@ -288,7 +195,7 @@ def build_view(  # noqa: PLR0913 — everything the view draws, the clock, home 
     lines: list[ViewLine] = []
     for block in blocks:
         lines += [InfoLine(spans=()), *block] if lines else block
-    bottom = _bottom_blocks(
+    bottom = bottom_blocks(
         infos, repos, outside=outside, orphans=orphans, state=state, home=home, width=width
     )
     if lines and bottom:

@@ -28,6 +28,7 @@ def _data(*, has_pane: bool) -> BoardData:
         board_data(),
         sessions=(SessionRow(session=gone, has_pane=has_pane, displayed=False),),
         repos=(),
+        orphans=(),
         ended=(),
     )
 

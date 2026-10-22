@@ -11,19 +11,24 @@ from meute.claude.launch import find_claude
 from meute.cli.agents_poller import AgentsPoller
 from meute.cli.board_data import load_board_data
 from meute.cli.context import ENVIRONMENT_ERRORS, CliContext, open_database
+from meute.cli.orphan_actions import adopt_orphan, close_orphan, show_orphan
 from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
+from meute.cli.session_next import order_if_shown, show_next
+from meute.cli.session_resume import resume_session
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.status_publish import publish_status
-from meute.cli.task_launch import READY_TIMEOUT_SECONDS, launch_on_task
+from meute.cli.task_launch import READY_TIMEOUT_SECONDS, launch_claude_on_task, launch_on_task
 from meute.cli.task_quick_create import TUI_ACTOR, create_quick_task, move_to_repo_project
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import (
     AddNote,
+    AdoptOrphan,
     BoardAction,
     BoardData,
     ChangeTask,
+    CloseOrphan,
     CreateTask,
     DeleteTask,
     Detach,
@@ -31,6 +36,9 @@ from meute.core.board_view import (
     LaunchClaude,
     LaunchOnTask,
     MoveToRepoProject,
+    OrphanAction,
+    ResumeSession,
+    ShowPane,
     ShowSession,
     StopSession,
 )
@@ -41,6 +49,7 @@ from meute.core.errors import MeuteError, PromptNotPasted
 from meute.core.session import SessionId
 from meute.core.task import TaskId
 from meute.core.views import count_overdue
+from meute.tmux.layout import displayed_meute_id
 from meute.tmux.panes import detach_client
 
 if TYPE_CHECKING:
@@ -143,20 +152,33 @@ class CliBoardBackend:
             # Reset on exit too: a slow action may end after a load that missed its effect.
             self._read_at = None
 
-    def _perform(self, action: BoardAction) -> None:  # noqa: C901 — one case per board action
+    def _perform(self, action: BoardAction) -> None:  # noqa: C901, PLR0912 — one case per board action
         match action:
             case ShowSession():
                 show_session(self._ctx, self._env, action.session_id)
             case LaunchBash():
-                request = BashLaunch(cwd=action.cwd, repo_id=action.repo_id)
+                request = BashLaunch(cwd=action.cwd, repo_id=action.repo_id, title=action.title)
                 session = launch_bash(self._ctx, self._env, request, self._environ)
                 show_session(self._ctx, self._env, session.id)
             case LaunchClaude():
-                claude = ClaudeLaunch(cwd=action.cwd, repo_id=action.repo_id)
-                session = launch_claude(self._ctx, self._env, claude, self._environ)
-                show_session(self._ctx, self._env, session.id)
+                claude = ClaudeLaunch(
+                    cwd=action.cwd,
+                    repo_id=action.repo_id,
+                    title=action.title,
+                    permission_mode=action.permission_mode,
+                    task_id=action.task_id,
+                )
+                if action.task_id is None:
+                    session = launch_claude(self._ctx, self._env, claude, self._environ)
+                    show_session(self._ctx, self._env, session.id)
+                else:  # a task picked in the form: its text is pasted, like `L`, in a worker
+                    self._launch_on_task(action.task_id, claude)
             case StopSession():
                 self._stop(action.session_id)
+            case ResumeSession():
+                self._resume(action.session_id)
+            case ShowPane() | AdoptOrphan() | CloseOrphan():
+                self._perform_orphan(action)
             case Detach():
                 detach_client(self._env.tmux)
             # Task writes go as the TUI user, with the version the board last read.
@@ -177,16 +199,45 @@ class CliBoardBackend:
             case _:
                 assert_never(action)
 
-    def _launch_on_task(self, task_id: TaskId) -> None:
+    def _perform_orphan(self, action: OrphanAction) -> None:
+        match action:
+            case ShowPane():
+                show_orphan(self._env, action.pane_id)
+            case AdoptOrphan():  # in a worker: a connection of its own, like a stop
+                with open_database(self._ctx.paths, self._ctx.db.clock) as db:
+                    _ = adopt_orphan(replace(self._ctx, db=db), action.orphan)
+            case CloseOrphan():
+                if displayed_meute_id(self._env.tmux) != action.meute_id:
+                    close_orphan(self._env, action.meute_id, action.agent)
+                    return
+                # Shown: the next live session takes its place, read on a connection of its own.
+                with open_database(self._ctx.paths, self._ctx.db.clock) as db:
+                    ctx = replace(self._ctx, db=db)
+                    order = order_if_shown(ctx, self._env, self._environ, action.meute_id)
+                    close_orphan(self._env, action.meute_id, action.agent)
+                    _ = show_next(ctx, self._env, order, action.meute_id)
+            case _:
+                assert_never(action)
+
+    def _launch_on_task(self, task_id: TaskId, form: ClaudeLaunch | None = None) -> None:
         """Launch Claude on a task on a connection of its own: the board runs this in a worker.
+
+        `form` is what the launch form asked for (folder, title, mode); without it, the
+        task's repository and label.
 
         Raises:
             PromptNotPasted: Claude was launched but not ready in time for the task text.
         """
         with open_database(self._ctx.paths, self._ctx.db.clock) as db:
-            ctx = replace(self._ctx, db=db)
-            ready = launch_on_task(
-                ctx, self._env, task_id, self._environ, monotonic=time.monotonic, sleep=time.sleep
+            ctx, env, environ = replace(self._ctx, db=db), self._env, self._environ
+            ready = (
+                launch_on_task(
+                    ctx, env, task_id, environ, monotonic=time.monotonic, sleep=time.sleep
+                )
+                if form is None
+                else launch_claude_on_task(
+                    ctx, env, form, task_id, environ, monotonic=time.monotonic, sleep=time.sleep
+                )
             )
         if not ready:
             raise PromptNotPasted(task_id, timeout_seconds=READY_TIMEOUT_SECONDS)
@@ -197,4 +248,13 @@ class CliBoardBackend:
         The main thread's connection is never touched here (sqlite3 connections are not shared).
         """
         with open_database(self._ctx.paths, self._ctx.db.clock) as db:
-            _ = stop_session(replace(self._ctx, db=db), self._env, session_id)
+            _ = stop_session(
+                replace(self._ctx, db=db), self._env, session_id, environ=self._environ
+            )
+
+    def _resume(self, session_id: SessionId) -> None:
+        """Resume a session on a connection of its own: the board runs this in a worker thread."""
+        with open_database(self._ctx.paths, self._ctx.db.clock) as db:
+            ctx = replace(self._ctx, db=db)
+            session = resume_session(ctx, self._env, session_id, self._environ)
+            show_session(ctx, self._env, session.id)

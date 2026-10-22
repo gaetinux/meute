@@ -57,6 +57,12 @@ def link_repo(db: Database, project_id: ProjectId, repo_id: RepoId) -> None:
         )
 
 
+def repo_project_links(db: Database) -> dict[RepoId, ProjectId]:
+    """Return, for each linked repository, the project with the smallest identifier."""
+    rows = fetch_all(db.conn, "SELECT repo_id, MIN(project_id) FROM project_repos GROUP BY repo_id")
+    return {RepoId(as_integer(row[0])): ProjectId(as_integer(row[1])) for row in rows}
+
+
 def create_repo_project(db: Database, name: str) -> Project:
     """Return the project `name` (ignoring case), with every repository of that name attached.
 

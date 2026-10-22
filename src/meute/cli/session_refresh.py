@@ -2,7 +2,7 @@
 
 import time
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
 from meute.cli.context import CliContext
@@ -12,6 +12,7 @@ from meute.core.board_view import SessionRow
 from meute.core.db.claude_sessions import claude_details_by_session
 from meute.core.db.connection import Database
 from meute.core.db.sessions import list_sessions, set_assumed_state, set_session_state
+from meute.core.orphans import Orphan
 from meute.core.reconcile import PaneObservation, first_by_id, reconcile
 from meute.core.session import Session
 from meute.core.session_state import is_live
@@ -23,6 +24,7 @@ from meute.tmux.parse import PaneId, PaneInfo
 
 _DEAD_FORMAT = "#{pane_dead_signal} #{pane_dead_time}"
 _SETTLE_SECONDS = 3
+_ORPHAN_FORMAT = "#{pane_current_command}\t#{pane_current_path}"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -36,20 +38,26 @@ class AgentsReading:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Snapshot:
-    """The sessions to show, after reconciliation, and the panes matching no session."""
+    """The sessions to show, after reconciliation, and the panes matching no session.
+
+    `orphans` holds only the identifiers (what `session list` prints); `orphan_panes` holds each
+    pane described by tmux, without those that vanished since they were listed.
+    """
 
     sessions: tuple[SessionRow, ...]
     orphans: tuple[str, ...]
+    orphan_panes: tuple[Orphan, ...] = ()
     outside: tuple[AgentInfo, ...] = ()
 
 
-def refresh(
+def refresh(  # noqa: PLR0913 — one keyword per independent option of a reading
     ctx: CliContext,
     env: TmuxEnv,
     *,
     include_ended: bool = False,
     agents: Sequence[AgentInfo] | None = None,
     assume: bool = True,
+    describe_orphans: bool = False,
 ) -> Snapshot:
     """Read the panes, then reconcile; a tmux failure stops everything before any write.
 
@@ -57,14 +65,15 @@ def refresh(
     and the agents outside meute are returned. Without `agents` (not consulted, or failed) only
     the silence rule applies: a silent running session is `stuck?`. With `assume` false, no
     assumed state is recorded at all: for callers without `claude agents`, which would otherwise
-    overwrite what the board learnt from it.
+    overwrite what the board learnt from it. With `describe_orphans`, `orphan_panes` is filled
+    (one tmux query per orphan); only the board reads it.
 
     Raises:
         TmuxError: tmux could not be read.
     """
     sessions = list_sessions(ctx.db, include_ended=True)  # before the panes: see apply_refresh
     panes = list_panes(env.tmux)
-    return apply_refresh(
+    snapshot = apply_refresh(
         ctx.db,
         panes,
         include_ended=include_ended,
@@ -78,6 +87,47 @@ def refresh(
         if assume
         else None,
     )
+    if not describe_orphans:
+        return snapshot
+    return replace(snapshot, orphan_panes=_describe_orphans(env.tmux, panes, snapshot.orphans))
+
+
+def orphan_details(tmux: Tmux, pane: PaneId) -> tuple[str, str] | None:
+    """Return the running command and the folder of `pane`, or None when it has vanished.
+
+    tmux answers a missing pane with empty fields, which also give None. Only the first tab
+    splits: a folder name may hold one. A line without a tab is the command alone.
+    """
+    try:
+        output = tmux.run("display-message", "-p", "-t", pane, _ORPHAN_FORMAT)
+    except CommandFailed:
+        return None
+    command, _, cwd = output.partition("\t")
+    if not command and not cwd:  # tmux answers a missing pane with empty fields, not an error
+        return None
+    return command, cwd
+
+
+def _describe_orphans(
+    tmux: Tmux, panes: Sequence[PaneInfo], orphan_ids: Sequence[str]
+) -> tuple[Orphan, ...]:
+    """Return the orphans with what tmux says of each pane, leaving out the vanished ones."""
+    first = first_by_id(panes, lambda pane: pane.meute_id)
+    found: list[Orphan] = []
+    for meute_id in orphan_ids:
+        pane = first[meute_id]
+        details = orphan_details(tmux, pane.id)
+        if details is not None:
+            found.append(
+                Orphan(
+                    meute_id=meute_id,
+                    pane_id=pane.id,
+                    command=details[0],
+                    cwd=details[1],
+                    dead=pane.dead,
+                )
+            )
+    return tuple(found)
 
 
 def dead_pane_settled(output: str, now: float) -> bool:

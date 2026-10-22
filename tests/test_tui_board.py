@@ -17,6 +17,7 @@ from meute.core.board_view import (
     BoardAction,
     BoardData,
     LaunchBash,
+    LaunchClaude,
     SessionRow,
     ShowSession,
     StopSession,
@@ -25,6 +26,7 @@ from meute.core.board_view import (
     repo_line,
 )
 from meute.core.errors import MeuteError
+from meute.core.orphans import Orphan
 from meute.core.project import RepoId
 from meute.core.repo import Repo
 from meute.core.session import SessionId
@@ -154,8 +156,8 @@ def test_enter_and_n_on_repo_launch_bash_there() -> None:
     _ = _run(backend, "j", "j", "enter", "n", "j", "n")
     assert backend.actions == [
         LaunchBash(cwd=BOARD_REPO_1.path, repo_id=RepoId(1)),
-        LaunchBash(cwd=BOARD_REPO_1.path, repo_id=RepoId(1)),
-        LaunchBash(cwd=BOARD_REPO_2.path, repo_id=RepoId(2)),
+        LaunchClaude(cwd=BOARD_REPO_1.path, repo_id=RepoId(1)),
+        LaunchClaude(cwd=BOARD_REPO_2.path, repo_id=RepoId(2)),
     ]
 
 
@@ -193,7 +195,7 @@ def test_x_on_repo_does_nothing() -> None:
 
 def test_navigation_is_bounded() -> None:
     backend = FakeBackend(board_data())
-    _ = _run(backend, "up", "k", "enter", *["down"] * 6, "enter", "k", "enter")
+    _ = _run(backend, "up", "k", "enter", *["down"] * 6, "up", "enter", "k", "enter")
     assert backend.actions == [
         ShowSession(session_id=BOARD_ID_A),
         LaunchBash(cwd=BOARD_REPO_2.path, repo_id=RepoId(2)),
@@ -225,7 +227,7 @@ def test_selection_is_bounded_when_its_entry_disappears() -> None:
     async def scenario() -> None:
         async with app.run_test(size=_SIZE) as pilot:
             await pilot.press("j", "j", "j")
-            await _reload(pilot, backend, replace(first, repos=(BOARD_REPO_1,)))
+            await _reload(pilot, backend, replace(first, repos=(BOARD_REPO_1,), orphans=()))
             await pilot.press("enter")
 
     asyncio.run(scenario())
@@ -298,7 +300,9 @@ def test_brackets_in_data_are_shown_literally() -> None:
     data = BoardData(
         sessions=(SessionRow(session=session, has_pane=True, displayed=False),),
         repos=(repo,),
-        orphans=("[link=x]",),
+        orphans=(
+            Orphan(meute_id="[link=x]", pane_id="%7", command="[link=x]", cwd="/srv", dead=False),
+        ),
         home=BOARD_HOME,
     )
     backend = FakeBackend(data)

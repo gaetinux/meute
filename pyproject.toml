@@ -191,4 +191,7 @@ pytest_add_cli_args_test_selection = [
     "tests/test_db_task_reads.py", "tests/test_session_project.py", "tests/test_status_line_overdue.py",
     "tests/test_sessions_cards.py", "tests/test_card_marks.py", "tests/test_tmux_conf_quick.py",
     "tests/test_mutants_plan4b_tasks.py", "tests/test_mutants_plan4b_sessions.py",
+    "tests/test_launch_form.py", "tests/test_launch_form_view.py", "tests/test_db_repo_links.py",
+    "tests/test_db_last_agent.py", "tests/test_last_agent.py", "tests/test_launch_form_busy.py",
+    "tests/test_orphan_adoption.py", "tests/test_resume_target.py", "tests/test_db_reopen.py", "tests/test_mutants_plan4c.py",
 ]

@@ -5,12 +5,20 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import assert_never
 
-from meute.core.board_view import NO_SESSIONS, BoardData, BoardEntry, RepoEntry, SessionEntry
+from meute.core.board_view import (
+    NO_SESSIONS,
+    BoardData,
+    BoardEntry,
+    OrphanEntry,
+    RepoEntry,
+    SessionEntry,
+)
 from meute.core.session import SessionId
 from meute.core.sessions_view import (
     CardLine,
     HeaderLine,
     InfoLine,
+    OrphanLine,
     RefLine,
     RepoLine,
     SectionLine,
@@ -88,14 +96,14 @@ def line_info(board: BoardSessions, index: int) -> SessionInfo | None:
     match line:
         case SessionLine() | CardLine() | RefLine():
             return board.infos.get(line.session_id)
-        case HeaderLine() | SectionLine() | RepoLine() | InfoLine() | None:
+        case HeaderLine() | SectionLine() | RepoLine() | OrphanLine() | InfoLine() | None:
             return None
         case _:
             assert_never(line)
 
 
 def line_entry(board: BoardSessions, index: int) -> BoardEntry | None:
-    """Return what the keys act on at line `index`: a session, a repository, or None."""
+    """Return what the keys act on at line `index`: a session, repository, orphan pane, or None."""
     line = line_at(board, index)
     match line:
         case SessionLine():
@@ -104,6 +112,9 @@ def line_entry(board: BoardSessions, index: int) -> BoardEntry | None:
         case RepoLine():
             repo = next((r for r in board.data.repos if r.id == line.repo_id), None)
             return None if repo is None else RepoEntry(repo=repo)
+        case OrphanLine():
+            orphan = next((o for o in board.data.orphans if o.meute_id == line.meute_id), None)
+            return None if orphan is None else OrphanEntry(orphan=orphan)
         case HeaderLine() | SectionLine() | CardLine() | RefLine() | InfoLine() | None:
             return None
         case _:

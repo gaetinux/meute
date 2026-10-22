@@ -17,7 +17,14 @@ from meute.core.errors import InvalidInput, NotFound
 from meute.core.instants import to_db
 from meute.core.project import ProjectId, RepoId
 from meute.core.session import AgentKind, NewSession, Session, SessionId
-from meute.core.session_state import Exited, SessionState, is_live, state_from_parts, state_id
+from meute.core.session_state import (
+    Exited,
+    SessionState,
+    Unknown,
+    is_live,
+    state_from_parts,
+    state_id,
+)
 from meute.core.task import TaskId
 
 _SELECT = (
@@ -155,6 +162,21 @@ def list_sessions(db: Database, *, include_ended: bool = False) -> list[Session]
     return [_row_to_session(row) for row in rows]
 
 
+def last_agent_by_repo(db: Database) -> dict[RepoId, AgentKind]:
+    """Return, for each repository, the type of its most recent session (ended ones too).
+
+    The most recent is the greatest `(created_at, id)`; sessions without a repository are
+    ignored.
+    """
+    rows = fetch_all(
+        db.conn,
+        "SELECT repo_id, agent FROM (SELECT repo_id, agent, ROW_NUMBER() OVER ("
+        " PARTITION BY repo_id ORDER BY created_at DESC, id DESC) AS rn"
+        " FROM sessions WHERE repo_id IS NOT NULL) WHERE rn = 1",
+    )
+    return {RepoId(as_integer(row[0])): AgentKind(as_text(row[1])) for row in rows}
+
+
 def set_session_state(db: Database, session_id: SessionId, state: SessionState) -> Session:
     """Set the state of a session and its last activity to now.
 
@@ -165,6 +187,28 @@ def set_session_state(db: Database, session_id: SessionId, state: SessionState) 
     """
     with db.transaction() as conn:
         write_state(conn, _require(conn, session_id), state, db.now())
+        return _require(conn, session_id)
+
+
+def reopen_session(db: Database, session_id: SessionId) -> Session:
+    """Make an ended session live again: unknown state, exit code and end time cleared.
+
+    The last activity is now. Nothing else changes.
+
+    Raises:
+        InvalidInput: the session is still live; nothing was written.
+        NotFound: no such session.
+    """
+    with db.transaction() as conn:
+        session = _require(conn, session_id)
+        if is_live(session.state):
+            message = f'"{session.title}" is still running'
+            raise InvalidInput(message)
+        conn.execute(
+            "UPDATE sessions SET state = ?, exit_code = NULL, ended_at = NULL,"
+            " last_activity_at = ? WHERE id = ?",
+            (state_id(Unknown()), to_db(db.now()), session_id),
+        )
         return _require(conn, session_id)
 
 
