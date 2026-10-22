@@ -1,0 +1,293 @@
+# serializer version: 1
+# name: test_the_tools_list_gives_names_descriptions_and_schemas
+  '''
+  {
+    "name": "task_list",
+    "description": "List tasks, by project name, status and due (overdue, today or week).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        },
+        "due": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Due"
+        },
+        "include_done": {
+          "default": false,
+          "title": "Include Done",
+          "type": "boolean"
+        }
+      },
+      "title": "task_listArguments"
+    }
+  }
+  {
+    "name": "task_read",
+    "description": "Read a task with its notes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "task_readArguments"
+    }
+  }
+  {
+    "name": "task_create",
+    "description": "Create a task; due is an ISO date or an ISO instant with a time zone.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "priority": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Priority"
+        },
+        "due": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Due"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "title": "task_createArguments"
+    }
+  }
+  {
+    "name": "task_update",
+    "description": "Update the fields of a task, but not its status; null clears a field.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "expected_version": {
+          "title": "Expected Version",
+          "type": "integer"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Title"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Description"
+        },
+        "priority": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Priority"
+        },
+        "due": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Due"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Project"
+        }
+      },
+      "required": [
+        "id",
+        "expected_version"
+      ],
+      "title": "task_updateArguments"
+    }
+  }
+  {
+    "name": "task_set_status",
+    "description": "Set the status of a task (todo, in_progress, blocked, review, done); blocked needs a reason.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "expected_version": {
+          "title": "Expected Version",
+          "type": "integer"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "expected_version"
+      ],
+      "title": "task_set_statusArguments"
+    }
+  }
+  {
+    "name": "task_note_add",
+    "description": "Add a note to a task.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        },
+        "body": {
+          "title": "Body",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "body"
+      ],
+      "title": "task_note_addArguments"
+    }
+  }
+  {
+    "name": "task_link_session",
+    "description": "Link the calling Claude session to a task.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "task_link_sessionArguments"
+    }
+  }
+  '''
+# ---

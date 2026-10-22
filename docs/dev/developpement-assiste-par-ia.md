@@ -109,6 +109,7 @@ Comportements à connaître :
 ## 7. Dépendances
 
 - **Ajouter une dépendance uniquement avec `uv add`** (`uv add --dev` pour le développement), qui prend la dernière version publiée, puis consulter sa documentation **à jour** (plugin context7 ou documentation officielle). Ne jamais se fier à la mémoire du modèle : les agents inventent souvent des API d'anciennes versions.
+- **Dépendances d'exécution** : `typer` (CLI, `meute.cli`), `textual` (TUI, `meute.tui`), `tomlkit` (écriture du TOML, `meute.cli`) et `mcp` (SDK MCP officiel, `meute.mcp` seulement). `mcp` 2.x nomme `MCPServer` (`mcp.server.mcpserver`) ce qui s'appelait `FastMCP` ; son client en mémoire est `mcp.Client(server)`. Il apporte `pydantic`, `anyio`, `starlette`, `uvicorn` et `httpx2`, que meute n'importe pas directement.
 - **`uv.lock` est commité**, et `uv lock --check` fait échouer la vérification s'il est périmé.
 - **`pip-audit`** vérifie les avis de sécurité sur les dépendances figées du `uv.lock`.
 - **`pip-licenses`** vérifie les licences (liste blanche dans `scripts/verify.sh`).
