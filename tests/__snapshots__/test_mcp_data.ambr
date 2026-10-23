@@ -1,0 +1,76 @@
+# serializer version: 1
+# name: test_summary_json
+  '''
+  [
+    {
+      "id": 7,
+      "title": "task 7",
+      "status": "blocked",
+      "priority": "high",
+      "due": "2026-10-20T12:00:00Z",
+      "project": "meute"
+    },
+    {
+      "id": 8,
+      "title": "task 8",
+      "status": "todo",
+      "priority": "normal",
+      "due": null,
+      "project": null
+    }
+  ]
+  '''
+# ---
+# name: test_task_json
+  '''
+  [
+    {
+      "id": 7,
+      "title": "task 7",
+      "status": "blocked",
+      "priority": "normal",
+      "due": "2026-10-20",
+      "project": "meute",
+      "description": "line one\nline two",
+      "blocked_reason": "waiting for CI",
+      "version": 4,
+      "created_at": "2026-10-14T08:30:00Z",
+      "updated_at": "2026-10-14T08:30:00Z",
+      "completed_at": null,
+      "notes": [
+        {
+          "id": 1,
+          "body": "first",
+          "author": "claude",
+          "channel": "mcp",
+          "session_id": "s-1",
+          "created_at": "2026-10-14T09:00:00.500000Z"
+        },
+        {
+          "id": 2,
+          "body": "second",
+          "author": "user",
+          "channel": "mcp",
+          "session_id": null,
+          "created_at": "2026-10-14T09:00:00.500000Z"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "task 8",
+      "status": "done",
+      "priority": "normal",
+      "due": null,
+      "project": null,
+      "description": "",
+      "blocked_reason": null,
+      "version": 1,
+      "created_at": "2026-10-14T08:30:00Z",
+      "updated_at": "2026-10-14T08:30:00Z",
+      "completed_at": "2026-10-14T09:30:00Z",
+      "notes": []
+    }
+  ]
+  '''
+# ---

@@ -52,6 +52,8 @@ def test_new_defaults_to_claude_with_explicit_permission_mode(sandbox: Sandbox) 
     assert _argv(record) == [
         "--settings",
         str(settings),
+        "--mcp-config",
+        str(settings.with_name("mcp.json")),
         "--session-id",
         session.id,
         "--permission-mode",

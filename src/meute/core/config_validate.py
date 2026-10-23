@@ -7,6 +7,7 @@ from typing import TypeGuard
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from meute.core.errors import InvalidInput
+from meute.core.text import INSTRUCTIONS_CONTROL, has_control_character
 
 PERMISSION_MODES = frozenset(
     {"manual", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"}
@@ -26,6 +27,7 @@ class ClaudeConfig:
 
     permission_mode: str = "auto"
     stuck_after_minutes: int = 10
+    instructions: str = ""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -164,6 +166,17 @@ def _timezone(section: Mapping[str, object]) -> str:
     return value
 
 
+def _instructions(section: Mapping[str, object]) -> str:
+    value = section.get("instructions", "")
+    if not isinstance(value, str):
+        message = "claude.instructions: expected a string"
+        raise InvalidInput(message)
+    if has_control_character(value):
+        message = f"claude.instructions: {INSTRUCTIONS_CONTROL}"
+        raise InvalidInput(message)
+    return value
+
+
 def _chain(section: Mapping[str, object]) -> str:
     value = section.get("chain", "")
     if not isinstance(value, str):
@@ -189,6 +202,7 @@ def validate_config(data: Mapping[str, object]) -> Config:
         claude=ClaudeConfig(
             permission_mode=_permission_mode(claude),
             stuck_after_minutes=_int(claude, "claude.stuck_after_minutes", 10, 1),
+            instructions=_instructions(claude),
         ),
         ui=UiConfig(
             board_width=_int(ui, "ui.board_width", 72, 1),

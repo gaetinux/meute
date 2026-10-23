@@ -41,6 +41,8 @@ roots = ["~/git"]
 permission_mode = "auto"
 # Minutes without any hook before a running session is shown as stuck?
 stuck_after_minutes = 10
+# Instructions added to every Claude session launched by meute.
+instructions = ""
 
 [ui]
 # Dashboard width, in columns.
@@ -85,6 +87,7 @@ def _flatten(config: Config) -> dict[str, object]:
         "repos.roots": config.repos.roots,
         "claude.permission_mode": config.claude.permission_mode,
         "claude.stuck_after_minutes": config.claude.stuck_after_minutes,
+        "claude.instructions": config.claude.instructions,
         "ui.board_width": config.ui.board_width,
         "ui.narrow_threshold": config.ui.narrow_threshold,
         "ui.show_details": config.ui.show_details,

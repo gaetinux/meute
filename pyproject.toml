@@ -7,6 +7,7 @@ license = "MIT OR Apache-2.0"
 license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
 requires-python = ">=3.13"
 dependencies = [
+    "mcp>=2.3.0",
     "textual>=8.2.8",
     "tomlkit>=0.15.2",
     "typer>=0.27.3",
@@ -14,6 +15,13 @@ dependencies = [
 
 [project.scripts]
 meute = "meute._entry:console"
+
+[tool.uv]
+exclude-newer = "2026-10-15T00:00:00Z"
+# Each exemption keeps the version already locked on 2026-10-23: the day after its upload,
+# UTC midnight. certifi's carries the GHSA-6q48-6c7w-9gw2 fix. Remove them at the next lock
+# refresh past their dates.
+exclude-newer-package = { certifi = "2026-10-21T00:00:00Z", hypothesis = "2026-10-17T00:00:00Z", platformdirs = "2026-10-17T00:00:00Z", pluggy = "2026-10-16T00:00:00Z", ruff = "2026-10-16T00:00:00Z", tomlkit = "2026-10-17T00:00:00Z" }
 
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14.0"]
@@ -187,11 +195,14 @@ pytest_add_cli_args_test_selection = [
     "tests/test_mutants_plan3.py", "tests/test_shared_helpers.py", "tests/test_refresh_stale_read.py", "tests/test_hooks_clear_resume.py", "tests/test_private_files.py", "tests/test_hooks_tool_name.py", "tests/test_attention.py", "tests/test_quota_view.py", "tests/test_sessions_view.py",
     "tests/test_board_sessions.py", "tests/test_config_show_details.py", "tests/test_mutants_plan4.py",
     "tests/test_quota_current.py", "tests/test_task_line.py", "tests/test_tasks_view.py",
-    "tests/test_task_detail.py", "tests/test_task_postpone.py", "tests/test_task_prompt.py",
+    "tests/test_task_detail.py", "tests/test_task_postpone.py",
     "tests/test_db_task_reads.py", "tests/test_session_project.py", "tests/test_status_line_overdue.py",
     "tests/test_sessions_cards.py", "tests/test_card_marks.py", "tests/test_tmux_conf_quick.py",
     "tests/test_mutants_plan4b_tasks.py", "tests/test_mutants_plan4b_sessions.py",
     "tests/test_launch_form.py", "tests/test_launch_form_view.py", "tests/test_db_repo_links.py",
     "tests/test_db_last_agent.py", "tests/test_last_agent.py", "tests/test_launch_form_busy.py",
     "tests/test_orphan_adoption.py", "tests/test_resume_target.py", "tests/test_db_reopen.py", "tests/test_mutants_plan4c.py",
+    "tests/test_mcp_data.py", "tests/test_composed_context.py", "tests/test_context_arg.py",
+    "tests/test_claude_mcp_config.py", "tests/test_config_instructions.py", "tests/test_db_link_session.py",
+    "tests/test_mutants_plan5.py",
 ]

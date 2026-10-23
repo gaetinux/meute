@@ -6,6 +6,7 @@ from pathlib import Path
 from meute.core.db.connection import Database
 from meute.core.db.projects import create_project, project_by_name
 from meute.core.db.rows import as_integer, as_text, fetch_all
+from meute.core.db.task_reads import project_repo_ids
 from meute.core.instants import from_db, to_db
 from meute.core.project import Project, ProjectId, RepoId
 from meute.core.repo import NewRepo, Repo
@@ -78,3 +79,9 @@ def create_repo_project(db: Database, name: str) -> Project:
         if repo.name.strip().casefold() == key:
             link_repo(db, project.id, repo.id)
     return project
+
+
+def project_repos(db: Database, project_id: ProjectId) -> list[Repo]:
+    """Return the repositories attached to a project, sorted as `list_repos`."""
+    linked = set(project_repo_ids(db, project_id))
+    return [repo for repo in list_repos(db) if repo.id in linked]

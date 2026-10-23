@@ -14,8 +14,12 @@ DEFAULT_SOCKET = "meute"
 
 
 def meute_command() -> tuple[str, ...]:
-    """The command that starts meute again, whatever the way it was installed."""
-    return (sys.executable, "-m", "meute")
+    """The command that starts meute again, whatever the way it was installed.
+
+    `-P` keeps the current folder off `sys.path`: Claude runs the hooks and `meute mcp` in the
+    session's folder, whose packages must not shadow meute's imports.
+    """
+    return (sys.executable, "-P", "-m", "meute")
 
 
 def _write_if_changed(path: Path, text: str) -> None:

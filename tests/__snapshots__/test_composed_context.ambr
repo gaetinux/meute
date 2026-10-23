@@ -1,0 +1,40 @@
+# serializer version: 1
+# name: test_all_levels
+  '''
+  The repository's `CLAUDE.md` files are authoritative on code conventions. The task is authoritative on the goal. If they contradict each other, point it out to the user instead of choosing.
+  
+  Global instructions:
+  Be brief.
+  Answer in French.
+  
+  Project instructions (my proj):
+  Use uv.
+  
+    Keep TDD.
+  
+  You are working on task #12. Read it with the `task_read` tool and report your progress with `task_note_add`.
+  '''
+# ---
+# name: test_global_only
+  '''
+  The repository's `CLAUDE.md` files are authoritative on code conventions. The task is authoritative on the goal. If they contradict each other, point it out to the user instead of choosing.
+  
+  Global instructions:
+  Be brief.
+  '''
+# ---
+# name: test_project_only
+  '''
+  The repository's `CLAUDE.md` files are authoritative on code conventions. The task is authoritative on the goal. If they contradict each other, point it out to the user instead of choosing.
+  
+  Project instructions (meute):
+  Use uv.
+  '''
+# ---
+# name: test_task_only
+  '''
+  The repository's `CLAUDE.md` files are authoritative on code conventions. The task is authoritative on the goal. If they contradict each other, point it out to the user instead of choosing.
+  
+  You are working on task #12. Read it with the `task_read` tool and report your progress with `task_note_add`.
+  '''
+# ---

@@ -17,7 +17,7 @@ La V1 est découpée en six plans ; le plan 4 est lui-même découpé en 4, 4b e
 | 4 | Vue Sessions et interface transparente — *fait en Python* : `docs/superpowers/plans/2026-10-18-meute-plan-4-python-vue-sessions.md` | Vue Sessions (projets, « à traiter », quotas et projection, détails), mode étroit, interface transparente (souris, ligne d'état meute, détacher) | § 4.5, 5.2, 5.6, 7.4, 10 |
 | 4b | Vue Tâches — *fait en Python* : `docs/superpowers/plans/2026-10-20-meute-plan-4b-python-vue-taches.md` | Onglet Tâches (filtres, regroupements, détail et ses actions, « launch Claude on this task »), saisie rapide globale `M-t` avec aperçu | § 9.5, 9.6 |
 | 4c | Lancement depuis le tableau — *fait en Python* : `docs/superpowers/plans/2026-10-21-meute-plan-4c-python-lancement.md` | Formulaire `N`, « dernier type utilisé » de `n`, actions sur les panneaux orphelins (adopter, fermer), reprise d'une session Claude terminée (`claude --resume`, avancée du plan 6 par l'auteur le 2026-10-19) | § 5.4, 6.4, 6.5 |
-| 5 | MCP | `meute mcp` et les outils de tâches, contexte composé (§ 8) | § 8, 12 |
+| 5 | MCP — *fait en Python* : `docs/superpowers/plans/2026-10-22-meute-plan-5-python-mcp.md` | `meute mcp` et les sept outils de tâches, `--mcp-config` et outils autorisés d'office sur chaque session Claude, contexte composé (§ 8) avec consignes globales et de projet (`meute project edit` / `show`, `[claude] instructions`), `L` et `N` collent « Work on task #N. » ; spike S11 | § 8, 12 |
 | 6 | Finitions de la V1 | Worktrees, états sauvegardés, projets créés automatiquement, `meute doctor`, README | § 6.5, 6.6, 10, 11, 13 |
 
 Règles communes à tous les plans :
@@ -112,3 +112,20 @@ Limites connues, relevées pendant le plan 4c :
 - **Dette de code** : `CliBoardBackend._perform` porte un `noqa PLR0912` et grossit ; `board_view.__all__` ne liste que les actions réexportées (préférer `X as X`) ; `tests/test_tui_launch_form.py` fait 319 lignes (limite visée : 300) ; deux tests de `test_resume_target.py` sont quasi vides ; la docstring de `tests/test_tmux_respawn.py` parle encore de `respawn-pane -k`.
 - **Tests sensibles à la charge** : `test_stopping_a_claude_session_takes_two_interrupts_and_is_quick` (2,06 s pour un plafond de 2,0 s sous charge) et, une fois, `test_survivors_finds_the_processes_a_test_left` ; les deux passent seuls. Les tests de reprise attendaient la mort du panneau sans borne : corrigé par `f91a152` (attente bornée).
 - **Essai réel** : la reprise, le formulaire et l'adoption n'ont été essayés qu'avec le faux `claude` ; l'essai avec le vrai Claude dans un vrai terminal reste à faire par l'auteur (liste dans le rapport de mutation et dans la PR). Le spike S10 a, lui, tourné avec le vrai Claude.
+
+## Reports issus du plan 5
+
+Ce que le plan 5 laisse volontairement de côté. Le plan 5 livre `meute mcp` (SDK `mcp` 2.x), `--mcp-config`, `permissions.allow`, le contexte composé (argument jusqu'à 8 000 octets, fichier privé au-delà), les consignes globales et de projet, et le collage de « Work on task #N. ». Rapport de mutation et essai scripté : `docs/dev/mutants/2026-plan-5-python.md`. Écarts à la conception : `docs/superpowers/specs/2026-10-22-meute-mcp-design.md` (« Écarts constatés à la réalisation »).
+
+- **Plan 6 — finitions** : inchangé (worktrees, états sauvegardés, projets créés automatiquement, `meute doctor`).
+- **Hors périmètre, restent ouverts** : les outils de suppression et d'arrêt de session, les confirmations en attente (§ 12), `meute mcp` pour des sessions lancées hors de meute.
+
+Limites connues, relevées pendant le plan 5 :
+
+- **Option non documentée** : `--append-system-prompt-file`, utilisée au-delà de 8 000 octets, n'est pas dans `claude --help` ; si Claude Code la retire, les contextes longs font échouer le lancement (bruyamment).
+- **Fichiers de session** : `mcp.json` et `context.md` suivent un lien symbolique planté dans le dossier de la session (hérité de `write_settings`) ; `write_session_file` vit dans `settings.py` ; `session_context` est lu après l'écriture des fichiers.
+- **Titre de session** : un titre très long (`#N` plus un titre de tâche) peut encore dépasser la limite de commande de tmux.
+- **Outils** : les entiers acceptent la conversion souple du SDK (`"3"`, `1.0`) ; « no such table » se lit « database unavailable » ; `parse_priority` n'est qu'une enveloppe d'un import renommé ; un instant plus tôt aujourd'hui est à la fois `overdue` et `today` (filtres non exclusifs), `week` = [maintenant, +7 j).
+- **Dépendances** : `[tool.uv] exclude-newer = "2026-10-15T00:00:00Z"` plus six exceptions par paquet (décision de l'auteur, 2026-10-23) ; à relever à la prochaine mise à jour. La sentinelle de champ omis de `task_update` s'appuie sur un comportement non documenté de pydantic (gardée par un instantané et un test) ; `MCPServer` appelle `logging.basicConfig` (stderr), à surveiller avec `mcp.log`.
+- **Tests** : `test_launch_context.py` (282 lignes) répète un scénario long vers court et une fermeture `ended()` ; le test du marqueur de fin dans le titre (`test_task_launch.py`) passe désormais à vide, le titre n'étant plus collé (laissé tel quel, règle des tests) ; la docstring de `tests/test_task_launch_form.py` parle encore du « task text pasted » ; pas de test d'un `--instructions-file` non UTF-8.
+- **Essai réel** : le vrai Claude n'a tourné que pour le spike S11 ; l'essai de la session complète (contexte suivi, outils appelés, contexte long) reste à faire par l'auteur (liste dans le rapport de mutation et dans la PR).

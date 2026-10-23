@@ -26,6 +26,19 @@ def _safe(char: str, *, keep_newlines: bool) -> str:
     return char
 
 
+_ALLOWED_C0 = frozenset("\n\t")
+INSTRUCTIONS_CONTROL = "instructions contain a control character"
+"""The refusal of instructions that `has_control_character` flags, in the database and config."""
+
+
+def has_control_character(text: str) -> bool:
+    """Tell whether `text` holds a C0 control character other than a newline or a tab.
+
+    Instructions reach Claude on its command line, where a NUL cannot go.
+    """
+    return any(char < " " and char not in _ALLOWED_C0 for char in text)
+
+
 def one_line(text: str, limit: int, *, ellipsis: bool = False) -> str:
     """Return `text` on one printable line of at most `limit` characters.
 

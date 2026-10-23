@@ -9,9 +9,10 @@ from meute.core.db.rows import (
     fetch_one,
     row_to_project,
 )
-from meute.core.errors import InvalidInput
+from meute.core.errors import InvalidInput, NotFound
 from meute.core.instants import to_db
-from meute.core.project import Project, ProjectRef
+from meute.core.project import Project, ProjectId, ProjectRef
+from meute.core.text import INSTRUCTIONS_CONTROL, has_control_character
 
 
 def create_project(db: Database, name: str, description: str = "") -> Project:
@@ -66,3 +67,25 @@ def list_projects(db: Database) -> list[Project]:
 def project_refs(db: Database) -> tuple[ProjectRef, ...]:
     """Return a reference (id and name) to every project, sorted as `list_projects`."""
     return tuple(ProjectRef(id=project.id, name=project.name) for project in list_projects(db))
+
+
+def set_project_instructions(db: Database, project_id: ProjectId, instructions: str) -> Project:
+    """Replace the instructions of a project; an empty string clears them.
+
+    Raises:
+        InvalidInput: they hold a control character other than a newline or a tab.
+        NotFound: no such project.
+    """
+    if has_control_character(instructions):
+        raise InvalidInput(INSTRUCTIONS_CONTROL)
+    with db.transaction() as conn:
+        row = fetch_one(
+            conn,
+            "UPDATE projects SET instructions = ? WHERE id = ?"
+            " RETURNING id, name, description, instructions, created_at",
+            (instructions, project_id),
+        )
+    if row is None:
+        entity = "project"
+        raise NotFound(entity, str(project_id))
+    return row_to_project(row)

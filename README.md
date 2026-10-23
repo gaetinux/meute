@@ -32,7 +32,7 @@ Dashboard, Sessions tab (`?` lists every key):
 | `Enter` | show the selected session in the main area (on a repository: start a Bash session there) |
 | `c` | new Claude session on the selected repository or session |
 | `n` | new session of the type last used in that repository (Claude when it has none) |
-| `N` | open the launch form: type, repository, folder, title, and for Claude the task and the permission mode; `Tab` next field, `←` `→` choose, `Enter` launch, `Esc` cancel; with a task, its text is pasted into Claude unsent, like `L` |
+| `N` | open the launch form: type, repository, folder, title, and for Claude the task and the permission mode; `Tab` next field, `←` `→` choose, `Enter` launch, `Esc` cancel; with a task, `Work on task #N.` is pasted into Claude unsent, like `L` |
 | `r` | resume an ended Claude session (`claude --resume`, in its old pane when it is still there) |
 | `x` | stop the session (asks for confirmation); when it was the one shown, the next live session of the board takes its place |
 | `a` / `e` | show only what needs attention / show ended sessions |
@@ -49,8 +49,22 @@ Dashboard, Tasks tab (`Tab` or a click on the title switches tabs; `?` lists eve
 | `d` | postpone (+1h, tonight 6pm, tomorrow 9am, Monday 9am, clear) |
 | `e` / `D` / `@` | edit the title / the description / the project |
 | `o` | add a note |
-| `L` | launch Claude on the task; its text is pasted, not sent |
+| `L` | launch Claude on the task; `Work on task #N.` is pasted, not sent, and Claude reads the task with the `task_read` tool |
 | `Del` | delete (asks for confirmation) |
+
+## Claude and tasks (MCP)
+
+Every Claude session meute starts gets a `meute` MCP server (`meute mcp`, stdio) through `--mcp-config`, so Claude reads and updates its own tasks. The seven tools (`task_list`, `task_read`, `task_create`, `task_update`, `task_set_status`, `task_note_add`, `task_link_session`) are allowed without a prompt; none deletes anything. Writes are recorded as `claude/mcp` with the calling session.
+
+Instructions are composed into the session's system prompt: global ones, the project's, and a line naming the linked task. They are empty by default.
+
+```bash
+meute config set claude.instructions "Answer tersely."      # global, [claude] instructions
+meute project edit myproject --instructions "Tests first."  # or --instructions-file notes.md; "" clears
+meute project show myproject                                # description, instructions, repositories
+```
+
+A context up to 8 000 bytes goes in the command line; a longer one goes through a private file in the session's folder.
 
 ## Development
 
