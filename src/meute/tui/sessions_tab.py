@@ -41,6 +41,7 @@ from meute.core.sessions_view import (
     section_key,
     session_index,
 )
+from meute.tui.board_types import BoardGit
 from meute.tui.launch_form import FormSession, LaunchTask
 from meute.tui.sessions_cursor import SessionsCursor
 from meute.tui.sessions_pane import details_content, quota_content, view_content
@@ -67,6 +68,7 @@ class SessionsTab:
         launch: Callable[[LaunchBash | LaunchClaude], None],
         launch_task: LaunchTask,
         default_mode: str,
+        git: BoardGit | None,
         local: tzinfo,
         show_details: bool,
     ) -> None:
@@ -79,7 +81,9 @@ class SessionsTab:
         self._adopt = adopt
         self._close = close
         self._is_closing = is_closing
-        self._form = FormSession(launch=launch, launch_task=launch_task, default_mode=default_mode)
+        self._form = FormSession(
+            launch=launch, launch_task=launch_task, default_mode=default_mode, git=git
+        )
         self._local = local
         self._show_details = show_details
         self.cursor = SessionsCursor()

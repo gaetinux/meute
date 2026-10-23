@@ -61,6 +61,7 @@ def _root(
 def board() -> None:
     """Run the dashboard (the right-hand pane of the layout)."""
     from meute.cli.board_backend import CliBoardBackend, purge_old_samples  # noqa: PLC0415 — keeps Textual out of every other command's start-up
+    from meute.cli.board_git import CliBoardGit  # noqa: PLC0415 — only the dashboard needs it
     from meute.cli.repo_scan import scan_repos  # noqa: PLC0415 — only the dashboard scans on start
     from meute.tui.board import BoardApp, BoardOptions  # noqa: PLC0415 — keeps Textual out of every other command's start-up
 
@@ -75,7 +76,7 @@ def board() -> None:
                 local=local_zone(os.environ),
                 permission_mode=ctx.config.claude.permission_mode,
             )
-            BoardApp(backend, options).run()
+            BoardApp(backend, options, CliBoardGit(os.environ)).run()
         finally:
             backend.close()
 

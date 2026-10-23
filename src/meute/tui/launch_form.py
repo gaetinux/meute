@@ -21,7 +21,9 @@ from meute.core.launch_form import (
     with_busy,
 )
 from meute.core.launch_form_view import form_lines
+from meute.core.launch_form_worktree import with_worktrees
 from meute.core.styled import StyledLine
+from meute.tui.board_types import BoardGit
 from meute.tui.sessions_pane import styled_content
 
 Launch = Callable[[LaunchBash | LaunchClaude], None]
@@ -46,10 +48,13 @@ class FormSession:
     ignores every key and paste.
     """
 
-    def __init__(self, *, launch: Launch, launch_task: LaunchTask, default_mode: str) -> None:
+    def __init__(
+        self, *, launch: Launch, launch_task: LaunchTask, default_mode: str, git: BoardGit | None
+    ) -> None:
         self._launch = launch
         self._launch_task = launch_task
         self._default_mode = default_mode
+        self._git = git
         self._form: LaunchForm | None = None
         self._waiting = False  # a launch with a task runs in a worker
 
@@ -60,7 +65,8 @@ class FormSession:
 
     def open(self, data: BoardData, entry: BoardEntry | None) -> None:
         """Open the form on the selected `entry`."""
-        self._form = open_form(data, entry, default_mode=self._default_mode, now=_now(data))
+        form = open_form(data, entry, default_mode=self._default_mode, now=_now(data))
+        self._form = self._listed(form)
 
     def refresh(self, data: BoardData) -> None:
         """Take a new reading of the board: only the busy folders change."""
@@ -82,7 +88,8 @@ class FormSession:
         elif key in {"shift+tab", "up"}:
             self._form = move(form, -1)
         elif key in {"left", "right"}:
-            self._form = choose(form, -1 if key == "left" else 1, data, now)
+            chosen = choose(form, -1 if key == "left" else 1, data, now)
+            self._form = chosen if chosen.repo == form.repo else self._listed(chosen)
         elif key == "backspace":
             self._form = erase(form)
         elif character is not None and character.isprintable():
@@ -105,6 +112,12 @@ class FormSession:
         if lines is None:
             return None
         return Content("\n").join(styled_content(line) for line in lines)
+
+    def _listed(self, form: LaunchForm) -> LaunchForm:
+        """Return `form` with the worktrees its repository has, as `git` lists them."""
+        if form.repo is None or self._git is None:
+            return form
+        return with_worktrees(form, self._git.worktrees(form.repos[form.repo].path))
 
     def _submit(self, form: LaunchForm, data: BoardData) -> None:
         action = form_action(form, _home(data))

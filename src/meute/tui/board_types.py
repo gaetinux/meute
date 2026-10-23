@@ -2,9 +2,11 @@
 
 from dataclasses import dataclass
 from datetime import UTC, tzinfo
+from pathlib import Path
 from typing import Protocol
 
 from meute.core.board_view import BoardAction, BoardData
+from meute.core.worktrees import Worktree, WorktreeCheck
 
 
 class BoardBackend(Protocol):
@@ -16,6 +18,18 @@ class BoardBackend(Protocol):
 
     def perform(self, action: BoardAction) -> None:
         """Carry out `action`."""
+        ...
+
+
+class BoardGit(Protocol):
+    """What the board asks git; both answer with the text of the error instead of raising."""
+
+    def worktrees(self, repo: Path) -> tuple[Worktree, ...] | str:
+        """The linked worktrees of `repo`, or why they cannot be listed."""
+        ...
+
+    def inspect(self, folder: Path) -> WorktreeCheck | str:
+        """What removing the worktree `folder` would lose, or why it cannot be checked."""
         ...
 
 
