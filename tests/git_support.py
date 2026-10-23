@@ -57,6 +57,9 @@ def make_repo(path: Path, env: Mapping[str, str]) -> GitRepo:
     path.mkdir(parents=True, exist_ok=True)
     repo = GitRepo(path=path, env=env)
     repo.git("init", "--quiet", "--initial-branch=main")
+    # No background maintenance or gc: it writes files (maintenance.lock) asynchronously.
+    repo.git("config", "maintenance.auto", "false")
+    repo.git("config", "gc.auto", "0")
     (path / "README.md").write_text("hello\n")
     repo.git("add", "README.md")
     repo.git("commit", "--quiet", "--message=init")
