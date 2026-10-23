@@ -6,6 +6,7 @@ from pathlib import Path
 
 from meute.claude.settings import write_session_file
 from meute.core.json_types import JsonObject
+from meute.core.mcp_data import MCP_SERVER_NAME
 from meute.core.session import SessionId
 
 
@@ -13,7 +14,7 @@ def mcp_config_document(meute_command: Sequence[str], session_id: SessionId) -> 
     """Build the MCP configuration: one stdio server, `meute`, running `meute mcp`."""
     return {
         "mcpServers": {
-            "meute": {
+            MCP_SERVER_NAME: {
                 "type": "stdio",
                 "command": meute_command[0],
                 "args": [*meute_command[1:], "mcp"],

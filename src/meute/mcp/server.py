@@ -9,10 +9,10 @@ from mcp.types import CallToolResult, TextContent
 
 from meute.core.errors import MeuteError
 from meute.core.json_types import JsonValue
+from meute.core.mcp_data import MCP_SERVER_NAME
 from meute.core.task import KEEP, Keep
 from meute.mcp.backend import McpBackend, TaskChanges
 
-SERVER_NAME = "meute"
 INTERNAL_ERROR = "internal error"
 
 
@@ -58,7 +58,7 @@ def _answer(
 def build_server(
     backend: McpBackend, *, on_unexpected: Callable[[BaseException], None]
 ) -> MCPServer:
-    server = MCPServer(SERVER_NAME, log_level="WARNING")
+    server = MCPServer(MCP_SERVER_NAME, log_level="WARNING")
 
     def tool[F: Callable[..., CallToolResult]](fn: F) -> F:
         server.add_tool(fn, structured_output=False)
