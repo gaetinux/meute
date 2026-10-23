@@ -1,10 +1,46 @@
 """The project a session belongs to."""
 
 from collections.abc import Mapping, Sequence
+from typing import Protocol
 
 from meute.core.project import ProjectId, ProjectRef, RepoId
 from meute.core.repo import Repo
 from meute.core.session import Session
+
+
+class NamedProject(Protocol):
+    """A project as `project_of` reads it: an id and a name."""
+
+    @property
+    def id(self) -> ProjectId:
+        """The project's identifier."""
+        ...
+
+    @property
+    def name(self) -> str:
+        """The project's name."""
+        ...
+
+
+def project_of[P: NamedProject](
+    project_id: ProjectId | None,
+    repo_id: RepoId | None,
+    *,
+    projects: Sequence[P],
+    repos: Mapping[RepoId, Repo],
+) -> P | None:
+    """Return the project `project_id`, else the one named like the repository `repo_id`.
+
+    Names are compared ignoring case. Returns `None` when neither matches.
+    """
+    for project in projects:
+        if project.id == project_id:
+            return project
+    repo = None if repo_id is None else repos.get(repo_id)
+    if repo is None:
+        return None
+    key = repo.name.casefold()
+    return next((p for p in projects if p.name.casefold() == key), None)
 
 
 def session_project(
@@ -14,14 +50,7 @@ def session_project(
 
     Names are compared ignoring case. Returns `None` when neither matches.
     """
-    for project in projects:
-        if project.id == session.project_id:
-            return project
-    repo = None if session.repo_id is None else repos.get(session.repo_id)
-    if repo is None:
-        return None
-    key = repo.name.casefold()
-    return next((p for p in projects if p.name.casefold() == key), None)
+    return project_of(session.project_id, session.repo_id, projects=projects, repos=repos)
 
 
 def repo_projects(

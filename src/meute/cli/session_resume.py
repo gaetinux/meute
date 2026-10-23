@@ -4,15 +4,12 @@ import re
 from collections.abc import Mapping
 from contextlib import suppress
 
-from meute.claude.context_arg import prepare_context
 from meute.claude.launch import claude_argv, find_claude
-from meute.claude.mcp_config import write_mcp_config
-from meute.claude.settings import MEUTE_TOOLS, write_settings
 from meute.cli.context import CliContext
-from meute.cli.session_context import session_context
+from meute.cli.session_context import ClaudeOrigin, prepare_claude
 from meute.cli.session_launch import resolve_folder, session_spawn
 from meute.cli.session_launch_claude import CLAUDE_MISSING
-from meute.cli.tmux_env import TmuxEnv, meute_command
+from meute.cli.tmux_env import TmuxEnv
 from meute.core.config_validate import PERMISSION_MODES
 from meute.core.db.claude_sessions import get_claude_details
 from meute.core.db.sessions import get_session, reopen_session
@@ -38,6 +35,7 @@ def resume_session(
         InvalidInput: not an ended Claude session with a known Claude id, the folder is gone or
             `claude` is missing; nothing was started and nothing was written.
         NotFound: no such session.
+        ConfigError: the configuration file has become invalid; nothing was started.
         TmuxError: tmux failed; the database was not written.
     """
     session = get_session(ctx.db, session_id)
@@ -60,23 +58,22 @@ def resume_session(
         message = still_running_text(session.title)  # restarting it would kill a live process
         raise InvalidInput(message)
     known_mode = details.permission_mode
-    mode = known_mode if known_mode in PERMISSION_MODES else ctx.config.claude.permission_mode
-    command = meute_command()
-    settings = write_settings(ctx.paths.state_dir, session_id, command, MEUTE_TOOLS)
-    mcp_config = write_mcp_config(ctx.paths.state_dir, session_id, command)
-    text = session_context(
-        ctx, project_id=session.project_id, repo_id=session.repo_id, task_id=session.task_id
+    origin = ClaudeOrigin(
+        project_id=session.project_id,
+        repo_id=session.repo_id,
+        task_id=session.task_id,
+        permission_mode=known_mode if known_mode in PERMISSION_MODES else None,
     )
-    context = prepare_context(ctx.paths.state_dir, session_id, text)
+    start = prepare_claude(ctx, session_id, origin)  # the context of the moment, not the first
     argv = claude_argv(
         claude=claude,
-        settings=settings,
+        settings=start.settings,
         session_id=SessionId(details.native_id),
-        permission_mode=mode,
+        permission_mode=start.permission_mode,
         title=session.title,
         resume=True,
-        mcp_config=mcp_config,
-        context=context,
+        mcp_config=start.mcp_config,
+        context=start.context,
     )
     spawn = session_spawn(session_id, cwd, argv)
     started = (

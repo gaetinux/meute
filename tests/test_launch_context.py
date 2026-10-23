@@ -118,7 +118,10 @@ def _repo_project(ctx: CliContext, folder: Path, instructions: str) -> NewRepo:
 def test_context_is_none_without_any_instructions_or_task(sandbox: Sandbox) -> None:
     ctx, _ = _ctx(sandbox)
     try:
-        assert session_context(ctx, project_id=None, repo_id=None, task_id=None) is None
+        assert (
+            session_context(ctx, instructions="", project_id=None, repo_id=None, task_id=None)
+            is None
+        )
     finally:
         ctx.db.close()
 
@@ -127,8 +130,6 @@ def test_context_resolves_the_project_by_id_then_by_repository_name(sandbox: San
     folder = sandbox.root / "w"
     folder.mkdir()
     ctx, _ = _ctx(sandbox)
-    ctx.paths.config_file.parent.mkdir(parents=True)
-    ctx.paths.config_file.write_text('[claude]\ninstructions = "be kind"\n', encoding="utf-8")
     try:
         by_id = create_project(ctx.db, "other")
         _ = set_project_instructions(ctx.db, by_id.id, "from other")
@@ -136,11 +137,16 @@ def test_context_resolves_the_project_by_id_then_by_repository_name(sandbox: San
         named = create_project(ctx.db, "W")
         _ = set_project_instructions(ctx.db, named.id, "from w")
         task = TaskId(3)
-        assert session_context(ctx, project_id=by_id.id, repo_id=repo.id, task_id=task) == (
+        found = session_context(
+            ctx, instructions="be kind", project_id=by_id.id, repo_id=repo.id, task_id=task
+        )
+        assert found == (
             f"{CONTRADICTION_RULE}\n\nGlobal instructions:\nbe kind\n\n"
             f"Project instructions (other):\nfrom other\n\n{task_line(task)}"
         )
-        text = session_context(ctx, project_id=None, repo_id=repo.id, task_id=None)
+        text = session_context(
+            ctx, instructions="be kind", project_id=None, repo_id=repo.id, task_id=None
+        )
         assert text is not None
         assert text.endswith("Project instructions (W):\nfrom w")
     finally:
