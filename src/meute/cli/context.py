@@ -16,10 +16,11 @@ from meute.core.errors import InvalidInput
 from meute.core.instants import parse_zoned
 from meute.core.paths import Paths
 from meute.core.project import Project
+from meute.git.run import GitError
 from meute.tmux.errors import TmuxError
 
-ENVIRONMENT_ERRORS = (OSError, sqlite3.Error, TmuxError)
-"""Failures of the machine around meute (files, database, tmux), as opposed to bad input."""
+ENVIRONMENT_ERRORS = (OSError, sqlite3.Error, TmuxError, GitError)
+"""Failures of the machine around meute (files, database, tmux, git), as opposed to bad input."""
 
 BUSY_TIMEOUT_MS = 5000
 

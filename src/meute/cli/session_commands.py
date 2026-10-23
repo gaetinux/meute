@@ -14,12 +14,13 @@ from meute.cli.context import open_context
 from meute.cli.folder_repo import repo_id_of_folder
 from meute.cli.json_out import echo_json
 from meute.cli.session_jump import jump_to_attention
-from meute.cli.session_launch import BashLaunch, launch_bash
+from meute.cli.session_launch import BashLaunch, launch_bash, resolve_folder
 from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
 from meute.cli.session_refresh import refresh
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.tmux_env import open_tmux_env
+from meute.cli.worktree_launch import launch_in_new_worktree
 from meute.core.agents import AgentInfo, parse_agents
 from meute.core.claude_session import ClaudeDetails, claude_details_to_json
 from meute.core.db.claude_sessions import claude_details_by_session
@@ -30,6 +31,7 @@ from meute.core.paths import display_path
 from meute.core.session import AgentKind, Session, SessionId, session_to_json, short_id
 from meute.core.session_state import state_label
 from meute.core.text import printable
+from meute.git.discover import main_repo_of
 
 session_app = typer.Typer(no_args_is_help=True, help="Sessions running in tmux.")
 
@@ -45,6 +47,10 @@ def new(
         str | None,
         typer.Option("--permission-mode", help="Claude permission mode (Claude sessions only)."),
     ] = None,
+    worktree: Annotated[
+        str | None,
+        typer.Option("--worktree", help="Start in a new worktree on this new branch."),
+    ] = None,
 ) -> None:
     """Start a session in the background."""
     if kind is AgentKind.BASH and permission_mode is not None:
@@ -53,19 +59,29 @@ def new(
     folder = cwd or Path.cwd()
     with open_context(os.environ) as ctx:
         env = open_tmux_env(ctx, os.environ)
-        repo_id = repo_id_of_folder(ctx, folder)
-        match kind:
-            case AgentKind.CLAUDE:
-                claude = ClaudeLaunch(
-                    cwd=folder, repo_id=repo_id, title=title, permission_mode=permission_mode
-                )
-                session = launch_claude(ctx, env, claude, os.environ)
-            case AgentKind.BASH:
-                session = launch_bash(
-                    ctx, env, BashLaunch(cwd=folder, repo_id=repo_id, title=title), os.environ
-                )
-            case _:
-                assert_never(kind)
+
+        def launch(folder: Path) -> Session:
+            repo_id = repo_id_of_folder(ctx, folder)
+            match kind:
+                case AgentKind.CLAUDE:
+                    claude = ClaudeLaunch(
+                        cwd=folder, repo_id=repo_id, title=title, permission_mode=permission_mode
+                    )
+                    return launch_claude(ctx, env, claude, os.environ)
+                case AgentKind.BASH:
+                    bash = BashLaunch(cwd=folder, repo_id=repo_id, title=title)
+                    return launch_bash(ctx, env, bash, os.environ)
+                case _:
+                    assert_never(kind)
+
+        if worktree is None:
+            session = launch(folder)
+        else:
+            repo = main_repo_of(resolve_folder(folder))
+            if repo is None:
+                message = f"not in a git repository: {display_path(folder, Path.home())}"
+                raise InvalidInput(message)
+            session = launch_in_new_worktree(os.environ, repo, worktree, launch)
     typer.echo(
         f"Launched: {short_id(session.id)} {printable(session.title)} "
         f"({printable(display_path(session.cwd, Path.home()))})"

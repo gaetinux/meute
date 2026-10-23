@@ -11,12 +11,11 @@ from typing import TYPE_CHECKING, assert_never
 from meute.claude.launch import find_claude
 from meute.cli.agents_poller import AgentsPoller
 from meute.cli.board_data import load_board_data
+from meute.cli.board_launch import BoardLaunch
 from meute.cli.context import ENVIRONMENT_ERRORS, CliContext, open_database
-from meute.cli.folder_repo import repo_id_of_folder
 from meute.cli.git_poller import GitPoller
 from meute.cli.orphan_actions import adopt_orphan, close_orphan, show_orphan
-from meute.cli.session_launch import BashLaunch, launch_bash
-from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
+from meute.cli.session_launch_claude import ClaudeLaunch
 from meute.cli.session_next import order_if_shown, show_next
 from meute.cli.session_resume import resume_session
 from meute.cli.session_show import show_session
@@ -51,7 +50,6 @@ from meute.core.db.task_update import delete_task, update_task
 from meute.core.errors import MeuteError, PromptNotPasted
 from meute.core.git_folder import git_folder
 from meute.core.git_state import GitState
-from meute.core.project import RepoId
 from meute.core.session import SessionId
 from meute.core.task import TaskId
 from meute.core.views import count_overdue
@@ -182,25 +180,14 @@ class CliBoardBackend:
         match action:
             case ShowSession():
                 show_session(self._ctx, self._env, action.session_id)
-            case LaunchBash():
-                request = BashLaunch(
-                    cwd=action.cwd, repo_id=self._launch_repo(action), title=action.title
+            case LaunchBash() | LaunchClaude():
+                launch = BoardLaunch(
+                    ctx=self._ctx,
+                    env=self._env,
+                    environ=self._environ,
+                    on_task=self._launch_on_task,
                 )
-                session = launch_bash(self._ctx, self._env, request, self._environ)
-                show_session(self._ctx, self._env, session.id)
-            case LaunchClaude():
-                claude = ClaudeLaunch(
-                    cwd=action.cwd,
-                    repo_id=self._launch_repo(action),
-                    title=action.title,
-                    permission_mode=action.permission_mode,
-                    task_id=action.task_id,
-                )
-                if action.task_id is None:
-                    session = launch_claude(self._ctx, self._env, claude, self._environ)
-                    show_session(self._ctx, self._env, session.id)
-                else:  # a task picked in the form: its text is pasted, like `L`, in a worker
-                    self._launch_on_task(action.task_id, claude)
+                launch.perform(action)
             case StopSession():
                 self._stop(action.session_id)
             case ResumeSession():
@@ -226,12 +213,6 @@ class CliBoardBackend:
                 self._launch_on_task(action.task_id)
             case _:
                 assert_never(action)
-
-    def _launch_repo(self, action: LaunchBash | LaunchClaude) -> RepoId | None:
-        """The repository of a launch: the form's, else the one holding its folder."""
-        if action.repo_id is not None:
-            return action.repo_id
-        return repo_id_of_folder(self._ctx, action.cwd)
 
     def _perform_orphan(self, action: OrphanAction) -> None:
         match action:
