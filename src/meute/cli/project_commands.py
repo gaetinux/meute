@@ -18,7 +18,7 @@ from meute.core.db.repos import project_repos
 from meute.core.errors import InvalidInput, NotFound
 from meute.core.project import Project, project_to_json
 from meute.core.repo import repo_to_json
-from meute.core.text import printable
+from meute.core.text import INSTRUCTIONS_CONTROL, has_control_character, printable
 
 project_app = typer.Typer(no_args_is_help=True, help="Manage projects.")
 
@@ -47,16 +47,30 @@ def list_(*, json_: Annotated[bool, typer.Option("--json", help="Print JSON.")] 
 
 
 def _read_instructions(instructions: str | None, instructions_file: Path | None) -> str:
-    if instructions is not None and instructions_file is None:
+    text = _given_instructions(instructions, instructions_file)
+    if has_control_character(text):
+        raise InvalidInput(INSTRUCTIONS_CONTROL)
+    return text
+
+
+def _given_instructions(instructions: str | None, instructions_file: Path | None) -> str:
+    if instructions is not None and instructions_file is not None:
+        message = "give either --instructions or --instructions-file, not both"
+        raise InvalidInput(message)
+    if instructions is not None:
         return instructions
-    if instructions is None and instructions_file is not None:
-        try:
-            return instructions_file.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError) as error:
-            message = f"cannot read {printable(str(instructions_file))}: {printable(str(error))}"
-            raise InvalidInput(message) from error
-    message = "give --instructions or --instructions-file"
-    raise InvalidInput(message)
+    if instructions_file is None:
+        message = "give --instructions or --instructions-file"
+        raise InvalidInput(message)
+    shown = printable(str(instructions_file))
+    try:
+        return instructions_file.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        message = f"cannot read {shown}: not valid UTF-8"
+        raise InvalidInput(message) from None
+    except OSError as error:
+        message = f"cannot read {shown}: {printable(str(error))}"
+        raise InvalidInput(message) from error
 
 
 def _require_project(project: Project | None, name: str) -> Project:

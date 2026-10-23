@@ -7,6 +7,7 @@ from typing import TypeGuard
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from meute.core.errors import InvalidInput
+from meute.core.text import INSTRUCTIONS_CONTROL, has_control_character
 
 PERMISSION_MODES = frozenset(
     {"manual", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"}
@@ -169,6 +170,9 @@ def _instructions(section: Mapping[str, object]) -> str:
     value = section.get("instructions", "")
     if not isinstance(value, str):
         message = "claude.instructions: expected a string"
+        raise InvalidInput(message)
+    if has_control_character(value):
+        message = f"claude.instructions: {INSTRUCTIONS_CONTROL}"
         raise InvalidInput(message)
     return value
 

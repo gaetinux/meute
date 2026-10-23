@@ -53,13 +53,23 @@ def test_edit_with_empty_text_clears(sandbox: Sandbox) -> None:
     assert shown["instructions"] == ""
 
 
-@pytest.mark.parametrize("extra", [[], ["--instructions", "a", "--instructions-file", "f"]])
+@pytest.mark.parametrize("extra", [[]])
 def test_edit_needs_exactly_one_option(sandbox: Sandbox, extra: list[str]) -> None:
     sandbox.run("project", "add", "meute")
     result = sandbox.run("project", "edit", "meute", *extra)
     assert (result.returncode, result.stderr) == (
         1,
         "meute: give --instructions or --instructions-file\n",
+    )
+
+
+def test_edit_refuses_both_options(sandbox: Sandbox) -> None:
+    sandbox.run("project", "add", "meute")
+    both = ["--instructions", "a", "--instructions-file", "f"]
+    result = sandbox.run("project", "edit", "meute", *both)
+    assert (result.returncode, result.stderr) == (
+        1,
+        "meute: give either --instructions or --instructions-file, not both\n",
     )
 
 
@@ -78,7 +88,10 @@ def test_edit_unknown_project(sandbox: Sandbox) -> None:
 
 def test_show_text(sandbox: Sandbox) -> None:
     sandbox.run("project", "add", "meute", "--description", "The app")
-    sandbox.run("project", "edit", "meute", "--instructions", "a\nb\x1b[31m")
+    with sandbox.db() as db:  # `project edit` refuses control characters: stored directly
+        project = project_by_name(db, "meute")
+        assert project is not None
+        _ = set_project_instructions(db, project.id, "a\nb\x1b[31m")
     out = sandbox.run("project", "show", "meute").stdout
     assert out == "name: meute\ndescription: The app\ninstructions: a\nb�[31m\nrepos:\n"
 
@@ -88,3 +101,40 @@ def test_show_json_and_unknown(sandbox: Sandbox) -> None:
     shown = load_json(sandbox.run("project", "show", "meute", "--json").stdout)
     assert shown == {"name": "meute", "description": "", "instructions": "", "repos": []}
     assert sandbox.run("project", "show", "nope").returncode == 4
+
+
+def test_edit_refuses_control_characters_in_the_text(sandbox: Sandbox) -> None:
+    sandbox.run("project", "add", "meute")
+    result = sandbox.run("project", "edit", "meute", "--instructions", "a\x1b[31m")
+    assert (result.returncode, result.stderr) == (
+        1,
+        "meute: instructions contain a control character\n",
+    )
+
+
+def test_edit_refuses_a_nul_in_the_file(sandbox: Sandbox, tmp_path: Path) -> None:
+    sandbox.run("project", "add", "meute")
+    file = tmp_path / "rules.md"
+    file.write_text("a\x00b\n", encoding="utf-8")
+    result = sandbox.run("project", "edit", "meute", "--instructions-file", str(file))
+    assert (result.returncode, result.stderr) == (
+        1,
+        "meute: instructions contain a control character\n",
+    )
+
+
+def test_edit_keeps_tabs_and_newlines(sandbox: Sandbox) -> None:
+    sandbox.run("project", "add", "meute")
+    result = sandbox.run("project", "edit", "meute", "--instructions", "a\n\tb")
+    assert (result.returncode, result.stderr) == (0, "")
+
+
+def test_edit_with_a_file_that_is_not_utf8(sandbox: Sandbox, tmp_path: Path) -> None:
+    sandbox.run("project", "add", "meute")
+    file = tmp_path / "rules.md"
+    file.write_bytes(b"caf\xe9\n")
+    result = sandbox.run("project", "edit", "meute", "--instructions-file", str(file))
+    assert (result.returncode, result.stderr) == (
+        1,
+        f"meute: cannot read {file}: not valid UTF-8\n",
+    )
