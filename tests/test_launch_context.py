@@ -17,7 +17,6 @@ from meute.cli.session_resume import resume_session
 from meute.cli.tmux_env import TmuxEnv, meute_command
 from meute.core.actor import Actor, Author, Channel
 from meute.core.config import Config
-from meute.core.config_validate import ClaudeConfig
 from meute.core.context import CONTRADICTION_RULE, task_line
 from meute.core.db.connection import Database
 from meute.core.db.projects import create_project, set_project_instructions
@@ -127,7 +126,9 @@ def test_context_is_none_without_any_instructions_or_task(sandbox: Sandbox) -> N
 def test_context_resolves_the_project_by_id_then_by_repository_name(sandbox: Sandbox) -> None:
     folder = sandbox.root / "w"
     folder.mkdir()
-    ctx, _ = _ctx(sandbox, Config(claude=ClaudeConfig(instructions="be kind")))
+    ctx, _ = _ctx(sandbox)
+    ctx.paths.config_file.parent.mkdir(parents=True)
+    ctx.paths.config_file.write_text('[claude]\ninstructions = "be kind"\n', encoding="utf-8")
     try:
         by_id = create_project(ctx.db, "other")
         _ = set_project_instructions(ctx.db, by_id.id, "from other")

@@ -1,6 +1,7 @@
 """The context appended to the system prompt of a Claude session."""
 
 from meute.cli.context import CliContext
+from meute.core.config import load_config
 from meute.core.context import compose_context
 from meute.core.db.projects import list_projects
 from meute.core.db.repos import list_repos
@@ -26,9 +27,15 @@ def _project(
 def session_context(
     ctx: CliContext, *, project_id: ProjectId | None, repo_id: RepoId | None, task_id: TaskId | None
 ) -> str | None:
-    """Compose the context of a session that may not be recorded yet; None when empty."""
+    """Compose the context of a session that may not be recorded yet; None when empty.
+
+    The configuration is read again: the board keeps one context for its whole life.
+
+    Raises:
+        ConfigError: the configuration file has become invalid.
+    """
     return compose_context(
-        global_instructions=ctx.config.claude.instructions,
+        global_instructions=load_config(ctx.paths.config_file).claude.instructions,
         project=_project(ctx, project_id, repo_id),
         task_id=task_id,
     )
