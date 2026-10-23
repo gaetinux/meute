@@ -55,6 +55,26 @@ def caller_session(environ: Mapping[str, str]) -> SessionId | None:
     return parsed if parsed == text else None  # parse_session_id also lower-cases
 
 
+_INT64_MIN = -(2**63)
+_INT64_MAX = 2**63 - 1
+
+
+def _task_id(value: int) -> TaskId:
+    """A task id within SQLite's integer range; ids start at 1."""
+    if not 1 <= value <= _INT64_MAX:
+        message = f"id out of range: {value}"
+        raise InvalidInput(message)
+    return TaskId(value)
+
+
+def _version(value: int) -> int:
+    """An expected version within SQLite's integer range."""
+    if not _INT64_MIN <= value <= _INT64_MAX:
+        message = f"expected_version out of range: {value}"
+        raise InvalidInput(message)
+    return value
+
+
 def _unavailable(error: BaseException) -> MeuteError:
     return MeuteError(f"meute database unavailable: {error}")
 
@@ -137,8 +157,9 @@ class CliMcpBackend:
 
     def task_read(self, task_id: int) -> JsonObject:
         """Return a task with its notes."""
+        checked = _task_id(task_id)
         with self._database() as db:
-            task = get_task(db, TaskId(task_id))
+            task = get_task(db, checked)
             return task_json(task, notes(db, task.id))
 
     def task_create(
@@ -172,6 +193,7 @@ class CliMcpBackend:
 
     def task_update(self, task_id: int, expected_version: int, changes: TaskChanges) -> JsonObject:
         """Change the fields of a task, but not its status."""
+        checked, version = _task_id(task_id), _version(expected_version)
         patch_title = _required("title", changes.title)
         patch_priority = _required("priority", changes.priority)
         parsed_priority = (
@@ -188,32 +210,33 @@ class CliMcpBackend:
                 due=parsed_due,
                 project_id=project_id,
             )
-            task = update_task(db, TaskId(task_id), expected_version, patch, self._actor)
+            task = update_task(db, checked, version, patch, self._actor)
             return {"version": task.version}
 
     def task_set_status(
         self, task_id: int, status: str, reason: str | None, expected_version: int
     ) -> JsonObject:
         """Set the status of a task."""
+        checked, version = _task_id(task_id), _version(expected_version)
         new_status = parse_status(status, reason)
         with self._database() as db:
-            task = update_task(
-                db, TaskId(task_id), expected_version, TaskPatch(status=new_status), self._actor
-            )
+            task = update_task(db, checked, version, TaskPatch(status=new_status), self._actor)
             return {"version": task.version}
 
     def task_note_add(self, task_id: int, body: str) -> JsonObject:
         """Add a note to a task."""
+        checked = _task_id(task_id)
         with self._database() as db:
-            return {"note_id": add_note(db, TaskId(task_id), body, self._actor).id}
+            return {"note_id": add_note(db, checked, body, self._actor).id}
 
     def task_link_session(self, task_id: int) -> JsonObject:
         """Link the calling session to a task."""
+        checked = _task_id(task_id)
         if self._caller is None:
             message = "no calling session: MEUTE_SESSION is not set to a session id"
             raise InvalidInput(message)
         with self._database() as db:
-            session = link_session_task(db, self._caller, TaskId(task_id))
+            session = link_session_task(db, self._caller, checked)
             return {"session_id": session.id, "task_id": task_id}
 
 
