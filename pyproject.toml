@@ -205,4 +205,8 @@ pytest_add_cli_args_test_selection = [
     "tests/test_mcp_data.py", "tests/test_composed_context.py", "tests/test_context_arg.py",
     "tests/test_claude_mcp_config.py", "tests/test_config_instructions.py", "tests/test_db_link_session.py",
     "tests/test_mutants_plan5.py",
+    "tests/test_git_state.py", "tests/test_worktrees.py", "tests/test_card_git_line.py",
+    "tests/test_launch_form_worktree.py", "tests/test_repo_holding.py", "tests/test_git_run.py",
+    "tests/test_git_run_pipeline.py", "tests/test_git_run_traps.py", "tests/test_git_poller.py",
+    "tests/test_worktree_launch.py", "tests/test_worktree_removal.py", "tests/test_mutants_plan6a.py",
 ]
