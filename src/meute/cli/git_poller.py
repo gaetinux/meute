@@ -10,6 +10,7 @@ import subprocess
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
+from itertools import islice
 from pathlib import Path
 from typing import IO
 
@@ -80,9 +81,12 @@ class _Folder:
 
 
 def _chosen(folders: Sequence[Path], limit: int) -> list[Path]:
-    """The first `limit` distinct folders that are absolute and exist, in order."""
+    """The first `limit` distinct folders that are absolute and exist, in order.
+
+    No folder after the `limit`-th one found is looked at on disk.
+    """
     distinct = dict.fromkeys(folder for folder in folders if folder.is_absolute())
-    return [folder for folder in distinct if folder.is_dir()][:limit]
+    return list(islice((folder for folder in distinct if folder.is_dir()), limit))
 
 
 class GitPoller:

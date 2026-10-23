@@ -7,7 +7,7 @@ import pytest
 
 from git_support import GitRepo, fake_git, git_env, real_git
 from meute.git.discover import main_repo_of
-from meute.git.run import GitError, find_git, read_args, read_git, start_read, write_git
+from meute.git.run import GitError, find_git, read_args, read_git, start_read_with, write_git
 
 GUARD = ("-c", "core.fsmonitor=false", "--no-optional-locks")
 
@@ -154,9 +154,9 @@ def test_find_git(tmp_path: Path) -> None:
     assert find_git({}) is None
 
 
-def test_start_read_runs_the_same_command(tmp_path: Path) -> None:
+def test_start_read_with_runs_the_same_command(tmp_path: Path) -> None:
     git = fake_git(tmp_path / "bin", f"{ECHO}\necho --\n/usr/bin/env")
-    process = start_read(git, tmp_path, ["diff", "HEAD"], environ={"PATH": "/some/bin"})
+    process = start_read_with(git, tmp_path, ["diff", "HEAD"], (), environ={"PATH": "/some/bin"})
     out, _ = process.communicate(timeout=5)
     assert process.returncode == 0
     args, _, env = out.decode().partition("--\n")

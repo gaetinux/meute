@@ -7,7 +7,15 @@ from pathlib import Path
 import pytest
 
 from git_support import GitRepo, fake_git, make_repo, real_git
-from meute.git.run import GitError, read_args, read_git, start_read, write_git
+from meute.git.run import (
+    GitError,
+    lookup_filters,
+    read_args,
+    read_git,
+    start_filter_lookup,
+    start_read_with,
+    write_git,
+)
 
 
 def test_trapped_config_runs_nothing(git_repo: GitRepo, tmp_path: Path) -> None:
@@ -30,6 +38,16 @@ def test_trapped_config_runs_nothing(git_repo: GitRepo, tmp_path: Path) -> None:
     )
     assert numstat == "1\t0\tREADME.md\n"
     assert not witness.exists()
+
+
+def polled_read(repo: GitRepo, args: list[str]) -> bytes:
+    """The read as the board's poller runs it: the lookup, then the read; its output."""
+    git = real_git(repo)
+    lookup = start_filter_lookup(git, repo.path, environ=repo.env)
+    out, err = lookup.communicate(timeout=5)
+    filters = lookup_filters(lookup.returncode, out, err)
+    process = start_read_with(git, repo.path, args, filters, environ=repo.env)
+    return process.communicate(timeout=5)[0]
 
 
 def unguarded_read(repo: GitRepo, args: list[str]) -> None:
@@ -71,8 +89,7 @@ def test_filter_drivers_never_run(git_repo: GitRepo, tmp_path: Path, driver: str
     witness.unlink()
     out = read_git(git, git_repo.path, numstat, timeout=5, environ=git_repo.env)
     assert out == "1\t0\tREADME.md\n"
-    process = start_read(git, git_repo.path, numstat, environ=git_repo.env)
-    assert process.communicate(timeout=5)[0] == b"1\t0\tREADME.md\n"
+    assert polled_read(git_repo, numstat) == b"1\t0\tREADME.md\n"
     assert not witness.exists()
 
 
@@ -102,8 +119,7 @@ def test_an_empty_named_driver_never_runs(git_repo: GitRepo, tmp_path: Path) -> 
     witness.unlink()
     out = read_git(git, git_repo.path, numstat, timeout=5, environ=git_repo.env)
     assert out == "1\t0\tREADME.md\n"
-    process = start_read(git, git_repo.path, numstat, environ=git_repo.env)
-    assert process.communicate(timeout=5)[0] == b"1\t0\tREADME.md\n"
+    assert polled_read(git_repo, numstat) == b"1\t0\tREADME.md\n"
     assert not witness.exists()
 
 
@@ -118,7 +134,7 @@ def test_a_driver_name_git_c_cannot_express_is_refused(git_repo: GitRepo, tmp_pa
         read_git(git, git_repo.path, ["diff", "--numstat", "HEAD"], timeout=5, environ=git_repo.env)
     assert str(caught.value) == "git: unsupported filter driver name"
     with pytest.raises(GitError):
-        start_read(git, git_repo.path, ["status"], environ=git_repo.env)
+        polled_read(git_repo, ["status"])
     assert not witness.exists()
 
 

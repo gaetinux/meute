@@ -26,7 +26,6 @@ _NO_FSMONITOR = ("-c", "core.fsmonitor=false")
 _DIFF_GUARD = ("--no-ext-diff", "--no-textconv")
 _NO_SUBMODULES = "--ignore-submodules=all"
 _FILTER_LOOKUP = ("config", "--null", "--get-regexp", r"^filter\.")
-_LOOKUP_TIMEOUT = 5.0  # for `start_read`, whose command has no timeout of its own
 _GUARD_ENV = {"GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
 _MESSAGE_LIMIT = 200
 
@@ -247,20 +246,6 @@ def read_git(
     if left <= 0:
         raise _timed_out(timeout)
     return _run(git, read_args(folder, args, filters), left, environ, shown=timeout)
-
-
-def start_read(
-    git: Path, folder: Path, args: Sequence[str], *, environ: Mapping[str, str]
-) -> subprocess.Popen[bytes]:
-    """Start the same command as `read_git` without waiting for it.
-
-    The filter driver lookup runs first and is waited for (it is quick).
-
-    Raises:
-        GitError: git is missing, or the filter driver lookup failed.
-    """
-    filters = filter_drivers(git, folder, timeout=_LOOKUP_TIMEOUT, environ=environ)
-    return start_read_with(git, folder, args, filters, environ=environ)
 
 
 def write_git(

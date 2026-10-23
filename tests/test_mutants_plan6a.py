@@ -13,14 +13,13 @@ from meute.core.git_state import GitState, parse_numstat, parse_status_v2
 from meute.core.launch_form import FormField, erase, open_form, type_text
 from meute.core.sessions_view import ViewState
 from meute.core.statusline import StatuslineData
-from meute.git import run, worktree
+from meute.git import worktree
 from meute.git.run import (
     GitError,
     filter_names,
     has_exited,
     kill_read,
     read_git,
-    start_read,
     start_read_with,
     write_git,
 )
@@ -140,16 +139,6 @@ def test_reads_and_writes_time_out_after_the_lookup(tmp_path: Path) -> None:
         with pytest.raises(GitError) as caught:
             call(git, tmp_path, ["status"], timeout=0.3, environ={})
         assert str(caught.value) == "git timed out after 0.3 s"
-
-
-def test_the_lookup_of_start_read_times_out(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(run, "_LOOKUP_TIMEOUT", 0.3)
-    git = fake_git(tmp_path / "bin", "sleep 3")
-    with pytest.raises(GitError) as caught:
-        start_read(git, tmp_path, ["status"], environ={})
-    assert str(caught.value) == "git timed out after 0.3 s"
 
 
 # --- meute.git.worktree

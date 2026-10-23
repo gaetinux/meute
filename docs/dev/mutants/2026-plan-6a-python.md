@@ -29,7 +29,7 @@ Tous dans `tests/test_mutants_plan6a.py` (19 tests, 22 cas). Ils tuent 39 surviv
 | `test_a_git_reaped_elsewhere_has_exited`, `test_killing_a_finished_git_returns_its_status` | `has_exited` (`ChildProcessError` → `False`), `kill_read` (`suppress(None)`) |
 | `test_a_message_that_is_not_utf8_is_shown` | `_failure` : `errors="replace"` retiré ou faussé (3) |
 | `test_a_silent_failure_after_the_lookup_gives_the_status` | `_run` : code de sortie remplacé par `None` dans le message |
-| `test_reads_and_writes_time_out_after_the_lookup`, `test_the_lookup_of_start_read_times_out` | délai remplacé par `None` dans `_run`, `read_git`, `write_git`, `start_read` (4). Les tests existants ne faisaient dépasser le délai qu'à la recherche des pilotes |
+| `test_reads_and_writes_time_out_after_the_lookup`, `test_the_lookup_of_start_read_times_out` | délai remplacé par `None` dans `_run`, `read_git`, `write_git`, `start_read` (4). Les tests existants ne faisaient dépasser le délai qu'à la recherche des pilotes. `start_read` et son test ont été retirés depuis (/simplify) : aucun appelant en production |
 | `test_every_worktree_command_has_a_timeout` | délai remplacé par `None` dans les sept commandes de `meute.git.worktree` (7) ; les constantes de délai sont abaissées à 0,3 s par `monkeypatch` |
 | `test_check_branch_refuses_an_invalid_name` | `check_branch` : l'appel à `check-ref-format` retiré |
 | `test_a_detached_head_excludes_no_branch_even_one_named_none` | `worktree_only_commits` : `--exclude=None` passé pour un HEAD détaché |
