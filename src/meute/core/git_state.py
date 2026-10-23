@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from meute.core.text import printable
 
 _SHORT_OID = 7
+_MAX_DIGITS = 18
 _MINUS = chr(0x2212)
 
 
@@ -57,7 +58,7 @@ def parse_status_v2(text: str) -> GitState | None:
             dirty = True
     if head is None:
         return None
-    detached = oid[:_SHORT_OID] if head == "(detached)" else None
+    detached = (oid[:_SHORT_OID] or "?") if head == "(detached)" else None
     return GitState(
         branch=None if detached is not None else head,
         detached=detached,
@@ -77,7 +78,7 @@ def _ahead_behind(text: str) -> tuple[int, int]:
 
 
 def _count(word: str) -> int | None:
-    return int(word) if word.isascii() and word.isdigit() else None
+    return int(word) if word.isascii() and word.isdigit() and len(word) <= _MAX_DIGITS else None
 
 
 def parse_numstat(text: str) -> tuple[int, int]:

@@ -168,3 +168,18 @@ def test_git_text_is_one_safe_line(state: GitState) -> None:
     text = git_text(state)
     assert len(text.splitlines()) <= 1
     assert all(unicodedata.category(char) != "Cc" for char in text)
+
+
+def test_huge_numbers_are_malformed() -> None:
+    digits = "9" * 5000
+    parsed = parse_status_v2(f"# branch.head main\n# branch.ab +{digits} -1\n")
+    assert parsed is not None
+    assert (parsed.ahead, parsed.behind) == (0, 0)
+    assert parse_numstat(f"{digits}\t1\tf\n3\t4\tg\n") == (3, 4)
+
+
+def test_detached_without_oid_shows_a_question_mark() -> None:
+    parsed = parse_status_v2("# branch.head (detached)\n")
+    assert parsed is not None
+    assert parsed.detached == "?"
+    assert git_text(parsed) == "(detached ?)"
