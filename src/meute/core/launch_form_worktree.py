@@ -4,6 +4,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, assert_never
 
+from meute.core.paths import resolved
 from meute.core.worktrees import Worktree, branch_error, branch_from_title, worktree_path
 
 if TYPE_CHECKING:
@@ -34,17 +35,14 @@ class ExistingWorktree:
 type WorktreeChoice = NoWorktree | NewWorktree | ExistingWorktree
 
 
-def resolved(path: Path) -> Path:
-    """Return `path` resolved; one that cannot be resolved stands for itself."""
-    try:
-        return path.resolve()
-    except (ValueError, OSError, RuntimeError):
-        return path
-
-
 def recommended(repo: Path | None, busy: frozenset[Path]) -> WorktreeChoice:
     """Return `new` when a live session already works in the folder of `repo`, else `none`."""
     return NewWorktree() if repo is not None and resolved(repo) in busy else NoWorktree()
+
+
+def repo_path(form: "LaunchForm") -> Path | None:
+    """Return the folder of the repository chosen in `form`, or None without one."""
+    return None if form.repo is None else form.repos[form.repo].path
 
 
 def chosen_worktree(form: "LaunchForm") -> WorktreeChoice:
@@ -57,7 +55,7 @@ def with_worktrees(form: "LaunchForm", worktrees: tuple[Worktree, ...] | str) ->
 
     The choice goes back to `none`, then to `new` when the folder of the repository is busy.
     """
-    repo = None if form.repo is None else form.repos[form.repo].path
+    repo = repo_path(form)
     listed = () if isinstance(worktrees, str) else worktrees
     return replace(
         form,
@@ -71,24 +69,13 @@ def cycle_worktree(form: "LaunchForm", step: int) -> "LaunchForm":
     """Return `form` with its choice moved by `step` through `none`, `new`, then the existing."""
     if form.repo is None:
         return form
-    match form.worktree:
-        case NoWorktree():
-            position = 0
-        case NewWorktree():
-            position = 1
-        case ExistingWorktree(index=index):
-            position = 2 + index
-        case _:
-            assert_never(form.worktree)
-    position = (position + step) % (2 + len(form.worktrees))
-    choice: WorktreeChoice
-    if position == 0:
-        choice = NoWorktree()
-    elif position == 1:
-        choice = NewWorktree()
-    else:
-        choice = ExistingWorktree(index=position - 2)
-    return replace(form, worktree=choice, error=None)
+    choices: list[WorktreeChoice] = [
+        NoWorktree(),
+        NewWorktree(),
+        *(ExistingWorktree(index=index) for index in range(len(form.worktrees))),
+    ]
+    position = (choices.index(form.worktree) + step) % len(choices)
+    return replace(form, worktree=choices[position], error=None)
 
 
 def retitled(form: "LaunchForm", title: str) -> "LaunchForm":
@@ -115,19 +102,17 @@ def expanded(folder: str, home: Path) -> Path | str:
 
 def target_folder(form: "LaunchForm", home: Path) -> Path | str:
     """Return the folder the form would launch in, or the error in its folder or branch."""
-    choice = chosen_worktree(form)
-    match choice:
+    repo = repo_path(form)
+    if repo is None:  # without a repository the choice is always `none`
+        return expanded(form.folder, home)
+    match form.worktree:
         case NoWorktree():
             return expanded(form.folder, home)
         case NewWorktree():
             branch = form.branch.strip()
             error = branch_error(branch)
-            if error is not None:
-                return error
-            if form.repo is None:  # never: without a repository the choice is `none`
-                return expanded(form.folder, home)
-            return worktree_path(form.repos[form.repo].path, branch)
+            return worktree_path(repo, branch) if error is None else error
         case ExistingWorktree(index=index):
             return form.worktrees[index].path
         case _:
-            assert_never(choice)
+            assert_never(form.worktree)

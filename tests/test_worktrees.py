@@ -35,7 +35,7 @@ BARE = "worktree /r/bare.git\0bare\0\0"
 
 
 def _wt(path: str, branch: str | None, *, locked: bool = False) -> Worktree:
-    return Worktree(path=Path(path), branch=branch, head=OID, locked=locked, prunable=False)
+    return Worktree(path=Path(path), branch=branch, head=OID, locked=locked)
 
 
 def test_parse_real_output() -> None:
@@ -84,16 +84,14 @@ def test_parse_empty() -> None:
 def test_parse_tolerates_extra_empty_fields_and_no_final_one() -> None:
     text = f"worktree /r/x\0HEAD {OID}\0\0\0\0worktree /r/a\0branch refs/heads/a"
     assert parse_worktree_list(text, MAIN) == (
-        Worktree(path=Path("/r/a"), branch="a", head="", locked=False, prunable=False),
+        Worktree(path=Path("/r/a"), branch="a", head="", locked=False),
     )
 
 
 def test_parse_keeps_newlines_inside_fields() -> None:
     text = "worktree /r/x\0\0worktree /r/a\nworktree /r/b\0branch refs/heads/a\nb\0\0"
     assert parse_worktree_list(text, MAIN) == (
-        Worktree(
-            path=Path("/r/a\nworktree /r/b"), branch="a\nb", head="", locked=False, prunable=False
-        ),
+        Worktree(path=Path("/r/a\nworktree /r/b"), branch="a\nb", head="", locked=False),
     )
 
 
@@ -166,9 +164,7 @@ def test_accepted_branches_stay_under_worktrees_dir(branch: str) -> None:
 
 
 def _check(changes: tuple[str, ...], commits: tuple[str, ...]) -> WorktreeCheck:
-    return WorktreeCheck(
-        path=Path("/r/a"), repo=MAIN, branch="a", locked=False, changes=changes, commits=commits
-    )
+    return WorktreeCheck(path=Path("/r/a"), repo=MAIN, branch="a", changes=changes, commits=commits)
 
 
 def test_check_clean() -> None:

@@ -13,6 +13,7 @@ _FORBIDDEN = frozenset("\\~^:?*[ ")
 _UNSAFE = re.compile(r"[^a-z0-9_./-]")
 _DASHES = re.compile(r"-{2,}")
 _EDGES = "-./"
+_SHORT_HEAD = 7
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -24,14 +25,17 @@ class Worktree:
         branch: The checked-out branch without `refs/heads/`, or None when detached.
         head: The commit HEAD points to.
         locked: Whether `git worktree lock` protects it.
-        prunable: Whether git considers it stale.
     """
 
     path: Path
     branch: str | None
     head: str
     locked: bool
-    prunable: bool
+
+    @property
+    def label(self) -> str:
+        """Its branch, or `(detached <commit>)` with the short commit when detached."""
+        return self.branch or f"(detached {self.head[:_SHORT_HEAD]})"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -42,7 +46,6 @@ class WorktreeCheck:
         path: The worktree folder.
         repo: The main repository folder.
         branch: Its branch, or None when detached.
-        locked: Whether the worktree is locked.
         changes: The lines of `git status --porcelain`.
         commits: The lines of `git log --oneline` of unpushed commits.
     """
@@ -50,7 +53,6 @@ class WorktreeCheck:
     path: Path
     repo: Path
     branch: str | None
-    locked: bool
     changes: tuple[str, ...]
     commits: tuple[str, ...]
 
@@ -100,7 +102,7 @@ def _block(block: Sequence[str]) -> Worktree | None:
             return None
     if path is None or not path.is_absolute():
         return None
-    return Worktree(path=path, branch=branch, head=head, locked=locked, prunable=False)
+    return Worktree(path=path, branch=branch, head=head, locked=locked)
 
 
 def branch_from_title(title: str) -> str:

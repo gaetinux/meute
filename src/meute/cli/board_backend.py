@@ -24,7 +24,7 @@ from meute.cli.status_publish import publish_status
 from meute.cli.task_launch import READY_TIMEOUT_SECONDS, launch_claude_on_task, launch_on_task
 from meute.cli.task_quick_create import TUI_ACTOR, create_quick_task, move_to_repo_project
 from meute.cli.tmux_env import TmuxEnv
-from meute.cli.worktree_removal import live_session_folders, perform_removal, resolved
+from meute.cli.worktree_removal import live_session_folders, perform_removal
 from meute.core.board_view import (
     AddNote,
     AdoptOrphan,
@@ -52,6 +52,7 @@ from meute.core.db.task_update import delete_task, update_task
 from meute.core.errors import MeuteError, PromptNotPasted
 from meute.core.git_folder import git_folder
 from meute.core.git_state import GitState
+from meute.core.paths import resolved
 from meute.core.session import SessionId
 from meute.core.task import TaskId
 from meute.core.views import count_overdue
@@ -148,7 +149,7 @@ class CliBoardBackend:
 
     def live_folders(self) -> tuple[Path, ...]:
         """The resolved folders where the live sessions of the last load work."""
-        return resolved(self._live)
+        return tuple(map(resolved, self._live))
 
     def _take_git(self, fresh: Mapping[Path, GitState] | None) -> None:
         """Keep a fresh Git state; when it changed, the next load rereads."""

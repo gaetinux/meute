@@ -24,7 +24,7 @@ Scenario = Callable[[BoardApp, Pilot[None]], Awaitable[None]]
 _NO_POLL = 3600.0
 _SIZE = (72, 30)
 _OTHER = BOARD_HOME / "git" / "meute-wt"
-_LISTED = Worktree(path=_OTHER, branch="feat/x", head="a" * 40, locked=False, prunable=False)
+_LISTED = Worktree(path=_OTHER, branch="feat/x", head="a" * 40, locked=False)
 
 
 class FakeGit:

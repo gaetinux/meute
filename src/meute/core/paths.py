@@ -4,6 +4,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from meute.core.text import printable
+
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Paths:
@@ -58,3 +60,16 @@ def display_path(path: Path, home: Path | None) -> str:
         return str(path)
     relative = path.relative_to(home)
     return "~" if relative == Path() else f"~/{relative}"
+
+
+def shown_path(path: Path, home: Path | None) -> str:
+    """Return `path` as `display_path` writes it, made safe to show on a terminal."""
+    return printable(display_path(path, home))
+
+
+def resolved(path: Path) -> Path:
+    """Return `path` resolved; one that cannot be resolved stands for itself."""
+    try:
+        return path.resolve()
+    except (ValueError, OSError, RuntimeError):
+        return path

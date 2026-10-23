@@ -18,11 +18,12 @@ from meute.core.launch_form_worktree import (
     WorktreeChoice,
     chosen_worktree,
     cycle_worktree,
-    resolved,
+    repo_path,
     retitled,
     target_folder,
     with_worktrees,
 )
+from meute.core.paths import resolved
 from meute.core.repo import Repo
 from meute.core.session import AgentKind
 from meute.core.session_state import is_live
@@ -290,11 +291,9 @@ def form_action(form: LaunchForm, home: Path) -> LaunchBash | LaunchClaude | str
 
 
 def shares_folder(form: LaunchForm, home: Path) -> bool:
-    """Return whether another live session works in the folder the choice is about.
-
-    With a new worktree that is the folder of the repository; otherwise the target folder.
-    """
-    if isinstance(chosen_worktree(form), NewWorktree) and form.repo is not None:
-        return resolved(form.repos[form.repo].path) in form.busy
+    """Return whether a live session works in the chosen folder (`new`: the repository's)."""
+    repo = repo_path(form)
+    if repo is not None and isinstance(form.worktree, NewWorktree):
+        return resolved(repo) in form.busy
     cwd = target_folder(form, home)
     return not isinstance(cwd, str) and resolved(cwd) in form.busy

@@ -24,7 +24,7 @@ _NO_POLL = 3600.0
 _REPO = BOARD_HOME / "git" / "meute"
 _TREE = BOARD_HOME / "git" / "meute.worktrees" / "feat"
 _SHOWN = "~/git/meute.worktrees/feat"
-_CLEAN = WorktreeCheck(path=_TREE, repo=_REPO, branch="feat", locked=False, changes=(), commits=())
+_CLEAN = WorktreeCheck(path=_TREE, repo=_REPO, branch="feat", changes=(), commits=())
 _DIRTY = replace(
     _CLEAN,
     changes=tuple(f" M file{n}.py" for n in range(12)),

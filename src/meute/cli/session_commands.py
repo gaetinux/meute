@@ -1,21 +1,20 @@
 """The `meute session` commands."""
 
 import os
-import sys
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Annotated, assert_never
+from typing import Annotated
 
 import typer
 
 from meute.claude.agents import run_agents
 from meute.claude.launch import find_claude
+from meute.cli.confirm import confirmed
 from meute.cli.context import open_context
-from meute.cli.folder_repo import repo_id_of_folder
+from meute.cli.folder_repo import main_repo_or_fail, repo_id_of_folder
 from meute.cli.json_out import echo_json
 from meute.cli.session_jump import jump_to_attention
-from meute.cli.session_launch import BashLaunch, launch_bash, resolve_folder
-from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
+from meute.cli.session_launch_claude import start_session
 from meute.cli.session_refresh import refresh
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
@@ -31,7 +30,6 @@ from meute.core.paths import display_path
 from meute.core.session import AgentKind, Session, SessionId, session_to_json, short_id
 from meute.core.session_state import state_label
 from meute.core.text import printable
-from meute.git.discover import main_repo_of
 
 session_app = typer.Typer(no_args_is_help=True, help="Sessions running in tmux.")
 
@@ -62,25 +60,21 @@ def new(
 
         def launch(folder: Path) -> Session:
             repo_id = repo_id_of_folder(ctx, folder)
-            match kind:
-                case AgentKind.CLAUDE:
-                    claude = ClaudeLaunch(
-                        cwd=folder, repo_id=repo_id, title=title, permission_mode=permission_mode
-                    )
-                    return launch_claude(ctx, env, claude, os.environ)
-                case AgentKind.BASH:
-                    bash = BashLaunch(cwd=folder, repo_id=repo_id, title=title)
-                    return launch_bash(ctx, env, bash, os.environ)
-                case _:
-                    assert_never(kind)
+            return start_session(
+                ctx,
+                env,
+                os.environ,
+                kind=kind,
+                cwd=folder,
+                repo_id=repo_id,
+                title=title,
+                permission_mode=permission_mode,
+            )
 
         if worktree is None:
             session = launch(folder)
         else:
-            repo = main_repo_of(resolve_folder(folder))
-            if repo is None:
-                message = f"not in a git repository: {display_path(folder, Path.home())}"
-                raise InvalidInput(message)
+            repo = main_repo_or_fail(folder)
             session = launch_in_new_worktree(os.environ, repo, worktree, launch)
     typer.echo(
         f"Launched: {short_id(session.id)} {printable(session.title)} "
@@ -175,11 +169,6 @@ def previous() -> None:
         _ = jump_to_attention(ctx, open_tmux_env(ctx, os.environ), os.environ, backwards=True)
 
 
-def _confirmed(title: str) -> bool:
-    typer.echo(f'Stop session "{printable(title)}"? [y/N] ', err=True, nl=False)
-    return sys.stdin.readline().strip().lower() in {"y", "yes"}
-
-
 @session_app.command("stop")
 def stop(
     session_id: Annotated[str, typer.Argument(help="Session id or prefix.")],
@@ -189,7 +178,7 @@ def stop(
     """Stop a session: Ctrl-C, then kill it if it does not exit."""
     with open_context(os.environ) as ctx:
         session = find_session(ctx.db, session_id)
-        if not yes and not _confirmed(session.title):
+        if not yes and not confirmed(f'Stop session "{printable(session.title)}"? [y/N] '):
             typer.echo("Cancelled.")
             return
         stopped = stop_session(ctx, open_tmux_env(ctx, os.environ), session.id, environ=os.environ)

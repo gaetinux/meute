@@ -194,3 +194,12 @@ def test_a_failing_repository_does_not_hide_the_others(sandbox: Sandbox) -> None
     assert result.stdout == "~/repo.worktrees/feat  feat\n"
     assert result.stderr.startswith("meute: ~/broken: git: ")
     assert result.stderr.count("\n") == 1
+
+
+def test_outside_git_names_the_resolved_folder(sandbox: Sandbox) -> None:
+    plain = (sandbox.root / "home" / "plain").resolve()
+    plain.mkdir(parents=True)
+    (sandbox.root / "home" / "link").symlink_to(plain)
+    result = sandbox.run("worktree", "list", str(sandbox.root / "home" / "link"))
+    assert (result.returncode, result.stdout) == (1, "")
+    assert result.stderr == "meute: not in a git repository: ~/plain\n"

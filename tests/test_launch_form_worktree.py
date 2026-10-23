@@ -39,11 +39,8 @@ _FIX = Worktree(
     branch="fix",
     head="a1b2c3d4e5",
     locked=False,
-    prunable=False,
 )
-_DETACHED = Worktree(
-    path=Path("/srv/spike"), branch=None, head="0123456789ab", locked=False, prunable=False
-)
+_DETACHED = Worktree(path=Path("/srv/spike"), branch=None, head="0123456789ab", locked=False)
 
 
 def _open(

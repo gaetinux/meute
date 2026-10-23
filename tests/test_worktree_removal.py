@@ -8,6 +8,7 @@ from git_support import GitRepo, fake_git, git_env, make_repo, real_git
 from meute.cli.board_git import CliBoardGit
 from meute.cli.worktree_removal import inspect_worktree, remove_checked
 from meute.core.errors import InvalidInput, MeuteError
+from meute.core.paths import shown_path
 from meute.core.worktrees import WorktreeCheck, listed_text
 from meute.git.worktree import remove_worktree
 
@@ -49,7 +50,6 @@ def test_a_clean_worktree_has_nothing_to_report(repo: GitRepo) -> None:
         path=path.resolve(),
         repo=repo.path.resolve(),
         branch="feat",
-        locked=False,
         changes=(),
         commits=(),
     )
@@ -200,3 +200,15 @@ def test_board_git_inspects_with_the_live_folders(repo: GitRepo) -> None:
     assert isinstance(refused, str)
     assert refused.startswith("not a linked worktree: ")
     assert CliBoardGit({"PATH": "/nonexistent"}).inspect(path) == "git not found"
+
+
+def test_refusals_name_the_resolved_folder(repo: GitRepo, tmp_path: Path) -> None:
+    plain = (tmp_path / "plain").resolve()
+    plain.mkdir()
+    (tmp_path / "link").symlink_to(plain)
+    with pytest.raises(InvalidInput) as caught:
+        _ = inspect_worktree(repo.env, tmp_path / "link", ())
+    assert str(caught.value) == f"not a linked worktree: {shown_path(plain, Path.home())}"
+    with pytest.raises(InvalidInput) as caught:
+        _ = inspect_worktree(repo.env, tmp_path / "link" / "gone", ())
+    assert str(caught.value) == f"folder not found: {shown_path(plain / 'gone', Path.home())}"

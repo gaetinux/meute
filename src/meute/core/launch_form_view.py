@@ -11,7 +11,7 @@ from meute.core.launch_form_worktree import (
     chosen_worktree,
     target_folder,
 )
-from meute.core.paths import display_path
+from meute.core.paths import display_path, shown_path
 from meute.core.session import AgentKind
 from meute.core.sessions_view_text import RISKY_MODES
 from meute.core.styled import Role, Span, StyledLine, clip
@@ -54,8 +54,7 @@ def _folder_text(folder: str, home: Path) -> str:
 
 
 def _worktree_text(worktree: Worktree, home: Path) -> str:
-    branch = worktree.branch or f"(detached {worktree.head[:7]})"
-    return f"{printable(branch)}  {printable(display_path(worktree.path, home))}"
+    return f"{printable(worktree.label)}  {shown_path(worktree.path, home)}"
 
 
 def _note(text: str) -> StyledLine:
@@ -76,7 +75,7 @@ def _worktree_lines(form: LaunchForm, home: Path, width: int) -> list[StyledLine
             text, rows = "new", [_text_row(form, FormField.BRANCH, form.branch)]
             target = target_folder(form, home)
             if isinstance(target, Path):
-                rows.append((Span(_INDENT), Span(f"→ {printable(display_path(target, home))}")))
+                rows.append((Span(_INDENT), Span(f"→ {shown_path(target, home)}")))
             if form.agent is AgentKind.CLAUDE:
                 rows.append(_note(_TRUST))
         case ExistingWorktree(index=index):

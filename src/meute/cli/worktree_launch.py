@@ -4,10 +4,10 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from meute.cli.context import ENVIRONMENT_ERRORS
+from meute.cli.git_errors import find_git_or_fail, git_errors
 from meute.core.errors import InvalidInput, MeuteError, PromptNotPasted
-from meute.core.paths import display_path
+from meute.core.paths import shown_path
 from meute.core.worktrees import branch_error, worktree_path
-from meute.git.run import GitError, find_git
 from meute.git.worktree import add_worktree, check_branch
 
 
@@ -43,17 +43,12 @@ def create_worktree(environ: Mapping[str, str], repo: Path, branch: str) -> Path
     path = worktree_path(repo, branch)
     taken = _taken(repo, path)
     if taken is not None:
-        message = f"folder already exists: {display_path(taken, Path.home())}"
+        message = f"folder already exists: {shown_path(taken, Path.home())}"
         raise InvalidInput(message)
-    git = find_git(environ)
-    if git is None:
-        message = "git not found"
-        raise MeuteError(message)
-    try:
+    git = find_git_or_fail(environ)
+    with git_errors():
         check_branch(git, repo, branch, environ=environ)
         add_worktree(git, repo, path, branch, environ=environ)
-    except GitError as failure:
-        raise MeuteError(str(failure)) from failure
     return path
 
 
@@ -74,6 +69,6 @@ def launch_in_new_worktree[T](
     except PromptNotPasted:
         raise
     except (MeuteError, *ENVIRONMENT_ERRORS) as failure:
-        shown = display_path(path, Path.home())
+        shown = shown_path(path, Path.home())
         message = f"worktree created at {shown} but the launch failed: {failure}"
         raise MeuteError(message) from failure
