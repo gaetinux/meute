@@ -83,7 +83,9 @@ class SessionsTab:
         self._adopt = adopt
         self._close = close
         self._is_closing = is_closing
-        self._removal = WorktreeRemoval(git=git, workers=worktrees, notice=notice)
+        self._removal = WorktreeRemoval(
+            git=git, workers=worktrees, notice=notice, asking=lambda: self._confirming is not None
+        )
         self._form = FormSession(
             launch=launch, launch_task=launch_task, default_mode=default_mode, git=git
         )
@@ -272,12 +274,10 @@ class SessionsTab:
         return None if info is None else details_content(self.cursor.model, info, width)
 
     def prompt(self) -> str | None:
-        """The pending confirmation, which takes over the footer."""
-        if (removal := self._removal.footer()) is not None:
-            return removal
+        """The pending confirmation, which takes over the footer: the one `_answer` serves."""
         match self._confirming:
             case None:
-                return None
+                return self._removal.footer()
             case Session():
                 return confirm_stop_text(self._confirming.title)
             case Orphan():

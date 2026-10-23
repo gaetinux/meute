@@ -68,11 +68,18 @@ class WorktreeRemoval:
     """The confirmation of `W`: `y` goes on, any other key cancels; the removal runs elsewhere."""
 
     def __init__(
-        self, *, git: BoardGit | None, workers: WorktreeWorkers, notice: Callable[[str], None]
+        self,
+        *,
+        git: BoardGit | None,
+        workers: WorktreeWorkers,
+        notice: Callable[[str], None],
+        asking: Callable[[], bool],
     ) -> None:
+        """`asking` tells whether the tab already asks another question (a stop, a close)."""
         self._git = git
         self._workers = workers
         self._notice = notice
+        self._asking = asking
         self._state: RemovalState = Idle()
 
     def ask(self, entry: LaunchEntry, data: BoardData) -> None:
@@ -92,10 +99,14 @@ class WorktreeRemoval:
             )
 
     def _checked(self, check: WorktreeCheck | str, *, home: Path | None) -> None:
-        """The check is back: ask the first question, unless another one is pending."""
+        """The check is back: ask the first question, dropped while another one is pending."""
         if isinstance(check, str):
             self._notice(check)
-        elif isinstance(self._state, Idle) and not self._workers.is_removing(check.path):
+        elif (
+            isinstance(self._state, Idle)
+            and not self._asking()
+            and not self._workers.is_removing(check.path)
+        ):
             _ = self.start(check, _shown(check.path, home))
 
     def answer(self, key: str, home: Path | None) -> None:

@@ -38,7 +38,7 @@ meute lance git dans des dépôts que Claude peut modifier. Un `.git/config` pi�
 
 Les commandes d'**écriture** (`worktree add`, `worktree remove`) gardent les hooks Git de l'utilisateur (`post-checkout`, par exemple) : c'est son dépôt, et il les attend. Elles prennent aussi `-c core.fsmonitor=false`.
 
-`--no-optional-locks` demande git 2.15 ou plus. Sur une version plus ancienne, la commande échoue et le message de git est repris tel quel.
+meute demande git 2.36 ou plus : `--no-optional-locks` demande git 2.15, et `git worktree list --porcelain -z` git 2.36. Sur une version plus ancienne, la commande échoue et le message de git est repris tel quel.
 
 ## L'état Git des sessions
 
@@ -232,7 +232,7 @@ Ce que le plan 6a a fait autrement que ce texte, ou précisé en le réalisant (
 - **Nouvelle vérification avant l'enlèvement (R14)** : au moment de `RemoveWorktree`, le backend vérifie de nouveau le worktree, et refuse un enlèvement sans `--force` si des modifications ou des commits sont apparus depuis `W`. Coût : une erreur de plus dans une course.
 - **Vérification de `W` hors du fil de l'interface (R16)** : les quatre lectures de la vérification passent par un fil de `BoardWorkers`, comme l'arrêt, la reprise et l'adoption. Pendant ce temps, le pied dit `checking worktree <chemin>…`, et un second `W` sur le même dossier est ignoré ; au retour, un refus va au pied et une vérification ouvre la confirmation. Pendant l'enlèvement, le pied dit `removing worktree <chemin>…`. Les chemins sont montrés avec `~`, à travers `printable`.
 - **Un seul délai pour `read_git` (R16)** : la recherche des pilotes et la commande partagent le délai donné ; la commande reçoit ce qu'il en reste, et sans reste elle n'est pas lancée (`git timed out after <n> s`, avec le délai donné).
-- **Liste des worktrees lue avec `-z` (R16)** : `git worktree list --porcelain -z` sépare les champs par des NUL et les blocs par un champ vide ; un chemin ou une raison de verrou qui contient un saut de ligne ne coupe plus un bloc.
+- **Liste des worktrees lue avec `-z` (R16)** : `git worktree list --porcelain -z` sépare les champs par des NUL et les blocs par un champ vide ; un chemin ou une raison de verrou qui contient un saut de ligne ne coupe plus un bloc. `-z` demande git 2.36 : c'est désormais la version minimale de git (au lieu de 2.15).
 - **`printable` et les séparateurs Unicode (R16)** : les catégories `Zl` et `Zp` (U+2028, U+2029) deviennent U+FFFD comme les caractères de contrôle ; seul `\n` est gardé avec `keep_newlines`. Le texte de la ligne Git n'a plus sa propre conversion.
 - **`Branch` vide sur un dossier occupé (R18)** : quand le formulaire s'ouvre sur `new` parce que le dossier du dépôt est occupé, `Branch` est vide ; limite gardée.
 - **`meute worktree list`** : un worktree dont le dossier est absent (verrouillé sur un support amovible, par exemple) est listé avec `missing`, sans être lu ; un dépôt dont la lecture échoue est signalé sur sa propre ligne d'erreur (`meute: <dépôt>: <erreur>`, sur stderr), les autres dépôts sont listés, et la commande sort avec le code 1.

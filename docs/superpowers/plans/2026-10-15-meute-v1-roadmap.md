@@ -137,7 +137,7 @@ Limites connues, relevées pendant le plan 5 :
 Ce que le plan 6a laisse volontairement de côté. Le plan 6a livre l'état Git des sessions (ligne 3 des cartes, sessions Bash comprises), le champ `Worktree` de `N` (aucun / nouveau / existant) et sa recommandation, `meute session new --worktree`, la touche `W` et `meute worktree list` / `remove`. Rapport de mutation et essai scripté : `docs/dev/mutants/2026-plan-6a-python.md`. Écarts à la conception : `docs/superpowers/specs/2026-10-23-meute-git-worktrees-design.md` (« Écarts constatés à la réalisation »).
 
 - **Plan 6b — reprise et états sauvegardés** : « recent sessions to resume », `meute state` (le worktree d'une session y figure par son dossier).
-- **Plan 6c — préparation de la V1** : projets créés automatiquement, `meute doctor` (dont la version de git : `--no-optional-locks` demande git 2.15), purge de `session_events`, README.
+- **Plan 6c — préparation de la V1** : projets créés automatiquement, `meute doctor` (dont la version de git : git 2.36 au moins, pour `git worktree list --porcelain -z` ; `--no-optional-locks` demande 2.15), purge de `session_events`, README.
 - **Hors périmètre, restent ouverts** : l'état Git en base, une mention « worktree » sur les cartes, la suppression de branches, les rappels « worktree to delete » après un merge (V1.1, forges).
 
 Limites connues, relevées pendant le plan 6a :
