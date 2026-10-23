@@ -17,6 +17,7 @@ import os
 import shutil
 import signal
 import subprocess
+import time
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from pathlib import Path
@@ -122,21 +123,37 @@ def _failure(returncode: int, stderr: bytes) -> GitError:
     return GitError(f"git: {first}")
 
 
+def _timed_out(timeout: float) -> GitError:
+    return GitError(f"git timed out after {timeout:g} s")
+
+
 def _communicate(
-    git: Path, argv: Sequence[str], timeout: float, environ: Mapping[str, str]
+    git: Path,
+    argv: Sequence[str],
+    timeout: float,
+    environ: Mapping[str, str],
+    *,
+    shown: float | None = None,
 ) -> tuple[int, bytes, bytes]:
+    """Run git for at most `timeout` seconds; a timeout names `shown` seconds, or `timeout`."""
     process = _start(git, argv, environ)
     try:
         stdout, stderr = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as error:
         _ = kill_read(process)
-        msg = f"git timed out after {timeout:g} s"
-        raise GitError(msg) from error
+        raise _timed_out(timeout if shown is None else shown) from error
     return process.returncode, stdout, stderr
 
 
-def _run(git: Path, argv: Sequence[str], timeout: float, environ: Mapping[str, str]) -> str:
-    returncode, stdout, stderr = _communicate(git, argv, timeout, environ)
+def _run(
+    git: Path,
+    argv: Sequence[str],
+    timeout: float,
+    environ: Mapping[str, str],
+    *,
+    shown: float | None = None,
+) -> str:
+    returncode, stdout, stderr = _communicate(git, argv, timeout, environ, shown=shown)
     if returncode != 0:
         raise _failure(returncode, stderr)
     return stdout.decode("utf-8", errors="replace")
@@ -218,11 +235,18 @@ def read_git(
 ) -> str:
     """Run a guarded read command in `folder` and return its output.
 
+    The filter driver lookup and the command share the `timeout`: the command gets what the
+    lookup left.
+
     Raises:
         GitError: git is missing, failed or did not finish within `timeout` seconds.
     """
+    deadline = time.monotonic() + timeout
     filters = filter_drivers(git, folder, timeout=timeout, environ=environ)
-    return _run(git, read_args(folder, args, filters), timeout, environ)
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise _timed_out(timeout)
+    return _run(git, read_args(folder, args, filters), left, environ, shown=timeout)
 
 
 def start_read(
