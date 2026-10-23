@@ -1,0 +1,16 @@
+# serializer version: 1
+# name: test_list_json
+  '''
+  {"worktrees":[{"repo":"<root>/home/repo","path":"<root>/home/repo.worktrees/detached","branch":null,"dirty":false,"locked":false},{"repo":"<root>/home/repo","path":"<root>/home/repo.worktrees/dirty","branch":"dirty","dirty":true,"locked":false},{"repo":"<root>/home/repo","path":"<root>/home/repo.worktrees/feat","branch":"feat","dirty":false,"locked":false},{"repo":"<root>/home/repo","path":"<root>/home/repo.worktrees/pinned","branch":"pinned","dirty":false,"locked":true}]}
+  
+  '''
+# ---
+# name: test_list_shows_the_linked_worktrees
+  '''
+  ~/repo.worktrees/detached  (detached 5661282)
+  ~/repo.worktrees/dirty  dirty *
+  ~/repo.worktrees/feat  feat
+  ~/repo.worktrees/pinned  pinned  locked
+  
+  '''
+# ---

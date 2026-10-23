@@ -24,6 +24,7 @@ from meute.cli.status_publish import publish_status
 from meute.cli.task_launch import READY_TIMEOUT_SECONDS, launch_claude_on_task, launch_on_task
 from meute.cli.task_quick_create import TUI_ACTOR, create_quick_task, move_to_repo_project
 from meute.cli.tmux_env import TmuxEnv
+from meute.cli.worktree_removal import live_session_folders, perform_removal, resolved
 from meute.core.board_view import (
     AddNote,
     AdoptOrphan,
@@ -39,6 +40,7 @@ from meute.core.board_view import (
     LaunchOnTask,
     MoveToRepoProject,
     OrphanAction,
+    RemoveWorktree,
     ResumeSession,
     ShowPane,
     ShowSession,
@@ -103,6 +105,7 @@ class CliBoardBackend:
         self._git = git or GitPoller(find_git(environ) if "PATH" in environ else None, environ)
         self._git_state: Mapping[Path, GitState] = {}  # last result of the Git poller
         self._folders: tuple[Path, ...] | None = None  # the folders of the last read
+        self._live: tuple[Path, ...] = ()  # where the live sessions of the last read work
         self._status: str | None = None  # last text written to the tmux status line
 
     def load(self) -> BoardData | None:
@@ -139,8 +142,13 @@ class CliBoardBackend:
             for row in (*data.sessions, *data.ended)
         )
         self._take_git(self._git.poll(self._folders))
+        self._live = live_session_folders((row.session for row in data.sessions), data.metrics)
         self._publish_status(data)
         return replace(data, git=self._git_state)
+
+    def live_folders(self) -> tuple[Path, ...]:
+        """The resolved folders where the live sessions of the last load work."""
+        return resolved(self._live)
 
     def _take_git(self, fresh: Mapping[Path, GitState] | None) -> None:
         """Keep a fresh Git state; when it changed, the next load rereads."""
@@ -196,6 +204,8 @@ class CliBoardBackend:
                 self._perform_orphan(action)
             case Detach():
                 detach_client(self._env.tmux)
+            case RemoveWorktree():  # checked again: a session may have started there since
+                perform_removal(self._environ, action, self.live_folders())
             # Task writes go as the TUI user, with the version the board last read.
             case CreateTask():
                 _ = create_quick_task(self._ctx, action.text, action.project)

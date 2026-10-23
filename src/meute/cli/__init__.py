@@ -20,6 +20,7 @@ from meute.cli.session_commands import session_app
 from meute.cli.task_app import task_app
 from meute.cli.tmux_env import open_tmux_env
 from meute.cli.welcome import wait_forever, welcome_text
+from meute.cli.worktree_commands import worktree_app
 from meute.core.clock import local_zone
 from meute.core.errors import MeuteError, VersionConflict
 from meute.core.text import printable
@@ -30,6 +31,7 @@ app.add_typer(project_app, name="project")
 app.add_typer(config_app, name="config")
 app.add_typer(repo_app, name="repo")
 app.add_typer(session_app, name="session")
+app.add_typer(worktree_app, name="worktree")
 app.add_typer(layout_app, name="layout", hidden=True)
 
 _FAILURE = 1
@@ -76,7 +78,8 @@ def board() -> None:
                 local=local_zone(os.environ),
                 permission_mode=ctx.config.claude.permission_mode,
             )
-            BoardApp(backend, options, CliBoardGit(os.environ)).run()
+            git = CliBoardGit(os.environ, lambda: backend.live_folders())  # noqa: PLW0108 — looked up only when W asks
+            BoardApp(backend, options, git).run()
         finally:
             backend.close()
 

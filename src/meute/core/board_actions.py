@@ -134,6 +134,15 @@ class MoveToRepoProject:
     name: str
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RemoveWorktree:
+    """Remove the linked worktree `path` of `repo`, its branch kept; `force` despite changes."""
+
+    repo: Path
+    path: Path
+    force: bool
+
+
 TaskAction = CreateTask | ChangeTask | MoveToRepoProject | AddNote | DeleteTask | LaunchOnTask
 OrphanAction = ShowPane | AdoptOrphan | CloseOrphan
 BoardAction = (
@@ -144,5 +153,6 @@ BoardAction = (
     | ResumeSession
     | OrphanAction
     | Detach
+    | RemoveWorktree
     | TaskAction
 )
