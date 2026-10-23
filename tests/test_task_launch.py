@@ -13,11 +13,12 @@ from meute.cli.task_launch import READY_TIMEOUT_SECONDS, launch_on_task, task_la
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.actor import Actor, Author, Channel
 from meute.core.config import Config
+from meute.core.context import work_on_task_text
 from meute.core.db.connection import Database
 from meute.core.db.projects import create_project
 from meute.core.db.repos import sync_repos
 from meute.core.db.sessions import list_sessions
-from meute.core.db.task_notes import add_note, notes
+from meute.core.db.task_notes import add_note
 from meute.core.db.tasks import create_task, get_task
 from meute.core.errors import InvalidInput, PromptNotPasted
 from meute.core.paths import Paths
@@ -25,7 +26,6 @@ from meute.core.project import ProjectId, ProjectRef, RepoId
 from meute.core.repo import NewRepo, Repo
 from meute.core.status import Todo
 from meute.core.task import Task, TaskId
-from meute.core.task_prompt import task_prompt
 from meute.tmux.layout import ensure_layout
 from meute.tmux.names import MAIN_SESSION
 from meute.tmux.panes import list_panes
@@ -157,7 +157,7 @@ def test_the_text_is_pasted_without_being_sent(
     recorded = _fake_claude(env, tmp_path, "paste")
     task = _task_in_repo(ctx, tmp_path, "Fix the bug;")
     assert _launch(ctx, env, task.id)
-    text = task_prompt(task, notes(ctx.db, task.id))
+    text = work_on_task_text(task.id)
     assert _pasted(recorded) == f"{_START}{text.replace('\n', '\r')}{_END}".encode()
     args = load_json((tmp_path / "args.json").read_text(encoding="utf-8"))
     assert isinstance(args, list)

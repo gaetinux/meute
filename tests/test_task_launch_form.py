@@ -7,9 +7,8 @@ from meute.cli.context import CliContext
 from meute.cli.session_launch_claude import ClaudeLaunch
 from meute.cli.task_launch import launch_claude_on_task
 from meute.cli.tmux_env import TmuxEnv
+from meute.core.context import work_on_task_text
 from meute.core.db.sessions import list_sessions
-from meute.core.db.task_notes import notes
-from meute.core.task_prompt import task_prompt
 from meute.tmux.panes import list_panes
 from support import load_json
 from test_board_backend import env  # noqa: F401 — fixture reused  # pyright: ignore[reportUnusedImport] — fixture reused
@@ -38,7 +37,7 @@ def test_the_form_folder_title_and_mode_are_kept_and_the_text_pasted(
         ctx, env, request, task.id, _ENVIRON, monotonic=time.monotonic, sleep=time.sleep
     )
     assert ready
-    text = task_prompt(task, notes(ctx.db, task.id))
+    text = work_on_task_text(task.id)
     assert _pasted(recorded) == f"{_START}{text.replace('\n', '\r')}{_END}".encode()
     (session,) = list_sessions(ctx.db)
     assert (session.task_id, session.title, session.cwd) == (task.id, "Mine", folder)
