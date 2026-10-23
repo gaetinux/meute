@@ -11,6 +11,7 @@ import typer
 from meute.claude.agents import run_agents
 from meute.claude.launch import find_claude
 from meute.cli.context import open_context
+from meute.cli.folder_repo import repo_id_of_folder
 from meute.cli.json_out import echo_json
 from meute.cli.session_jump import jump_to_attention
 from meute.cli.session_launch import BashLaunch, launch_bash
@@ -52,12 +53,17 @@ def new(
     folder = cwd or Path.cwd()
     with open_context(os.environ) as ctx:
         env = open_tmux_env(ctx, os.environ)
+        repo_id = repo_id_of_folder(ctx, folder)
         match kind:
             case AgentKind.CLAUDE:
-                claude = ClaudeLaunch(cwd=folder, title=title, permission_mode=permission_mode)
+                claude = ClaudeLaunch(
+                    cwd=folder, repo_id=repo_id, title=title, permission_mode=permission_mode
+                )
                 session = launch_claude(ctx, env, claude, os.environ)
             case AgentKind.BASH:
-                session = launch_bash(ctx, env, BashLaunch(cwd=folder, title=title), os.environ)
+                session = launch_bash(
+                    ctx, env, BashLaunch(cwd=folder, repo_id=repo_id, title=title), os.environ
+                )
             case _:
                 assert_never(kind)
     typer.echo(

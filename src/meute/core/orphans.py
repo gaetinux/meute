@@ -6,7 +6,7 @@ from pathlib import Path
 
 from meute.core.errors import InvalidInput
 from meute.core.paths import display_path
-from meute.core.repo import Repo
+from meute.core.repo import Repo, repo_holding
 from meute.core.session import AgentKind, NewSession, parse_session_id
 from meute.core.session_state import Running, Unknown
 from meute.core.text import printable
@@ -60,12 +60,15 @@ def orphan_agent(orphan: Orphan) -> AgentKind:
     return AgentKind.CLAUDE if orphan.command == "claude" else AgentKind.BASH
 
 
-def adoption(orphan: Orphan, repos: Sequence[Repo]) -> NewSession | str:
+def adoption(
+    orphan: Orphan, repos: Sequence[Repo], main_repo: Path | None = None
+) -> NewSession | str:
     """Return the session that adopts `orphan`, or the reason it cannot be adopted.
 
     Nothing reaches the database unless `orphan.meute_id` is a canonical session identifier,
     the pane is alive and its folder is an absolute path. The repository is the known one
-    with the longest path that holds the pane's folder.
+    with the longest path that holds the pane's folder, else the one holding `main_repo`
+    (the main repository of the folder's linked worktree).
     """
     try:
         session_id = parse_session_id(orphan.meute_id)
@@ -78,8 +81,7 @@ def adoption(orphan: Orphan, repos: Sequence[Repo]) -> NewSession | str:
     cwd = Path(orphan.cwd)
     if not cwd.is_absolute():  # tmux may not know it: an empty path would read as `.`
         return _UNKNOWN_FOLDER
-    holders = [repo for repo in repos if cwd.is_relative_to(repo.path)]
-    repo = max(holders, key=lambda held: len(held.path.parts), default=None)
+    repo = repo_holding(cwd, repos, main_repo)
     agent = orphan_agent(orphan)
     return NewSession(
         id=session_id,
