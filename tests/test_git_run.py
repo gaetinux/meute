@@ -9,7 +9,7 @@ from git_support import GitRepo, fake_git, git_env, real_git
 from meute.git.discover import main_repo_of
 from meute.git.run import GitError, find_git, read_args, read_git, start_read_with, write_git
 
-GUARD = ("-c", "core.fsmonitor=false", "--no-optional-locks")
+GUARD = ("-c", "core.fsmonitor=false", "-c", "protocol.allow=never", "--no-optional-locks")
 
 
 ECHO = 'printf "%s\\n" "$@"'
@@ -45,6 +45,8 @@ def test_read_args_neutralise_the_given_filter_drivers() -> None:
     assert read_args(Path("/r"), ["status"], filters=["x", "a.b"]) == (
         "-c",
         "core.fsmonitor=false",
+        "-c",
+        "protocol.allow=never",
         "-c",
         "filter.x.clean=",
         "-c",
@@ -83,6 +85,7 @@ def test_read_git_passes_the_guarded_args_and_environment(tmp_path: Path) -> Non
     assert {
         "GIT_TERMINAL_PROMPT=0",
         "GIT_OPTIONAL_LOCKS=0",
+        "GIT_NO_LAZY_FETCH=1",
         "PATH=/some/bin",
         "HOME=/some/home",
     } <= variables
@@ -161,7 +164,8 @@ def test_start_read_with_runs_the_same_command(tmp_path: Path) -> None:
     assert process.returncode == 0
     args, _, env = out.decode().partition("--\n")
     assert tuple(args.splitlines()) == read_args(tmp_path, ["diff", "HEAD"])
-    assert {"GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0"} <= set(env.splitlines())
+    guard = {"GIT_TERMINAL_PROMPT=0", "GIT_OPTIONAL_LOCKS=0", "GIT_NO_LAZY_FETCH=1"}
+    assert guard <= set(env.splitlines())
 
 
 def test_write_git_args(tmp_path: Path) -> None:

@@ -69,7 +69,7 @@ def test_lookup_filters_keeps_an_empty_driver_name() -> None:
 def test_read_args_neutralise_an_empty_driver_name(tmp_path: Path) -> None:
     args = read_args(tmp_path, ["status"], ("",))
     words = ("-c", "filter..clean=", "-c", "filter..process=", "-c", "filter..required=false")
-    assert args[2:8] == words
+    assert args[4:10] == words
 
 
 def test_has_exited_leaves_git_to_reap(tmp_path: Path) -> None:

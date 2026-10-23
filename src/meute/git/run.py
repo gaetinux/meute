@@ -6,7 +6,9 @@ Reads never run a command that the repository's configuration can choose:
 - `diff` gets `--no-ext-diff` and `--no-textconv` (external diff drivers, `textconv`);
 - every configured filter driver is emptied (`clean`, `process`, not `required`), after a
   lookup with `git config`, which runs nothing; a name `-c` cannot express is refused;
-- `status` and `diff` get `--ignore-submodules=all`, so no submodule configuration is used.
+- `status` and `diff` get `--ignore-submodules=all`, so no submodule configuration is used;
+- a partial clone never fetches a missing object from its promisor remote (`GIT_NO_LAZY_FETCH`,
+  and `protocol.allow=never` for git before 2.45), so no transport such as `core.sshCommand` runs.
 
 Reads also never take the index lock and never prompt. Writes keep the user's hooks but not
 `core.fsmonitor`. Every command runs under a timeout, and git with every process it started is
@@ -23,10 +25,11 @@ from contextlib import suppress
 from pathlib import Path
 
 _NO_FSMONITOR = ("-c", "core.fsmonitor=false")
+_NO_TRANSPORT = ("-c", "protocol.allow=never")
 _DIFF_GUARD = ("--no-ext-diff", "--no-textconv")
 _NO_SUBMODULES = "--ignore-submodules=all"
 _FILTER_LOOKUP = ("config", "--null", "--get-regexp", r"^filter\.")
-_GUARD_ENV = {"GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
+_GUARD_ENV = {"GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0", "GIT_NO_LAZY_FETCH": "1"}
 _MESSAGE_LIMIT = 200
 
 
@@ -66,7 +69,8 @@ def read_args(folder: Path, args: Sequence[str], filters: Sequence[str] = ()) ->
         for key in ("clean=", "process=", "required=false")
         for word in ("-c", f"filter.{name}.{key}")
     )
-    return (*_NO_FSMONITOR, *neutralised, "--no-optional-locks", *_target(folder), *command)
+    guards = (*_NO_FSMONITOR, *_NO_TRANSPORT, *neutralised, "--no-optional-locks")
+    return (*guards, *_target(folder), *command)
 
 
 def _environment(environ: Mapping[str, str]) -> dict[str, str]:

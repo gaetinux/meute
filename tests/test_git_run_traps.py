@@ -16,6 +16,7 @@ from meute.git.run import (
     start_read_with,
     write_git,
 )
+from meute.git.worktree import oneline_log, worktree_only_commits
 
 
 def test_trapped_config_runs_nothing(git_repo: GitRepo, tmp_path: Path) -> None:
@@ -187,3 +188,60 @@ def test_write_git_keeps_hooks_but_not_fsmonitor(git_repo: GitRepo, tmp_path: Pa
     assert (worktree / "README.md").exists()
     assert hooked.exists()
     assert not trapped.exists()
+
+
+def promisor(repo: GitRepo, witness: Path) -> None:
+    """Make `repo` a partial clone whose promisor remote runs a trap when fetched from."""
+    repo.git("config", "core.repositoryformatversion", "1")
+    repo.git("config", "extensions.partialClone", "origin")
+    repo.git("config", "remote.origin.promisor", "true")
+    repo.git("config", "remote.origin.url", "ssh://x/y")
+    repo.git("config", "core.sshCommand", f'touch "{witness}"; false')
+
+
+def drop_object(repo: GitRepo, revision: str) -> str:
+    """Delete the loose object `revision` names; return its id."""
+    oid = repo.git("rev-parse", revision).strip()
+    (repo.path / ".git/objects" / oid[:2] / oid[2:]).unlink()
+    return oid
+
+
+def fires(repo: GitRepo, witness: Path, args: list[str]) -> bool:
+    """Whether `args`, run with the guards of before the fix, fetch from the promisor."""
+    git = real_git(repo)
+    command = [git, "-c", "core.fsmonitor=false", "--no-optional-locks", "-C", repo.path, *args]
+    subprocess.run(command, capture_output=True, env=dict(repo.env), check=False)
+    fired = witness.exists()
+    witness.unlink(missing_ok=True)
+    return fired
+
+
+def test_a_missing_blob_is_never_lazy_fetched(git_repo: GitRepo, tmp_path: Path) -> None:
+    witness = tmp_path / "witness"
+    promisor(git_repo, witness)
+    _ = drop_object(git_repo, "HEAD:README.md")
+    (git_repo.path / "README.md").write_text("hello\nchanged\n")
+    numstat = ["diff", "--numstat", "HEAD"]
+    diff = ["diff", "--no-ext-diff", "--no-textconv", "--ignore-submodules=all", *numstat[1:]]
+    assert fires(git_repo, witness, diff), "the unguarded diff must fetch the missing blob"
+    git = real_git(git_repo)
+    with pytest.raises(GitError):
+        read_git(git, git_repo.path, numstat, timeout=5, environ=git_repo.env)
+    assert polled_read(git_repo, numstat) == b""
+    assert not witness.exists()
+
+
+def test_a_missing_commit_is_never_lazy_fetched(git_repo: GitRepo, tmp_path: Path) -> None:
+    witness = tmp_path / "witness"
+    promisor(git_repo, witness)
+    commit = drop_object(git_repo, "HEAD")
+    revs = ["rev-list", "HEAD", "--not", "--remotes", "--branches"]
+    assert fires(git_repo, witness, revs), "the unguarded rev-list must fetch the commit"
+    log = ["log", "--oneline", "--no-walk=unsorted", commit, "--"]
+    assert fires(git_repo, witness, log), "the unguarded log must fetch the commit"
+    git = real_git(git_repo)
+    with pytest.raises(GitError):
+        worktree_only_commits(git, git_repo.path, "main", environ=git_repo.env)
+    with pytest.raises(GitError):
+        oneline_log(git, git_repo.path, [commit], environ=git_repo.env)
+    assert not witness.exists()
