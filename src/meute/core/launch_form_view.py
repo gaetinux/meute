@@ -1,18 +1,29 @@
 """The lines of the launch form (`N`)."""
 
 from pathlib import Path
+from typing import assert_never
 
 from meute.core.launch_form import FormField, LaunchForm, shares_folder
-from meute.core.paths import display_path
+from meute.core.launch_form_worktree import (
+    ExistingWorktree,
+    NewWorktree,
+    NoWorktree,
+    chosen_worktree,
+    target_folder,
+)
+from meute.core.paths import display_path, shown_path
 from meute.core.session import AgentKind
 from meute.core.sessions_view_text import RISKY_MODES
 from meute.core.styled import Role, Span, StyledLine, clip
 from meute.core.task import task_label
 from meute.core.text import printable
+from meute.core.worktrees import Worktree
 
 _LABEL_WIDTH = 10
 _HEADING = "── New session "
-_WARNING = "⚠ another live session works in this folder"
+_WARNING = "⚠ another live session works in this folder: a new worktree is recommended"
+_TRUST = "Claude will ask whether to trust the new folder"
+_INDENT = " " * _LABEL_WIDTH
 _HELP = "Enter launch · Tab next · ←→ choose · Esc cancel"
 _LEFT = "◂ "
 _RIGHT = " ▸"
@@ -42,6 +53,41 @@ def _folder_text(folder: str, home: Path) -> str:
     return display_path(path, home) if folder == str(path) else folder
 
 
+def _worktree_text(worktree: Worktree, home: Path) -> str:
+    return f"{printable(worktree.label)}  {shown_path(worktree.path, home)}"
+
+
+def _note(text: str) -> StyledLine:
+    """Return a dim line under a field, aligned with its value."""
+    return (Span(_INDENT), Span(printable(text), Role.DIM))
+
+
+def _worktree_lines(form: LaunchForm, home: Path, width: int) -> list[StyledLine]:
+    """Return the Worktree row, its notes, then the Folder or Branch row and its target."""
+    folder = _text_row(form, FormField.FOLDER, _folder_text(form.folder, home))
+    if form.repo is None:
+        return [folder]
+    choice = chosen_worktree(form)
+    match choice:
+        case NoWorktree():
+            text, rows = "none", [folder]
+        case NewWorktree():
+            text, rows = "new", [_text_row(form, FormField.BRANCH, form.branch)]
+            target = target_folder(form, home)
+            if isinstance(target, Path):
+                rows.append((Span(_INDENT), Span(f"→ {shown_path(target, home)}")))
+            if form.agent is AgentKind.CLAUDE:
+                rows.append(_note(_TRUST))
+        case ExistingWorktree(index=index):
+            worktree = form.worktrees[index]
+            text = _worktree_text(worktree, home)
+            rows = [_text_row(form, FormField.FOLDER, display_path(worktree.path, home))]
+        case _:
+            assert_never(choice)
+    notes = [] if form.worktrees_error is None else [_note(form.worktrees_error)]
+    return [_choice(form, FormField.WORKTREE, text, width), *notes, *rows]
+
+
 def _task_text(form: LaunchForm) -> str:
     if form.task is None:
         return "none"
@@ -58,7 +104,7 @@ def form_lines(form: LaunchForm, *, home: Path, width: int) -> list[StyledLine]:
         (Span(heading, Role.ACCENT),),
         _choice(form, FormField.TYPE, agent, width),
         _choice(form, FormField.REPO, repo, width),
-        _text_row(form, FormField.FOLDER, _folder_text(form.folder, home)),
+        *_worktree_lines(form, home, width),
         _text_row(form, FormField.TITLE, form.title),
     ]
     if form.agent is AgentKind.CLAUDE:

@@ -39,6 +39,7 @@ _PROJECT = ProjectRef(id=ProjectId(7), name="meute")
 _OTHER_MODE = min(PERMISSION_MODES - {"auto"})
 _MEUTE = BOARD_HOME / "git" / "meute"
 _SEMICOLON = "/srv/x;"
+_WARNING_AT_72 = "⚠ another live session works in this folder: a new worktree is recommen…"
 
 Scenario = Callable[[BoardApp, Pilot[None]], Awaitable[None]]
 
@@ -124,7 +125,7 @@ def test_a_bash_launch_with_a_title() -> None:
     backend = _backend()
 
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
-        await pilot.press("N", "right", "down", "down", "down")
+        await pilot.press("N", "right", "down", "down", "down", "down")
         await _type(pilot, "hi there")
         await pilot.press("enter")
         assert not _is_open(app)
@@ -137,7 +138,7 @@ def test_a_claude_launch_with_a_task_and_a_mode() -> None:
     backend = _backend()
 
     async def scenario(_app: BoardApp, pilot: Pilot[None]) -> None:
-        await pilot.press("N", "tab", "tab", "tab", "tab", "right")  # the Task field
+        await pilot.press("N", "tab", "tab", "tab", "tab", "tab", "right")  # the Task field
         await pilot.press("tab", "right", "enter")  # the Mode field
 
     _run(backend, scenario)
@@ -156,7 +157,7 @@ def test_a_relative_folder_is_an_error_and_nothing_is_sent() -> None:
     backend = _backend()
 
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
-        await pilot.press("N", "down", "down")
+        await pilot.press("N", "down", "down", "down")
         await _clear_folder(pilot)
         await _type(pilot, "relative")
         await pilot.press("enter")
@@ -171,7 +172,7 @@ def test_a_folder_ending_with_a_semicolon_is_sent_as_typed() -> None:
     backend = _backend()
 
     async def scenario(_app: BoardApp, pilot: Pilot[None]) -> None:
-        await pilot.press("N", "down", "down")
+        await pilot.press("N", "down", "down", "down")
         await _clear_folder(pilot)
         await _type(pilot, _SEMICOLON)
         await pilot.press("enter")
@@ -187,7 +188,7 @@ def test_a_failed_launch_keeps_the_form_its_text_and_the_error() -> None:
     backend.perform_error = MeuteError("folder not found: /x")
 
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
-        await pilot.press("N", "down", "down", "down")
+        await pilot.press("N", "down", "down", "down", "down")
         await _type(pilot, "my title")
         await pilot.press("enter")
         shown = _text(app, "launch-form")
@@ -222,9 +223,9 @@ def test_the_form_takes_every_key() -> None:
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
         board = _text(app, "board")
         footer = _text(app, "footer")
-        await pilot.press("N", "down", "down", "down")  # the Title field
+        await pilot.press("N", "down", "down", "down", "down")  # the Title field
         await pilot.press("x", "q", "y", "c", "n", "a", "e", "question_mark", "space")
-        assert _text(app, "launch-form").splitlines()[4] == "Title     xqycnae? "
+        assert _text(app, "launch-form").splitlines()[5] == "Title     xqycnae? "
         await pilot.press("tab", "tab", "shift+tab", "up", "left", "right", "backspace")
         assert _is_open(app)
         assert _text(app, "board") == board
@@ -248,7 +249,7 @@ def test_a_click_elsewhere_keeps_the_form_and_its_keys() -> None:
 
 def test_a_paste_is_added_to_the_current_text_field() -> None:
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
-        await pilot.press("N", "down", "down", "down")
+        await pilot.press("N", "down", "down", "down", "down")
         app.post_message(events.Paste("one\ntwo\x1b[2J"))
         await pilot.pause()
         assert "one two" in _text(app, "launch-form")
@@ -272,7 +273,7 @@ def test_a_reread_while_the_form_is_open_changes_only_the_busy_folders() -> None
     busy = replace(_data(), sessions=(SessionRow(session=session, has_pane=True, displayed=False),))
 
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
-        await pilot.press("N", "tab", "tab", "tab")  # the Title field
+        await pilot.press("N", "tab", "tab", "tab", "tab")  # the Title field
         await _type(pilot, "abc")
         before = _text(app, "launch-form")
         assert "another live session" not in before
@@ -283,10 +284,10 @@ def test_a_reread_while_the_form_is_open_changes_only_the_busy_folders() -> None
             await pilot.pause(0.01)
         await pilot.pause()
         after = _text(app, "launch-form")
-        assert after.replace("⚠ another live session works in this folder\n", "") == before
+        assert after.replace(f"{_WARNING_AT_72}\n", "") == before
         assert "⚠ another live session works in this folder" in after
         await pilot.press("d")
-        assert _text(app, "launch-form").splitlines()[4] == "Title     abcd"
+        assert _text(app, "launch-form").splitlines()[5] == "Title     abcd"
 
     app = _app(backend, 0.01)
 
@@ -312,8 +313,8 @@ def test_form_60_columns(snap_compare: SnapCompare) -> None:
 
 
 def test_form_72_columns(snap_compare: SnapCompare) -> None:
-    assert _snapshot(snap_compare, 72, "right", "tab", "tab", "tab", "a", "b")
+    assert _snapshot(snap_compare, 72, "right", "tab", "tab", "tab", "tab", "a", "b")
 
 
 def test_form_100_columns(snap_compare: SnapCompare) -> None:
-    assert _snapshot(snap_compare, 100, "tab", "tab", "tab", "tab", "tab")
+    assert _snapshot(snap_compare, 100, "tab", "tab", "tab", "tab", "tab", "tab")

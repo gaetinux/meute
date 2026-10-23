@@ -20,6 +20,7 @@ from meute.cli.session_commands import session_app
 from meute.cli.task_app import task_app
 from meute.cli.tmux_env import open_tmux_env
 from meute.cli.welcome import wait_forever, welcome_text
+from meute.cli.worktree_commands import worktree_app
 from meute.core.clock import local_zone
 from meute.core.errors import MeuteError, VersionConflict
 from meute.core.text import printable
@@ -30,6 +31,7 @@ app.add_typer(project_app, name="project")
 app.add_typer(config_app, name="config")
 app.add_typer(repo_app, name="repo")
 app.add_typer(session_app, name="session")
+app.add_typer(worktree_app, name="worktree")
 app.add_typer(layout_app, name="layout", hidden=True)
 
 _FAILURE = 1
@@ -61,6 +63,7 @@ def _root(
 def board() -> None:
     """Run the dashboard (the right-hand pane of the layout)."""
     from meute.cli.board_backend import CliBoardBackend, purge_old_samples  # noqa: PLC0415 — keeps Textual out of every other command's start-up
+    from meute.cli.board_git import CliBoardGit  # noqa: PLC0415 — only the dashboard needs it
     from meute.cli.repo_scan import scan_repos  # noqa: PLC0415 — only the dashboard scans on start
     from meute.tui.board import BoardApp, BoardOptions  # noqa: PLC0415 — keeps Textual out of every other command's start-up
 
@@ -75,7 +78,8 @@ def board() -> None:
                 local=local_zone(os.environ),
                 permission_mode=ctx.config.claude.permission_mode,
             )
-            BoardApp(backend, options).run()
+            git = CliBoardGit(os.environ, lambda: backend.live_folders())  # noqa: PLW0108 — looked up only when W asks
+            BoardApp(backend, options, git).run()
         finally:
             backend.close()
 

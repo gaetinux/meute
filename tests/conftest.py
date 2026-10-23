@@ -27,6 +27,8 @@ from tmux_support import (
     sweep_stale_run_dirs,
 )
 
+pytest_plugins = ["git_support"]  # the `git_repo` fixture
+
 settings.register_profile("dev", max_examples=100)
 settings.register_profile("ci", max_examples=1000)
 settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "dev"))

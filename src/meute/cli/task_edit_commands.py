@@ -6,6 +6,7 @@ from typing import Annotated
 
 import typer
 
+from meute.cli.confirm import confirmed
 from meute.cli.context import CliContext, open_context, require_project
 from meute.cli.render import task_line
 from meute.cli.task_app import task_app
@@ -128,7 +129,6 @@ def _confirm(prompt: str) -> None:
     if not stdin_is_terminal():
         message = "confirmation required: rerun with --yes"
         raise InvalidInput(message)
-    typer.echo(prompt, nl=False)
-    if sys.stdin.readline().strip().lower() not in {"y", "yes"}:
+    if not confirmed(prompt, err=False):
         message = "deletion cancelled"
         raise InvalidInput(message)

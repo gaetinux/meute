@@ -18,22 +18,30 @@ class ShowSession:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class LaunchBash:
-    """Start a Bash session in `cwd`; `title` is the default one when None."""
+    """Start a Bash session in `cwd`; `title` is the default one when None.
+
+    With `new_branch`, the session starts in a new worktree of `repo_id` on that branch.
+    """
 
     cwd: Path
     repo_id: RepoId | None
     title: str | None = None
+    new_branch: str | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class LaunchClaude:
-    """Start a Claude session in `cwd`; None fields take the usual defaults."""
+    """Start a Claude session in `cwd`; None fields take the usual defaults.
+
+    With `new_branch`, the session starts in a new worktree of `repo_id` on that branch.
+    """
 
     cwd: Path
     repo_id: RepoId | None
     title: str | None = None
     task_id: TaskId | None = None
     permission_mode: str | None = None
+    new_branch: str | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -126,6 +134,15 @@ class MoveToRepoProject:
     name: str
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RemoveWorktree:
+    """Remove the linked worktree `path` of `repo`, its branch kept; `force` despite changes."""
+
+    repo: Path
+    path: Path
+    force: bool
+
+
 TaskAction = CreateTask | ChangeTask | MoveToRepoProject | AddNote | DeleteTask | LaunchOnTask
 OrphanAction = ShowPane | AdoptOrphan | CloseOrphan
 BoardAction = (
@@ -136,5 +153,6 @@ BoardAction = (
     | ResumeSession
     | OrphanAction
     | Detach
+    | RemoveWorktree
     | TaskAction
 )

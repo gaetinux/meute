@@ -3,15 +3,17 @@
 import unicodedata
 
 _REPLACEMENT = chr(0xFFFD)
+_REPLACED_CATEGORIES = frozenset({"Cc", "Zl", "Zp"})
 _BIDI_CONTROLS = frozenset(chr(code) for code in (*range(0x202A, 0x202F), *range(0x2066, 0x206A)))
 
 
 def printable(text: str, *, keep_newlines: bool = False) -> str:
     """Return `text` with control and bidirectional-control characters neutralised.
 
-    Each Unicode `Cc` character (C0, DEL, C1) and each bidi embedding, override or isolate
-    control becomes U+FFFD, so no escape sequence can reach a terminal. A tab becomes a space.
-    A newline is kept only when `keep_newlines` is true.
+    Each Unicode `Cc` character (C0, DEL, C1), line or paragraph separator (`Zl`, `Zp`) and
+    bidi embedding, override or isolate control becomes U+FFFD, so no escape sequence can
+    reach a terminal and no text breaks the line. A tab becomes a space. A newline is kept
+    only when `keep_newlines` is true.
     """
     return "".join(_safe(char, keep_newlines=keep_newlines) for char in text)
 
@@ -21,7 +23,7 @@ def _safe(char: str, *, keep_newlines: bool) -> str:
         return char
     if char == "\t":
         return " "
-    if char in _BIDI_CONTROLS or unicodedata.category(char) == "Cc":
+    if char in _BIDI_CONTROLS or unicodedata.category(char) in _REPLACED_CATEGORIES:
         return _REPLACEMENT
     return char
 

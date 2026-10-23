@@ -21,6 +21,7 @@ from meute.core.board_actions import (
     LaunchOnTask,
     MoveToRepoProject,
     OrphanAction,
+    RemoveWorktree,
     ResumeSession,
     ShowPane,
     ShowSession,
@@ -36,6 +37,7 @@ from meute.core.board_entries import (
     SessionRow,
 )
 from meute.core.claude_session import ClaudeDetails
+from meute.core.git_state import GitState
 from meute.core.last_agent import last_agent
 from meute.core.orphans import Orphan
 from meute.core.paths import display_path
@@ -68,6 +70,7 @@ __all__ = [
     "MoveToRepoProject",
     "OrphanAction",
     "OrphanEntry",
+    "RemoveWorktree",
     "RepoEntry",
     "ResumeSession",
     "SessionEntry",
@@ -87,6 +90,7 @@ KEYS_HELP = (
     "↑↓ select · Enter show · Space ←→ fold a group\n"
     "c new Claude session · x stop\n"
     "r resume an ended Claude session\n"
+    "W remove the worktree of an ended session\n"
     "n new (this repository's last type)\n"
     "N choose what to launch\n"
     "a attention only · e ended sessions · Tab tasks · q detach\n"
@@ -125,6 +129,7 @@ class BoardData:
         default_factory=dict[SessionId, StatuslineData]
     )
     projects: Mapping[ProjectId, str] = field(default_factory=dict[ProjectId, str])
+    git: Mapping[Path, GitState] = field(default_factory=dict[Path, GitState])
     quota: QuotaLine | None = None
     now: datetime | None = None
     tasks: tuple[Task, ...] = ()

@@ -1,6 +1,7 @@
 """What the board does with an orphan pane: show it, adopt it as a session, close it."""
 
 import sqlite3
+from pathlib import Path
 
 from meute.cli.context import CliContext
 from meute.cli.session_show import show_pane
@@ -11,6 +12,7 @@ from meute.core.db.sessions import create_session, get_session
 from meute.core.errors import InvalidInput, NotFound
 from meute.core.orphans import Orphan, adoption
 from meute.core.session import AgentKind, Session, SessionId
+from meute.git.discover import main_repo_of
 from meute.tmux.layout import ensure_layout, find_layout
 from meute.tmux.panes import list_panes, pane_by_id
 
@@ -45,7 +47,9 @@ def adopt_orphan(ctx: CliContext, orphan: Orphan) -> Session | None:
     Raises:
         InvalidInput: the orphan cannot be adopted (not a meute id, dead pane).
     """
-    new = adoption(orphan, list_repos(ctx.db))
+    cwd = Path(orphan.cwd)
+    main = main_repo_of(cwd) if cwd.is_absolute() else None
+    new = adoption(orphan, list_repos(ctx.db), main)
     if isinstance(new, str):
         raise InvalidInput(new)
     if _recorded(ctx, new.id):

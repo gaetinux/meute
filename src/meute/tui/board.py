@@ -20,7 +20,7 @@ from meute.core.board_view import (
 )
 from meute.core.errors import MeuteError
 from meute.tui.board_input import OpenInputs
-from meute.tui.board_types import DEFAULT_OPTIONS, BoardBackend, BoardOptions
+from meute.tui.board_types import DEFAULT_OPTIONS, BoardBackend, BoardGit, BoardOptions
 from meute.tui.board_workers import BoardWorkers
 from meute.tui.launch_form import LaunchFormPanel
 from meute.tui.sessions_pane import tabs_content
@@ -46,6 +46,7 @@ class BoardApp(App[None]):
         self,
         backend: BoardBackend,
         options: BoardOptions = DEFAULT_OPTIONS,
+        git: BoardGit | None = None,
         *,
         poll_seconds: float = 0.5,
     ) -> None:
@@ -63,9 +64,11 @@ class BoardApp(App[None]):
             adopt=self._background.adopt,
             close=self._background.close,
             is_closing=self._background.is_closing,
+            worktrees=self._background,
             launch=backend.perform,
             launch_task=self._background.launch_form,
             default_mode=options.permission_mode,
+            git=git,
             local=options.local,
             show_details=options.show_details,
         )

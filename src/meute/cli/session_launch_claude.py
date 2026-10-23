@@ -3,11 +3,18 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import assert_never
 
 from meute.claude.launch import claude_argv, find_claude
 from meute.cli.context import CliContext
 from meute.cli.session_context import ClaudeOrigin, prepare_claude
-from meute.cli.session_launch import resolve_folder, session_spawn, spawn_and_record
+from meute.cli.session_launch import (
+    BashLaunch,
+    launch_bash,
+    resolve_folder,
+    session_spawn,
+    spawn_and_record,
+)
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.errors import InvalidInput
 from meute.core.project import RepoId
@@ -77,3 +84,36 @@ def launch_claude(
             task_id=request.task_id,
         ),
     )
+
+
+def start_session(  # noqa: PLR0913 — what a launch of either kind needs
+    ctx: CliContext,
+    env: TmuxEnv,
+    environ: Mapping[str, str],
+    *,
+    kind: AgentKind,
+    cwd: Path,
+    repo_id: RepoId | None,
+    title: str | None,
+    permission_mode: str | None,
+) -> Session:
+    """Start a `kind` session in `cwd` (see `launch_claude` and `launch_bash`).
+
+    `permission_mode` only applies to Claude.
+
+    Raises:
+        InvalidInput: the folder does not exist, `claude` is missing or the mode is unknown.
+        ConfigError: the configuration file has become invalid; nothing was started.
+        TmuxError: tmux failed.
+    """
+    match kind:
+        case AgentKind.CLAUDE:
+            claude = ClaudeLaunch(
+                cwd=cwd, repo_id=repo_id, title=title, permission_mode=permission_mode
+            )
+            return launch_claude(ctx, env, claude, environ)
+        case AgentKind.BASH:
+            bash = BashLaunch(cwd=cwd, repo_id=repo_id, title=title)
+            return launch_bash(ctx, env, bash, environ)
+        case _:
+            assert_never(kind)

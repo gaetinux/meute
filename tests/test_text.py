@@ -37,3 +37,21 @@ def test_no_control_character_survives(text: str, *, keep: bool) -> None:
     allowed = "\n" if keep else ""
     assert all(unicodedata.category(c) != "Cc" or c in allowed for c in result)
     assert not any("\u202a" <= c <= "\u202e" or "\u2066" <= c <= "\u2069" for c in result)
+
+
+@pytest.mark.parametrize(
+    ("text", "keep", "expected"),
+    [
+        ("a\u2028b", False, "a\ufffdb"),
+        ("a\u2029b", False, "a\ufffdb"),
+        ("a\u2028b\nc", True, "a\ufffdb\nc"),
+    ],
+)
+def test_line_and_paragraph_separators(text: str, *, keep: bool, expected: str) -> None:
+    assert printable(text, keep_newlines=keep) == expected
+
+
+@given(text=st.text(), keep=st.booleans())
+def test_only_kept_newlines_break_the_line(text: str, *, keep: bool) -> None:
+    breaks = [c for c in printable(text, keep_newlines=keep) if len(f"x{c}x".splitlines()) > 1]
+    assert breaks == (["\n"] * len(breaks) if keep else [])

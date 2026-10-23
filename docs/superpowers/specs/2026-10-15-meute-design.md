@@ -315,7 +315,7 @@ Depuis la vue Sessions (plan 4c) :
 - Le dossier saisi : `~` est développé, les espaces de début et de fin sont retirés, le chemin doit être absolu (`folder must be absolute: …`) puis exister (`folder not found: …`) ; un dossier vide donne `folder is empty`. Un échec de lancement garde le formulaire ouvert avec l'erreur.
 - Si une autre session vivante travaille dans le même dossier (chemins résolus), le formulaire affiche l'avertissement `⚠ another live session works in this folder` (la session sélectionnée compte) ; il n'empêche rien.
 
-**Reste au plan 6** : le champ worktree du formulaire (aucun / nouveau / existant) et la recommandation de worktree, qui remplacera l'avertissement.
+Le champ `Worktree` du formulaire (aucun / nouveau / existant) et la recommandation de worktree, qui remplace cet avertissement, sont faits au plan 6a : voir § 11.
 
 ### 6.5 Arrêt et reprise
 
@@ -501,6 +501,8 @@ Décision de l'auteur, 2026-10-19.
   - les projets sans session vivante sont listés en bas, avec l'action « + session ».
 
 ## 11. Worktrees et Git
+
+Conception détaillée et réalisation (plan 6a) : `docs/superpowers/specs/2026-10-23-meute-git-worktrees-design.md` (champ `Worktree` de `N`, ligne Git des cartes, touche `W`, `meute worktree list` / `remove`, `meute session new --worktree`, et ses « Écarts constatés à la réalisation »).
 
 - **Nouveau worktree** : `git worktree add <parent-du-dépôt>/<dépôt>.worktrees/<branche> -b <branche>`. Le dépôt n'est pas modifié et aucune entrée `.gitignore` n'est ajoutée.
 - **Pas de worktrees natifs de Claude** : meute n'utilise pas `claude -w`, qui crée le worktree dans `<dépôt>/.claude/worktrees/<nom>`, donc à l'intérieur du dépôt, avec un risque de pollution de `git status` si `.claude/` n'est pas ignoré (spike S5). Les worktrees créés par Claude lui-même (outil `EnterWorktree`) restent visibles grâce à `worktree.*` dans la statusline, et sont affichés comme tels.

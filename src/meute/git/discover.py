@@ -62,7 +62,7 @@ def _walk(folder: Path, depth: int, max_depth: int, found: _Found) -> None:
     if mode is not None:
         if stat.S_ISDIR(mode):
             found.repos.add(folder)
-        elif stat.S_ISREG(mode) and (main := _main_repo_of_worktree(folder, git)) is not None:
+        elif stat.S_ISREG(mode) and (main := main_repo_of(folder)) is not None:
             found.worktrees.setdefault(main, set()).add(folder)
         return
     if depth >= max_depth:
@@ -85,6 +85,26 @@ def _is_walkable(entry: os.DirEntry[str]) -> bool:
         return entry.is_dir(follow_symlinks=False)
     except (UnicodeEncodeError, OSError):
         return False
+
+
+def main_repo_of(folder: Path) -> Path | None:
+    """The main repository of `folder`, from the nearest `.git` at or above it.
+
+    A `.git` folder makes its parent the main repository; a `.git` file must point to
+    `<main>/.git/worktrees/<name>`. Anything else, or no `.git`, gives None.
+    """
+    for candidate in (folder, *folder.parents):
+        git = candidate / ".git"
+        try:
+            mode = git.lstat().st_mode
+        except OSError:
+            continue
+        if stat.S_ISDIR(mode):
+            return candidate
+        if stat.S_ISREG(mode):
+            return _main_repo_of_worktree(candidate, git)
+        return None
+    return None
 
 
 def _main_repo_of_worktree(folder: Path, git_file: Path) -> Path | None:

@@ -1,0 +1,96 @@
+# serializer version: 1
+# name: test_a_narrow_form_with_a_new_worktree[12]
+  list([
+    '── New sess…',
+    'Type      ◂…',
+    'Repo      ◂…',
+    'Worktree  ◂…',
+    'Branch    a…',
+    '          →…',
+    '          C…',
+    'Title     L…',
+    'Task      ◂…',
+    'Mode      ◂…',
+    '⚠ another l…',
+    'Enter launc…',
+  ])
+# ---
+# name: test_a_narrow_form_with_a_new_worktree[40]
+  list([
+    '── New session ─────────────────────────',
+    'Type      ◂ Claude ▸',
+    'Repo      ◂ meute ▸',
+    'Worktree  ◂ new ▸',
+    'Branch    a-rather-long-branch-name',
+    '          → ~/git/meute.worktrees/a-rat…',
+    '          Claude will ask whether to tr…',
+    'Title     Long',
+    'Task      ◂ none ▸',
+    'Mode      ◂ auto ▸',
+    '⚠ another live session works in this fo…',
+    'Enter launch · Tab next · ←→ choose · E…',
+  ])
+# ---
+# name: test_bash_form_with_a_new_worktree_has_no_trust_note
+  list([
+    '── New session ─────────────────────────────────────────────────────────────────',
+    'Type      ◂ Bash ▸',
+    'Repo      ◂ meute ▸',
+    'Worktree  ◂ new ▸',
+    'Branch    fix-login',
+    '          → ~/git/meute.worktrees/fix-login',
+    'Title     ',
+    '⚠ another live session works in this folder: a new worktree is recommended',
+    'Enter launch · Tab next · ←→ choose · Esc cancel',
+  ])
+# ---
+# name: test_claude_form_with_a_new_worktree
+  list([
+    '── New session ─────────────────────────────────────────────────────────────────',
+    'Type      ◂ Claude ▸',
+    'Repo      ◂ meute ▸',
+    'Worktree  ◂ new ▸',
+    'Branch    fix-login',
+    '          → ~/git/meute.worktrees/fix-login',
+    '          Claude will ask whether to trust the new folder',
+    'Title     Fix login',
+    'Task      ◂ none ▸',
+    'Mode      ◂ auto ▸',
+    '⚠ another live session works in this folder: a new worktree is recommended',
+    'Enter launch · Tab next · ←→ choose · Esc cancel',
+  ])
+# ---
+# name: test_form_on_an_existing_worktree
+  list([
+    '── New session ─────────────────────────────────────────────────────────────────',
+    'Type      ◂ Bash ▸',
+    'Repo      ◂ meute ▸',
+    'Worktree  ◂ fix  ~/git/meute.worktrees/fix ▸',
+    'Folder    ~/git/meute.worktrees/fix',
+    'Title     ',
+    'Enter launch · Tab next · ←→ choose · Esc cancel',
+  ])
+# ---
+# name: test_form_on_an_existing_worktree.1
+  list([
+    '── New session ─────────────────────────────────────────────────────────────────',
+    'Type      ◂ Bash ▸',
+    'Repo      ◂ meute ▸',
+    'Worktree  ◂ (detached 0123456)  /srv/spike ▸',
+    'Folder    /srv/spike',
+    'Title     ',
+    'Enter launch · Tab next · ←→ choose · Esc cancel',
+  ])
+# ---
+# name: test_form_with_a_failed_list
+  list([
+    '── New session ─────────────────────────────────────────────────────────────────',
+    'Type      ◂ Bash ▸',
+    'Repo      ◂ notes ▸',
+    'Worktree  ◂ none ▸',
+    '          git not found',
+    'Folder    ~/git/notes',
+    'Title     ',
+    'Enter launch · Tab next · ←→ choose · Esc cancel',
+  ])
+# ---

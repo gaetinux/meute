@@ -5,15 +5,17 @@ from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, assert_never
 
 from meute.claude.launch import find_claude
 from meute.cli.agents_poller import AgentsPoller
 from meute.cli.board_data import load_board_data
+from meute.cli.board_launch import BoardLaunch
 from meute.cli.context import ENVIRONMENT_ERRORS, CliContext, open_database
+from meute.cli.git_poller import GitPoller
 from meute.cli.orphan_actions import adopt_orphan, close_orphan, show_orphan
-from meute.cli.session_launch import BashLaunch, launch_bash
-from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
+from meute.cli.session_launch_claude import ClaudeLaunch
 from meute.cli.session_next import order_if_shown, show_next
 from meute.cli.session_resume import resume_session
 from meute.cli.session_show import show_session
@@ -22,6 +24,7 @@ from meute.cli.status_publish import publish_status
 from meute.cli.task_launch import READY_TIMEOUT_SECONDS, launch_claude_on_task, launch_on_task
 from meute.cli.task_quick_create import TUI_ACTOR, create_quick_task, move_to_repo_project
 from meute.cli.tmux_env import TmuxEnv
+from meute.cli.worktree_removal import live_session_folders, perform_removal
 from meute.core.board_view import (
     AddNote,
     AdoptOrphan,
@@ -37,6 +40,7 @@ from meute.core.board_view import (
     LaunchOnTask,
     MoveToRepoProject,
     OrphanAction,
+    RemoveWorktree,
     ResumeSession,
     ShowPane,
     ShowSession,
@@ -46,14 +50,18 @@ from meute.core.db.claude_sessions import purge_samples
 from meute.core.db.task_notes import add_note
 from meute.core.db.task_update import delete_task, update_task
 from meute.core.errors import MeuteError, PromptNotPasted
+from meute.core.git_folder import git_folder
+from meute.core.paths import resolved
 from meute.core.session import SessionId
 from meute.core.task import TaskId
 from meute.core.views import count_overdue
+from meute.git.run import find_git
 from meute.tmux.layout import displayed_meute_id
 from meute.tmux.panes import detach_client
 
 if TYPE_CHECKING:
     from meute.core.agents import AgentInfo
+    from meute.core.git_state import GitState
 
 TMUX_REREAD_SECONDS = 2.0
 SAMPLE_RETENTION = timedelta(days=30)
@@ -75,7 +83,7 @@ def purge_old_samples(ctx: CliContext) -> int:
 class CliBoardBackend:
     """Rereads when another process wrote the database, after an action, or every 2 s."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 — its collaborators, the pollers injected by tests
         self,
         ctx: CliContext,
         env: TmuxEnv,
@@ -83,6 +91,7 @@ class CliBoardBackend:
         *,
         monotonic: Callable[[], float] = time.monotonic,
         agents: AgentsPoller | None = None,
+        git: GitPoller | None = None,
     ) -> None:
         self._ctx = ctx
         self._env = env
@@ -94,7 +103,13 @@ class CliBoardBackend:
         claude = find_claude(environ) if "PATH" in environ else None
         self._agents = agents or AgentsPoller(claude, monotonic=monotonic)
         self._known: tuple[AgentInfo, ...] | None = None  # last result of `claude agents`
+        self._git = git or GitPoller(find_git(environ) if "PATH" in environ else None, environ)
+        self._git_state: Mapping[Path, GitState] = {}  # last result of the Git poller
+        self._last: BoardData | None = None  # the last read, without its Git state
+        self._folders: tuple[Path, ...] = ()  # the folders of the last read
+        self._live: tuple[Path, ...] = ()  # where the live sessions of the last read work
         self._status: str | None = None  # last text written to the tmux status line
+        self._launch = BoardLaunch(ctx=ctx, env=env, environ=environ, on_task=self._launch_on_task)
 
     def load(self) -> BoardData | None:
         """Return the reconciled data, or `None` when nothing can have changed.
@@ -114,16 +129,38 @@ class CliBoardBackend:
         if fresh is not None and fresh != self._known:
             self._known = fresh
             self._read_at = None  # the assumed states and the outside list changed
-        if (
-            self._read_at is not None
-            and version == self._data_version
-            and now - self._read_at < TMUX_REREAD_SECONDS
-        ):
+        reread = (
+            self._last is None
+            or self._read_at is None
+            or version != self._data_version
+            or now - self._read_at >= TMUX_REREAD_SECONDS
+        )
+        if reread:
+            self._last = self._read(version, now)
+        # Polled with the folders of the last read: the first round starts at the first load.
+        fresh = self._git.poll(self._folders)
+        git_changed = fresh is not None and fresh != self._git_state
+        if fresh is not None:
+            self._git_state = fresh
+        if self._last is None or not (reread or git_changed):
             return None
+        return replace(self._last, git=self._git_state)
+
+    def _read(self, version: int, now: float) -> BoardData:
+        """Read the board's data, and keep its folders for the Git poller."""
         data = load_board_data(self._ctx, self._env, self._environ, self._known)
         self._data_version, self._read_at = version, now
+        self._folders = tuple(
+            git_folder(row.session, data.metrics.get(row.session.id))
+            for row in (*data.sessions, *data.ended)
+        )
+        self._live = live_session_folders((row.session for row in data.sessions), data.metrics)
         self._publish_status(data)
         return data
+
+    def live_folders(self) -> tuple[Path, ...]:
+        """The resolved folders where the live sessions of the last load work."""
+        return tuple(map(resolved, self._live))
 
     def _publish_status(self, data: BoardData) -> None:
         """Write the tmux status line when its text changed since the last write."""
@@ -136,8 +173,9 @@ class CliBoardBackend:
         )
 
     def close(self) -> None:
-        """Stop the background `claude agents` run, if any."""
+        """Stop the background `claude agents` run and Git reads, if any."""
         self._agents.close()
+        self._git.close()
 
     def perform(self, action: BoardAction) -> None:
         """Carry out `action`; the next load rereads.
@@ -156,23 +194,8 @@ class CliBoardBackend:
         match action:
             case ShowSession():
                 show_session(self._ctx, self._env, action.session_id)
-            case LaunchBash():
-                request = BashLaunch(cwd=action.cwd, repo_id=action.repo_id, title=action.title)
-                session = launch_bash(self._ctx, self._env, request, self._environ)
-                show_session(self._ctx, self._env, session.id)
-            case LaunchClaude():
-                claude = ClaudeLaunch(
-                    cwd=action.cwd,
-                    repo_id=action.repo_id,
-                    title=action.title,
-                    permission_mode=action.permission_mode,
-                    task_id=action.task_id,
-                )
-                if action.task_id is None:
-                    session = launch_claude(self._ctx, self._env, claude, self._environ)
-                    show_session(self._ctx, self._env, session.id)
-                else:  # a task picked in the form: its text is pasted, like `L`, in a worker
-                    self._launch_on_task(action.task_id, claude)
+            case LaunchBash() | LaunchClaude():
+                self._launch.perform(action)
             case StopSession():
                 self._stop(action.session_id)
             case ResumeSession():
@@ -181,6 +204,8 @@ class CliBoardBackend:
                 self._perform_orphan(action)
             case Detach():
                 detach_client(self._env.tmux)
+            case RemoveWorktree():  # checked again: a session may have started there since
+                perform_removal(self._environ, action, self.live_folders())
             # Task writes go as the TUI user, with the version the board last read.
             case CreateTask():
                 _ = create_quick_task(self._ctx, action.text, action.project)
