@@ -18,7 +18,9 @@ meute = "meute._entry:console"
 
 [tool.uv]
 exclude-newer = "2026-10-15T00:00:00Z"
-# Each exemption keeps the version already locked: the day after its upload, UTC midnight.
+# Each exemption keeps the version already locked on 2026-10-23: the day after its upload,
+# UTC midnight. certifi's carries the GHSA-6q48-6c7w-9gw2 fix. Remove them at the next lock
+# refresh past their dates.
 exclude-newer-package = { certifi = "2026-10-21T00:00:00Z", hypothesis = "2026-10-17T00:00:00Z", platformdirs = "2026-10-17T00:00:00Z", pluggy = "2026-10-16T00:00:00Z", ruff = "2026-10-16T00:00:00Z", tomlkit = "2026-10-17T00:00:00Z" }
 
 [build-system]

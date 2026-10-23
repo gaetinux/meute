@@ -28,6 +28,7 @@ def _safe(char: str, *, keep_newlines: bool) -> str:
 
 _ALLOWED_C0 = frozenset("\n\t")
 INSTRUCTIONS_CONTROL = "instructions contain a control character"
+"""The refusal of instructions that `has_control_character` flags, in the database and config."""
 
 
 def has_control_character(text: str) -> bool:
