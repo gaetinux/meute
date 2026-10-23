@@ -76,6 +76,37 @@ def test_filter_drivers_never_run(git_repo: GitRepo, tmp_path: Path, driver: str
     assert not witness.exists()
 
 
+def test_an_empty_named_driver_never_runs(git_repo: GitRepo, tmp_path: Path) -> None:
+    witness = tmp_path / "witness"
+    trap = fake_git(tmp_path / "trap", f'touch "{witness}"\ncat')
+    (git_repo.path / ".gitattributes").write_text("* filter=\n")
+    git_repo.git("add", ".gitattributes")
+    git_repo.git("commit", "--quiet", "--message=attributes")
+    with (git_repo.path / ".git/config").open("a") as config:
+        config.write(f'[filter ""]\n\tclean = {trap}\n\tprocess = {trap}\n\trequired = true\n')
+    git_repo.git("config", "filter.clean", "not a driver")  # no subsection: git ignores it
+    readme = git_repo.path / "README.md"
+    stale = readme.stat().st_mtime + 10
+    os.utime(readme, (stale, stale))  # same content, stat data out of date in the index
+    git = real_git(git_repo)
+    status = ["status", "--porcelain=v2"]
+    numstat = ["diff", "--numstat", "HEAD"]
+    unguarded_read(git_repo, status)
+    assert witness.exists(), "the empty-named trap must fire on status without the guard"
+    witness.unlink()
+    assert read_git(git, git_repo.path, status, timeout=5, environ=git_repo.env) == ""
+    assert not witness.exists()
+    readme.write_text("hello\nchanged\n")
+    unguarded_read(git_repo, numstat)
+    assert witness.exists(), "the empty-named trap must fire on diff without the guard"
+    witness.unlink()
+    out = read_git(git, git_repo.path, numstat, timeout=5, environ=git_repo.env)
+    assert out == "1\t0\tREADME.md\n"
+    process = start_read(git, git_repo.path, numstat, environ=git_repo.env)
+    assert process.communicate(timeout=5)[0] == b"1\t0\tREADME.md\n"
+    assert not witness.exists()
+
+
 def test_a_driver_name_git_c_cannot_express_is_refused(git_repo: GitRepo, tmp_path: Path) -> None:
     witness = tmp_path / "witness"
     trap = fake_git(tmp_path / "trap", f'touch "{witness}"\ncat')

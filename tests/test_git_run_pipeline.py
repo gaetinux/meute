@@ -61,6 +61,17 @@ def test_lookup_filters_reads_a_finished_lookup() -> None:
         lookup_filters(0, b"filter.a=b.clean\ncat\0", b"")
 
 
+def test_lookup_filters_keeps_an_empty_driver_name() -> None:
+    lookup = b"filter.clean\nx\0filter..clean\ncat\0filter..process\ncat\0filter.a.clean\ncat\0"
+    assert lookup_filters(0, lookup, b"") == ("", "a")
+
+
+def test_read_args_neutralise_an_empty_driver_name(tmp_path: Path) -> None:
+    args = read_args(tmp_path, ["status"], ("",))
+    words = ("-c", "filter..clean=", "-c", "filter..process=", "-c", "filter..required=false")
+    assert args[2:8] == words
+
+
 def test_has_exited_leaves_git_to_reap(tmp_path: Path) -> None:
     git = fake_git(tmp_path / "bin", "exit 3")
     process = start_read_with(git, tmp_path, ["status"], (), environ={})

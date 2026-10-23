@@ -151,8 +151,9 @@ def filter_names(output: str) -> tuple[str, ...]:
     names: dict[str, None] = {}
     for record in output.split("\0"):
         key = record.partition("\n")[0]
-        name = key.removeprefix("filter.").rpartition(".")[0]
-        if not key.startswith("filter.") or not name:
+        # `filter.<name>.<key>`, `<name>` possibly empty; `filter.<key>` names no driver.
+        name, dot, _ = key.removeprefix("filter.").rpartition(".")
+        if not key.startswith("filter.") or not dot:
             continue
         if "=" in name:
             msg = "git: unsupported filter driver name"

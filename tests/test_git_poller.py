@@ -210,6 +210,25 @@ def test_an_unsupported_filter_drops_the_folder(tmp_path: Path, pollers: list[Gi
     assert _log(tmp_path) == ["config"]
 
 
+def test_an_empty_named_driver_never_runs(git_repo: GitRepo, pollers: list[GitPoller]) -> None:
+    witness = git_repo.path.parent / "witness"
+    trap = fake_git(git_repo.path.parent / "trap", f'touch "{witness}"\ncat')
+    (git_repo.path / ".gitattributes").write_text("* filter=\n")
+    git_repo.git("add", ".gitattributes")
+    git_repo.git("commit", "--quiet", "--message=attributes")
+    with (git_repo.path / ".git/config").open("a") as config:
+        config.write(f'[filter ""]\n\tclean = {trap}\n\trequired = true\n')
+    (git_repo.path / "README.md").write_text("hello\nchanged\n")
+    git_repo.git("diff", "--numstat", "HEAD")
+    assert witness.exists(), "the empty-named trap must fire without the guard"
+    witness.unlink()
+    poller = _poller(pollers, real_git(git_repo), git_repo.env)
+    state = _state(poller, git_repo)
+    assert state is not None
+    assert (state.dirty, state.added, state.removed) == (True, 1, 0)
+    assert not witness.exists()
+
+
 def test_a_failing_lookup_drops_the_folder(tmp_path: Path, pollers: list[GitPoller]) -> None:
     poller = _poller(pollers, _logging_git(tmp_path, config="exit 128"), {})
     assert _harvest(poller, [tmp_path]) == {}
