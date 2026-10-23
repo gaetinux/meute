@@ -156,3 +156,41 @@ def test_refusals_never_call_worktree_remove(sandbox: Sandbox, case: str) -> Non
         }[case]
     )
     assert (path.is_dir(), _removals(log)) == (True, [])
+
+
+def test_list_survives_an_absent_locked_worktree(sandbox: Sandbox) -> None:
+    repo = _repo(sandbox)
+    _ = _add(repo, "feat")
+    away = _add(repo, "away")
+    repo.git("worktree", "lock", str(away))
+    away.rename(sandbox.root / "moved")
+    env, _ = _env(repo, sandbox)
+    result = sandbox.run("worktree", "list", env=env)
+    assert (result.returncode, result.stderr) == (0, "")
+    assert result.stdout == (
+        "~/repo.worktrees/away  away  locked  missing\n~/repo.worktrees/feat  feat\n"
+    )
+    listed = sandbox.run("worktree", "list", "--json", env=env)
+    assert (listed.returncode, listed.stderr) == (0, "")
+    assert listed.stdout.replace(str(repo.path), "<repo>") == (
+        '{"worktrees":['
+        '{"repo":"<repo>","path":"<repo>.worktrees/away","branch":"away",'
+        '"dirty":false,"locked":true,"missing":true},'
+        '{"repo":"<repo>","path":"<repo>.worktrees/feat","branch":"feat",'
+        '"dirty":false,"locked":false,"missing":false}]}\n'
+    )
+
+
+def test_a_failing_repository_does_not_hide_the_others(sandbox: Sandbox) -> None:
+    repo = _repo(sandbox)
+    _ = _add(repo, "feat")
+    broken = (sandbox.root / "home" / "broken").resolve()
+    broken.mkdir()
+    with sandbox.db() as db:
+        _ = sync_repos(db, [NewRepo(path=broken, name="broken", kind=None)])
+    env, _ = _env(repo, sandbox)
+    result = sandbox.run("worktree", "list", env=env)
+    assert result.returncode == 1
+    assert result.stdout == "~/repo.worktrees/feat  feat\n"
+    assert result.stderr.startswith("meute: ~/broken: git: ")
+    assert result.stderr.count("\n") == 1

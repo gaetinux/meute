@@ -14,7 +14,6 @@ from meute.cli.session_refresh import refresh
 from meute.cli.tmux_env import open_tmux_env
 from meute.cli.worktree_removal import (
     find_git_or_fail,
-    git_errors,
     inspect_worktree,
     live_session_folders,
     remove_checked,
@@ -27,6 +26,7 @@ from meute.core.paths import display_path
 from meute.core.text import printable
 from meute.core.worktrees import Worktree, WorktreeCheck, listed_text, parse_worktree_list
 from meute.git.discover import main_repo_of
+from meute.git.run import GitError
 from meute.git.worktree import CHECK_TIMEOUT, list_worktrees_text, worktree_changes
 
 worktree_app = typer.Typer(no_args_is_help=True, help="Linked Git worktrees.")
@@ -56,20 +56,22 @@ def list_(
     *,
     json_: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
 ) -> None:
-    """List the linked worktrees: path, branch, `*` when changed, and `locked`."""
+    """List the linked worktrees: path, branch, `*` when changed, `locked` and `missing`."""
     if repo is None:
         with open_context(os.environ) as ctx:
             repos = [known.path for known in list_repos(ctx.db) if known.path.is_dir()]
     else:
         repos = [_main_repo(repo)]
     git = find_git_or_fail(os.environ)
+    home = Path.home()
     found: list[tuple[Path, Worktree, bool]] = []
-    with git_errors():
-        for main in repos:
-            text = list_worktrees_text(git, main, timeout=CHECK_TIMEOUT, environ=os.environ)
-            for worktree in sorted(parse_worktree_list(text, main), key=lambda w: w.path):
-                dirty = bool(worktree_changes(git, worktree.path, environ=os.environ))
-                found.append((main, worktree, dirty))
+    failed = False
+    for main in repos:
+        try:
+            found.extend(_linked(git, main))
+        except GitError as failure:  # told on its own line: the other repositories still show
+            failed = True
+            typer.echo(printable(f"meute: {display_path(main, home)}: {failure}"), err=True)
     if json_:
         echo_json(
             {
@@ -80,19 +82,43 @@ def list_(
                         "branch": worktree.branch,
                         "dirty": dirty,
                         "locked": worktree.locked,
+                        "missing": not worktree.path.is_dir(),
                     }
                     for main, worktree, dirty in found
                 ]
             }
         )
-        return
-    home = Path.home()
-    for _, worktree, dirty in found:
-        typer.echo(
-            f"{printable(display_path(worktree.path, home))}  {printable(_branch_text(worktree))}"
-            + (" *" if dirty else "")
-            + ("  locked" if worktree.locked else "")
+    else:
+        for _, worktree, dirty in found:
+            typer.echo(
+                f"{printable(display_path(worktree.path, home))}"
+                f"  {printable(_branch_text(worktree))}"
+                + (" *" if dirty else "")
+                + ("  locked" if worktree.locked else "")
+                + ("" if worktree.path.is_dir() else "  missing")
+            )
+    if failed:
+        raise typer.Exit(code=1)
+
+
+def _linked(git: Path, main: Path) -> list[tuple[Path, Worktree, bool]]:
+    """The linked worktrees of `main`, each with whether it has changes.
+
+    A worktree whose folder is absent (a locked one on removable media) is never read.
+
+    Raises:
+        GitError: git failed or timed out.
+    """
+    text = list_worktrees_text(git, main, timeout=CHECK_TIMEOUT, environ=os.environ)
+    return [
+        (
+            main,
+            worktree,
+            worktree.path.is_dir()
+            and bool(worktree_changes(git, worktree.path, environ=os.environ)),
         )
+        for worktree in sorted(parse_worktree_list(text, main), key=lambda w: w.path)
+    ]
 
 
 def _confirmed(question: str) -> bool:
