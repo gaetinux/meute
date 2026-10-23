@@ -1,0 +1,34 @@
+# serializer version: 1
+# name: test_git_text[added-only]
+  'main* +5 −0'
+# ---
+# name: test_git_text[ahead-only]
+  'main ↑3'
+# ---
+# name: test_git_text[behind-only]
+  'main ↓4'
+# ---
+# name: test_git_text[clean]
+  'main'
+# ---
+# name: test_git_text[detached-dirty]
+  '(detached a1b2c3d)* +1 −0'
+# ---
+# name: test_git_text[detached]
+  '(detached a1b2c3d)'
+# ---
+# name: test_git_text[dirty]
+  'main*'
+# ---
+# name: test_git_text[full]
+  'main* +12 −3 ↑2 ↓1'
+# ---
+# name: test_git_text[hostile]
+  'bad�[31m�name'
+# ---
+# name: test_git_text[not-pushed-dirty]
+  'feat/x* +1 −2 (not pushed)'
+# ---
+# name: test_git_text[not-pushed]
+  'feat/x (not pushed)'
+# ---
