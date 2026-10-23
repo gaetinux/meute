@@ -64,6 +64,8 @@ class BoardApp(App[None]):
             adopt=self._background.adopt,
             close=self._background.close,
             is_closing=self._background.is_closing,
+            remove_worktree=self._background.remove_worktree,
+            is_removing=self._background.is_removing,
             launch=backend.perform,
             launch_task=self._background.launch_form,
             default_mode=options.permission_mode,

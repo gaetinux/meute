@@ -90,6 +90,7 @@ KEYS_HELP = (
     "↑↓ select · Enter show · Space ←→ fold a group\n"
     "c new Claude session · x stop\n"
     "r resume an ended Claude session\n"
+    "W remove the worktree of an ended session\n"
     "n new (this repository's last type)\n"
     "N choose what to launch\n"
     "a attention only · e ended sessions · Tab tasks · q detach\n"

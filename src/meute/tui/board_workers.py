@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from contextlib import suppress
 from functools import partial
+from pathlib import Path
 
 from textual.app import App
 
@@ -12,6 +13,7 @@ from meute.core.board_view import (
     CloseOrphan,
     LaunchClaude,
     LaunchOnTask,
+    RemoveWorktree,
     ResumeSession,
     StopSession,
     launching_text,
@@ -42,6 +44,7 @@ class BoardWorkers:
         # Orphans being adopted or closed, by their tmux identifier: the selection may move.
         self._adopting: dict[str, None] = {}
         self._closing: dict[str, str] = {}  # id -> command
+        self._removing: dict[Path, None] = {}  # worktrees being removed
 
     def is_stopping(self, session_id: SessionId) -> bool:
         """Whether the session is being stopped."""
@@ -110,6 +113,21 @@ class BoardWorkers:
         self._run(
             CloseOrphan(meute_id=key, agent=orphan_agent(orphan)), partial(self._closing.pop, key)
         )
+
+    def is_removing(self, path: Path) -> bool:
+        """Whether the worktree `path` is being removed."""
+        return path in self._removing
+
+    def remove_worktree(self, action: RemoveWorktree, path_text: str) -> None:
+        """Remove a worktree in a thread worker; the footer then names it as `path_text`."""
+        if action.path in self._removing:
+            return
+        self._removing[action.path] = None
+        told = partial(self._removed, path_text)
+        self._run(action, partial(self._removing.pop, action.path), told)
+
+    def _removed(self, path_text: str, error: str | None, notice: str | None) -> None:
+        self._finished(error, f"worktree removed: {path_text}" if error is None else notice)
 
     def _orphan_busy(self, key: str) -> bool:
         """Whether the orphan is being adopted or closed: either excludes the other."""

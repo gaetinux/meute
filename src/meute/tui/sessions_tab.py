@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from datetime import tzinfo
+from pathlib import Path
 from typing import assert_never
 
 from textual.content import Content
@@ -18,6 +19,7 @@ from meute.core.board_view import (
     LaunchClaude,
     LaunchEntry,
     OrphanEntry,
+    RemoveWorktree,
     ShowPane,
     claude_action,
     confirm_stop_text,
@@ -45,9 +47,10 @@ from meute.tui.board_types import BoardGit
 from meute.tui.launch_form import FormSession, LaunchTask
 from meute.tui.sessions_cursor import SessionsCursor
 from meute.tui.sessions_pane import details_content, quota_content, view_content
+from meute.tui.worktree_removal import WorktreeRemoval
 
-_ACTION_KEYS = frozenset({"enter", "c", "n", "r", "x"})
-_SESSION_ONLY_KEYS = frozenset({"c", "n", "r"})
+_ACTION_KEYS = frozenset({"enter", "c", "n", "r", "x", "W"})
+_SESSION_ONLY_KEYS = frozenset({"c", "n", "r", "W"})
 
 
 class SessionsTab:
@@ -65,6 +68,8 @@ class SessionsTab:
         adopt: Callable[[Orphan], None],
         close: Callable[[Orphan], None],
         is_closing: Callable[[Orphan], bool],
+        remove_worktree: Callable[[RemoveWorktree, str], None],
+        is_removing: Callable[[Path], bool],
         launch: Callable[[LaunchBash | LaunchClaude], None],
         launch_task: LaunchTask,
         default_mode: str,
@@ -81,6 +86,9 @@ class SessionsTab:
         self._adopt = adopt
         self._close = close
         self._is_closing = is_closing
+        self._removal = WorktreeRemoval(
+            git=git, remove=remove_worktree, is_removing=is_removing, notice=notice
+        )
         self._form = FormSession(
             launch=launch, launch_task=launch_task, default_mode=default_mode, git=git
         )
@@ -118,16 +126,8 @@ class SessionsTab:
 
     def handle_key(self, key: str) -> bool:
         """Apply `key`; `False` when the board should deal with it."""
-        confirming, self._confirming = self._confirming, None
-        if confirming is not None:  # a pending stop swallows any key
-            if key == "y":
-                match confirming:
-                    case Session():
-                        self._stop(confirming)
-                    case Orphan():
-                        self._close(confirming)
-                    case _:
-                        assert_never(confirming)
+        if self._confirming is not None or self._removal.footer() is not None:
+            self._answer(key)  # a pending confirmation swallows any key
             return True
         if key == "a" and isinstance(self._selected_entry(), OrphanEntry):
             self._act(key)  # on an orphan pane `a` adopts; elsewhere it filters the view
@@ -141,6 +141,21 @@ class SessionsTab:
             self._act(key)
             return True
         return False
+
+    def _answer(self, key: str) -> None:
+        """Answer the pending stop, close or removal: `y` confirms, any other key cancels."""
+        confirming, self._confirming = self._confirming, None
+        match confirming:
+            case None:
+                self._removal.answer(key, self.cursor.model.data.home)
+            case Session() if key == "y":
+                self._stop(confirming)
+            case Orphan() if key == "y":
+                self._close(confirming)
+            case Session() | Orphan():
+                pass
+            case _:
+                assert_never(confirming)
 
     @property
     def form_open(self) -> bool:
@@ -178,6 +193,8 @@ class SessionsTab:
             self._perform(new_action(entry, self.cursor.model.data))
         elif key == "r":
             self._resume_entry(entry)
+        elif key == "W":
+            self._removal.ask(entry, self.cursor.model.data)
         elif key == "x":
             target = stop_target(entry)
             self._confirming = None if target is None or self._is_stopping(target.id) else target
@@ -208,8 +225,9 @@ class SessionsTab:
     def click(self, y: int, x: int) -> None:
         """Select or fold the line at row `y`; like a key, a click only cancels a stop."""
         _ = x
-        if self._confirming is not None:
+        if self._confirming is not None or self._removal.footer() is not None:
             self._confirming = None
+            self._removal.cancel()
             return
         line = line_at(self.cursor.model, y)
         match line:
@@ -259,7 +277,9 @@ class SessionsTab:
         return None if info is None else details_content(self.cursor.model, info, width)
 
     def prompt(self) -> str | None:
-        """The pending stop confirmation, which takes over the footer."""
+        """The pending confirmation, which takes over the footer."""
+        if (removal := self._removal.footer()) is not None:
+            return removal
         match self._confirming:
             case None:
                 return None
