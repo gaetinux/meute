@@ -19,34 +19,19 @@ from meute.core.worktrees import (
 OID = "a8aa3468fa711e5772c0d021972cb1006f3767f1"
 MAIN = Path("/r/repo")
 
-# `git worktree list --porcelain` for a repository with five linked worktrees.
-REAL = f"""worktree /r/repo
-HEAD {OID}
-branch refs/heads/main
-
-worktree /r/my wt
-HEAD {OID}
-branch refs/heads/spaced
-
-worktree /r/wt-det
-HEAD {OID}
-detached
-
-worktree /r/wt-feat
-HEAD {OID}
-branch refs/heads/feat/x
-
-worktree /r/wt-gone
-HEAD {OID}
-branch refs/heads/gone
-prunable gitdir file points to non-existent location
-
-worktree /r/wt-lock
-HEAD {OID}
-branch refs/heads/lk
-locked why
-"""
-BARE = "worktree /r/bare.git\nbare\n"
+# `git worktree list --porcelain -z` (git 2.47.3) for a repository with seven linked worktrees.
+REAL = (
+    f"worktree /r/repo\0HEAD {OID}\0branch refs/heads/main\0\0"
+    f"worktree /r/my wt\0HEAD {OID}\0branch refs/heads/spaced\0\0"
+    f"worktree /r/wt\nnl\0HEAD {OID}\0branch refs/heads/nl\0\0"
+    f"worktree /r/wt-det\0HEAD {OID}\0detached\0\0"
+    f"worktree /r/wt-feat\0HEAD {OID}\0branch refs/heads/feat/x\0\0"
+    f"worktree /r/wt-gone\0HEAD {OID}\0branch refs/heads/gone\0"
+    "prunable gitdir file points to non-existent location\0\0"
+    f"worktree /r/wt-lock\0HEAD {OID}\0branch refs/heads/lk\0locked why\0\0"
+    f"worktree /r/wt-lock2\0HEAD {OID}\0branch refs/heads/lk2\0locked two\nlines\0\0"
+)
+BARE = "worktree /r/bare.git\0bare\0\0"
 
 
 def _wt(path: str, branch: str | None, *, locked: bool = False) -> Worktree:
@@ -56,36 +41,39 @@ def _wt(path: str, branch: str | None, *, locked: bool = False) -> Worktree:
 def test_parse_real_output() -> None:
     assert parse_worktree_list(REAL, MAIN) == (
         _wt("/r/my wt", "spaced"),
+        _wt("/r/wt\nnl", "nl"),
         _wt("/r/wt-det", None),
         _wt("/r/wt-feat", "feat/x"),
         _wt("/r/wt-lock", "lk", locked=True),
+        _wt("/r/wt-lock2", "lk2", locked=True),
     )
 
 
 def test_parse_locked_without_reason() -> None:
     text = (
-        f"worktree /r/repo\nHEAD {OID}\n\nworktree /r/a\nHEAD {OID}\nbranch refs/heads/a\nlocked\n"
+        f"worktree /r/repo\0HEAD {OID}\0\0"
+        f"worktree /r/a\0HEAD {OID}\0branch refs/heads/a\0locked\0\0"
     )
     assert parse_worktree_list(text, MAIN) == (_wt("/r/a", "a", locked=True),)
 
 
 def test_parse_drops_first_block_even_when_not_main() -> None:
-    text = f"worktree /r/other\nHEAD {OID}\n\nworktree /r/a\nHEAD {OID}\nbranch refs/heads/a\n"
+    text = f"worktree /r/other\0HEAD {OID}\0\0worktree /r/a\0HEAD {OID}\0branch refs/heads/a\0"
     assert parse_worktree_list(text, MAIN) == (_wt("/r/a", "a"),)
 
 
 def test_parse_drops_main_path_and_relative_paths() -> None:
     text = (
-        f"worktree /r/x\nHEAD {OID}\n\n"
-        f"worktree /r/repo\nHEAD {OID}\nbranch refs/heads/m\n\n"
-        f"worktree rel/path\nHEAD {OID}\nbranch refs/heads/r\n\n"
-        f"worktree /r/ok\nHEAD {OID}\nbranch refs/heads/ok\n"
+        f"worktree /r/x\0HEAD {OID}\0\0"
+        f"worktree /r/repo\0HEAD {OID}\0branch refs/heads/m\0\0"
+        f"worktree rel/path\0HEAD {OID}\0branch refs/heads/r\0\0"
+        f"worktree /r/ok\0HEAD {OID}\0branch refs/heads/ok\0\0"
     )
     assert parse_worktree_list(text, MAIN) == (_wt("/r/ok", "ok"),)
 
 
 def test_parse_drops_bare_and_blocks_without_path() -> None:
-    text = f"worktree /r/x\nHEAD {OID}\n\n{BARE}\nHEAD {OID}\nbranch refs/heads/z\n"
+    text = f"worktree /r/x\0HEAD {OID}\0\0{BARE}HEAD {OID}\0branch refs/heads/z\0\0"
     assert parse_worktree_list(text, MAIN) == ()
 
 
@@ -93,10 +81,19 @@ def test_parse_empty() -> None:
     assert parse_worktree_list("", MAIN) == ()
 
 
-def test_parse_tolerates_crlf_and_extra_blank_lines() -> None:
-    text = f"worktree /r/x\r\nHEAD {OID}\r\n\r\n\r\n\r\nworktree /r/a\r\nbranch refs/heads/a\r\n"
+def test_parse_tolerates_extra_empty_fields_and_no_final_one() -> None:
+    text = f"worktree /r/x\0HEAD {OID}\0\0\0\0worktree /r/a\0branch refs/heads/a"
     assert parse_worktree_list(text, MAIN) == (
         Worktree(path=Path("/r/a"), branch="a", head="", locked=False, prunable=False),
+    )
+
+
+def test_parse_keeps_newlines_inside_fields() -> None:
+    text = "worktree /r/x\0\0worktree /r/a\nworktree /r/b\0branch refs/heads/a\nb\0\0"
+    assert parse_worktree_list(text, MAIN) == (
+        Worktree(
+            path=Path("/r/a\nworktree /r/b"), branch="a\nb", head="", locked=False, prunable=False
+        ),
     )
 
 
@@ -106,7 +103,7 @@ def test_parse_never_raises(text: str) -> None:
 
 
 def test_parse_huge_input() -> None:
-    text = "worktree /r/x\n\n" + "worktree /r/a\nbranch refs/heads/a\n\n" * 20000
+    text = "worktree /r/x\0\0" + "worktree /r/a\0branch refs/heads/a\0\0" * 20000
     assert len(parse_worktree_list(text, MAIN)) == 20000
 
 

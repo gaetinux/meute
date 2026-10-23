@@ -14,13 +14,13 @@ _NO_SIGNATURES = ("-c", "log.showSignature=false")  # `gpg.program` would run ot
 def list_worktrees_text(
     git: Path, repo: Path, *, timeout: float, environ: Mapping[str, str]
 ) -> str:
-    """The output of `git worktree list --porcelain` in `repo`, read with the read guards.
+    """The output of `git worktree list --porcelain -z` in `repo`, read with the read guards.
 
     Raises:
         GitError: git is missing, failed or timed out.
     """
     return read_git(
-        git, repo, ["worktree", "list", "--porcelain"], timeout=timeout, environ=environ
+        git, repo, ["worktree", "list", "--porcelain", "-z"], timeout=timeout, environ=environ
     )
 
 

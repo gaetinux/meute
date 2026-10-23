@@ -1,4 +1,4 @@
-"""The worktree model: `git worktree list --porcelain`, branch names, paths and removal checks."""
+"""The worktree model: the `git worktree list` output, branch names, paths and removal checks."""
 
 import re
 import unicodedata
@@ -61,27 +61,33 @@ class WorktreeCheck:
 
 
 def parse_worktree_list(text: str, main: Path) -> tuple[Worktree, ...]:
-    """Read `git worktree list --porcelain`, keeping the linked worktrees.
+    """Read `git worktree list --porcelain -z`, keeping the linked worktrees.
 
-    Drops the first block (the main folder), any block whose path is `main`, the `prunable`
-    and `bare` blocks, and any path that is not absolute. Never raises.
+    Fields end with a NUL, blocks with an empty field, so a path may hold a newline. Drops
+    the first block (the main folder), any block whose path is `main`, the `prunable` and
+    `bare` blocks, and any path that is not absolute. Never raises.
     """
-    blocks = [b for b in re.split(r"(?:\r?\n){2,}", text) if b.strip()]
+    blocks: list[list[str]] = [[]]
+    for field in text.split("\0"):
+        if field:
+            blocks[-1].append(field)
+        elif blocks[-1]:
+            blocks.append([])
     found: list[Worktree] = []
-    for block in blocks[1:]:
+    for block in [b for b in blocks if b][1:]:
         worktree = _block(block)
         if worktree is not None and worktree.path != main:
             found.append(worktree)
     return tuple(found)
 
 
-def _block(block: str) -> Worktree | None:
+def _block(block: Sequence[str]) -> Worktree | None:
     path: Path | None = None
     branch: str | None = None
     head = ""
     locked = False
-    for line in block.splitlines():
-        key, _, value = line.partition(" ")
+    for field in block:
+        key, _, value = field.partition(" ")
         if key == "worktree":
             path = Path(value)
         elif key == "HEAD":

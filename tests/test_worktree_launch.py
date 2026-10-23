@@ -136,8 +136,8 @@ def test_a_failed_creation_launches_nothing(git_repo: GitRepo) -> None:
 def test_the_worktree_list_is_read(git_repo: GitRepo) -> None:
     path = create_worktree(git_repo.env, git_repo.path, "x")
     text = list_worktrees_text(real_git(git_repo), git_repo.path, timeout=5, environ=git_repo.env)
-    assert f"worktree {path}\n" in text
-    assert "branch refs/heads/x\n" in text
+    assert f"\0\0worktree {path}\0" in text
+    assert "\0branch refs/heads/x\0" in text
 
 
 def test_git_errors_are_environment_errors() -> None:
