@@ -36,6 +36,7 @@ from meute.core.board_entries import (
     SessionRow,
 )
 from meute.core.claude_session import ClaudeDetails
+from meute.core.git_state import GitState
 from meute.core.last_agent import last_agent
 from meute.core.orphans import Orphan
 from meute.core.paths import display_path
@@ -125,6 +126,7 @@ class BoardData:
         default_factory=dict[SessionId, StatuslineData]
     )
     projects: Mapping[ProjectId, str] = field(default_factory=dict[ProjectId, str])
+    git: Mapping[Path, GitState] = field(default_factory=dict[Path, GitState])
     quota: QuotaLine | None = None
     now: datetime | None = None
     tasks: tuple[Task, ...] = ()

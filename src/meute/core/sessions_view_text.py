@@ -8,6 +8,8 @@ from typing import assert_never
 
 from meute.core.board_view import SessionRow
 from meute.core.claude_session import ClaudeDetails
+from meute.core.git_folder import where_texts
+from meute.core.git_state import GitState
 from meute.core.paths import display_path
 from meute.core.quota_view import level_role
 from meute.core.session_state import (
@@ -43,6 +45,7 @@ class SessionInfo:
     details: ClaudeDetails | None
     metrics: StatuslineData | None
     group: str
+    git: GitState | None = None
 
 
 def age_text(then: datetime, now: datetime) -> str:
@@ -197,8 +200,7 @@ def card_more_lines(info: SessionInfo, *, width: int) -> list[StyledLine]:
     metrics = info.metrics or StatuslineData()
     where = [
         Span(one_line(text, _MAX_REPLY), Role.DIM)
-        for text in (metrics.worktree_branch, details.last_tool)
-        if text
+        for text in where_texts(info.git, metrics, details.last_tool)
     ]
     lines = (
         _joined(_metrics_parts(details, metrics), _CARD_INDENT, width),

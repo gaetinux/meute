@@ -13,6 +13,7 @@ from meute.core.board_view import (
     RepoEntry,
     SessionEntry,
 )
+from meute.core.git_folder import git_folder
 from meute.core.session import SessionId
 from meute.core.sessions_view import (
     CardLine,
@@ -61,6 +62,7 @@ def board_sessions(data: BoardData, state: ViewState, width: int = 72) -> BoardS
             row=row,
             details=data.details.get(row.session.id),
             metrics=data.metrics.get(row.session.id),
+            git=data.git.get(git_folder(row.session, data.metrics.get(row.session.id))),
             group=group_name(row.session, projects=data.projects, repos=repos),
         )
         for row in (*data.sessions, *data.ended)
