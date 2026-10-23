@@ -5,12 +5,14 @@ from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, assert_never
 
 from meute.claude.launch import find_claude
 from meute.cli.agents_poller import AgentsPoller
 from meute.cli.board_data import load_board_data
 from meute.cli.context import ENVIRONMENT_ERRORS, CliContext, open_database
+from meute.cli.git_poller import GitPoller
 from meute.cli.orphan_actions import adopt_orphan, close_orphan, show_orphan
 from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
@@ -46,9 +48,12 @@ from meute.core.db.claude_sessions import purge_samples
 from meute.core.db.task_notes import add_note
 from meute.core.db.task_update import delete_task, update_task
 from meute.core.errors import MeuteError, PromptNotPasted
+from meute.core.git_folder import git_folder
+from meute.core.git_state import GitState
 from meute.core.session import SessionId
 from meute.core.task import TaskId
 from meute.core.views import count_overdue
+from meute.git.run import find_git
 from meute.tmux.layout import displayed_meute_id
 from meute.tmux.panes import detach_client
 
@@ -75,7 +80,7 @@ def purge_old_samples(ctx: CliContext) -> int:
 class CliBoardBackend:
     """Rereads when another process wrote the database, after an action, or every 2 s."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 — its collaborators, the pollers injected by tests
         self,
         ctx: CliContext,
         env: TmuxEnv,
@@ -83,6 +88,7 @@ class CliBoardBackend:
         *,
         monotonic: Callable[[], float] = time.monotonic,
         agents: AgentsPoller | None = None,
+        git: GitPoller | None = None,
     ) -> None:
         self._ctx = ctx
         self._env = env
@@ -94,6 +100,9 @@ class CliBoardBackend:
         claude = find_claude(environ) if "PATH" in environ else None
         self._agents = agents or AgentsPoller(claude, monotonic=monotonic)
         self._known: tuple[AgentInfo, ...] | None = None  # last result of `claude agents`
+        self._git = git or GitPoller(find_git(environ) if "PATH" in environ else None, environ)
+        self._git_state: Mapping[Path, GitState] = {}  # last result of the Git poller
+        self._folders: tuple[Path, ...] | None = None  # the folders of the last read
         self._status: str | None = None  # last text written to the tmux status line
 
     def load(self) -> BoardData | None:
@@ -114,6 +123,8 @@ class CliBoardBackend:
         if fresh is not None and fresh != self._known:
             self._known = fresh
             self._read_at = None  # the assumed states and the outside list changed
+        if self._folders is not None:
+            self._take_git(self._git.poll(self._folders))
         if (
             self._read_at is not None
             and version == self._data_version
@@ -122,8 +133,20 @@ class CliBoardBackend:
             return None
         data = load_board_data(self._ctx, self._env, self._environ, self._known)
         self._data_version, self._read_at = version, now
+        # Polled again with the folders just read: the first round starts at the first load.
+        self._folders = tuple(
+            git_folder(row.session, data.metrics.get(row.session.id))
+            for row in (*data.sessions, *data.ended)
+        )
+        self._take_git(self._git.poll(self._folders))
         self._publish_status(data)
-        return data
+        return replace(data, git=self._git_state)
+
+    def _take_git(self, fresh: Mapping[Path, GitState] | None) -> None:
+        """Keep a fresh Git state; when it changed, the next load rereads."""
+        if fresh is not None and fresh != self._git_state:
+            self._git_state = fresh
+            self._read_at = None
 
     def _publish_status(self, data: BoardData) -> None:
         """Write the tmux status line when its text changed since the last write."""
@@ -136,8 +159,9 @@ class CliBoardBackend:
         )
 
     def close(self) -> None:
-        """Stop the background `claude agents` run, if any."""
+        """Stop the background `claude agents` run and Git reads, if any."""
         self._agents.close()
+        self._git.close()
 
     def perform(self, action: BoardAction) -> None:
         """Carry out `action`; the next load rereads.

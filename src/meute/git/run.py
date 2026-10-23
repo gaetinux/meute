@@ -91,14 +91,29 @@ def _start(git: Path, argv: Sequence[str], environ: Mapping[str, str]) -> subpro
         raise GitError(msg) from error
 
 
-def _kill(process: subprocess.Popen[bytes]) -> None:
-    """Kill git's process group and reap git, without waiting on pipes an escapee may hold."""
+def has_exited(process: subprocess.Popen[bytes]) -> bool:
+    """Whether git has exited, without reaping it: its process group stays safe to kill."""
+    if process.returncode is not None:
+        return True
+    try:
+        exited = os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+    except ChildProcessError:  # already reaped
+        return True
+    return exited is not None
+
+
+def kill_read(process: subprocess.Popen[bytes]) -> int:
+    """Kill git's process group, close its pipes and reap git; return its exit status.
+
+    It never waits on pipes an escaped child may hold. A status below 0 is the signal that
+    killed git.
+    """
     with suppress(ProcessLookupError):
         os.killpg(process.pid, signal.SIGKILL)
     for pipe in (process.stdout, process.stderr):
         if pipe is not None:
             pipe.close()
-    process.wait()
+    return process.wait()
 
 
 def _failure(returncode: int, stderr: bytes) -> GitError:
@@ -114,7 +129,7 @@ def _communicate(
     try:
         stdout, stderr = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as error:
-        _kill(process)
+        _ = kill_read(process)
         msg = f"git timed out after {timeout:g} s"
         raise GitError(msg) from error
     return process.returncode, stdout, stderr
@@ -146,6 +161,19 @@ def filter_names(output: str) -> tuple[str, ...]:
     return tuple(names)
 
 
+def lookup_filters(returncode: int, stdout: bytes, stderr: bytes) -> tuple[str, ...]:
+    """The filter driver names from a finished lookup (see `start_filter_lookup`).
+
+    Raises:
+        GitError: the lookup failed or reported a name it cannot neutralise.
+    """
+    if returncode == 1:  # no matching key
+        return ()
+    if returncode != 0:
+        raise _failure(returncode, stderr)
+    return filter_names(stdout.decode("utf-8", errors="replace"))
+
+
 def filter_drivers(
     git: Path, folder: Path, *, timeout: float, environ: Mapping[str, str]
 ) -> tuple[str, ...]:
@@ -154,13 +182,34 @@ def filter_drivers(
     Raises:
         GitError: git is missing, failed, timed out or reported a name it cannot neutralise.
     """
-    argv = read_args(folder, _FILTER_LOOKUP)
-    returncode, stdout, stderr = _communicate(git, argv, timeout, environ)
-    if returncode == 1:  # no matching key
-        return ()
-    if returncode != 0:
-        raise _failure(returncode, stderr)
-    return filter_names(stdout.decode("utf-8", errors="replace"))
+    return lookup_filters(*_communicate(git, read_args(folder, _FILTER_LOOKUP), timeout, environ))
+
+
+def start_filter_lookup(
+    git: Path, folder: Path, *, environ: Mapping[str, str]
+) -> subprocess.Popen[bytes]:
+    """Start the filter driver lookup of `filter_drivers` without waiting for it.
+
+    Raises:
+        GitError: git is missing.
+    """
+    return _start(git, read_args(folder, _FILTER_LOOKUP), environ)
+
+
+def start_read_with(
+    git: Path,
+    folder: Path,
+    args: Sequence[str],
+    filters: Sequence[str],
+    *,
+    environ: Mapping[str, str],
+) -> subprocess.Popen[bytes]:
+    """Start a guarded read command in `folder`, neutralising the given filter drivers.
+
+    Raises:
+        GitError: git is missing.
+    """
+    return _start(git, read_args(folder, args, filters), environ)
 
 
 def read_git(
@@ -186,7 +235,7 @@ def start_read(
         GitError: git is missing, or the filter driver lookup failed.
     """
     filters = filter_drivers(git, folder, timeout=_LOOKUP_TIMEOUT, environ=environ)
-    return _start(git, read_args(folder, args, filters), environ)
+    return start_read_with(git, folder, args, filters, environ=environ)
 
 
 def write_git(
