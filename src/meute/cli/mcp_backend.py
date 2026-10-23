@@ -1,15 +1,12 @@
 """The MCP task tools over meute's database: one connection per tool call."""
 
-import os
 import sqlite3
 from collections.abc import Callable, Generator, Mapping
 from contextlib import ExitStack, contextmanager
-from datetime import datetime
+from datetime import datetime, tzinfo
 
 from meute.cli.context import open_database
 from meute.core.actor import Actor, Author, Channel
-from meute.core.clock import local_zone
-from meute.core.config import Config
 from meute.core.db.connection import Database
 from meute.core.db.projects import project_by_name, project_refs
 from meute.core.db.repos import list_repos
@@ -45,8 +42,6 @@ from meute.core.task import KEEP, Keep, NewTask, TaskId, TaskPatch
 from meute.core.views import sort_for_display
 from meute.mcp.backend import TaskChanges
 
-_BUSY_CODES = frozenset({5, 6})  # SQLITE_BUSY, SQLITE_LOCKED (the low byte of extended codes)
-
 
 def caller_session(environ: Mapping[str, str]) -> SessionId | None:
     """Return `MEUTE_SESSION` when it is a session id in its exact (canonical) form, else None."""
@@ -64,24 +59,19 @@ def _unavailable(error: BaseException) -> MeuteError:
     return MeuteError(f"meute database unavailable: {error}")
 
 
-def _is_busy(error: sqlite3.Error) -> bool:
-    code: object = getattr(error, "sqlite_errorcode", None)  # absent on errors raised by hand
-    return isinstance(code, int) and code & 0xFF in _BUSY_CODES
-
-
 class CliMcpBackend:
     """Runs each task tool as Claude, through the MCP channel, in the calling session."""
 
     def __init__(
         self,
         paths: Paths,
-        config: Config,
         caller: SessionId | None,
         clock: Callable[[], datetime],
+        zone: tzinfo,
     ) -> None:
         """Keep what a tool call needs; nothing is opened before the first call."""
         self._paths = paths
-        self._config = config
+        self._zone = zone
         self._caller = caller
         self._clock = clock
         self._actor = Actor(author=Author.CLAUDE, channel=Channel.MCP, session_id=caller)
@@ -96,10 +86,8 @@ class CliMcpBackend:
                 raise _unavailable(error) from None
             try:
                 yield db
-            except sqlite3.Error as error:
-                if _is_busy(error):
-                    raise _unavailable(error) from None
-                raise
+            except (sqlite3.OperationalError, OSError) as error:
+                raise _unavailable(error) from None
 
     def _project_id(self, db: Database, name: str) -> ProjectId:
         project = project_by_name(db, name)
@@ -120,7 +108,7 @@ class CliMcpBackend:
         return None if found is None else found.id
 
     def _now(self, db: Database) -> datetime:
-        return db.now().astimezone(local_zone(os.environ))
+        return db.now().astimezone(self._zone)
 
     def task_list(
         self,

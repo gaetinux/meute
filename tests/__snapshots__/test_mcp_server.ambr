@@ -136,7 +136,7 @@
   }
   {
     "name": "task_update",
-    "description": "Update the fields of a task, but not its status; null clears a field.",
+    "description": "Update the fields of a task, but not its status. Null clears description, due and project; it is refused for title and priority.",
     "inputSchema": {
       "type": "object",
       "properties": {

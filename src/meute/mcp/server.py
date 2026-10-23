@@ -105,7 +105,7 @@ def build_server(
         due: str | None = _OPTIONAL,
         project: str | None = _OPTIONAL,
     ) -> CallToolResult:
-        """Update the fields of a task, but not its status; null clears a field."""
+        """Update the fields of a task, but not its status. Null clears description, due and project; it is refused for title and priority."""  # noqa: E501 — one-line tool description
         changes = TaskChanges(
             title=_kept(title),
             description=_kept(description),

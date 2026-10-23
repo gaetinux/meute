@@ -6,7 +6,7 @@ from pathlib import Path
 
 from meute.cli.context import current_time
 from meute.cli.mcp_backend import CliMcpBackend, caller_session
-from meute.core.config import load_config
+from meute.core.clock import local_zone
 from meute.core.paths import Paths
 from meute.ingest.log import log_error
 from meute.mcp.server import build_server, run_stdio
@@ -37,6 +37,5 @@ def serve(environ: Mapping[str, str]) -> None:
     now = current_time(environ)
     clock = (lambda: now) if "MEUTE_NOW" in environ else (lambda: datetime.now(UTC))
     paths = Paths.from_env(environ, home=Path.home())
-    config = load_config(paths.config_file)
-    backend = CliMcpBackend(paths, config, caller_session(environ), clock)
+    backend = CliMcpBackend(paths, caller_session(environ), clock, local_zone(environ))
     run_stdio(build_server(backend, on_unexpected=journal(paths.state_dir)))

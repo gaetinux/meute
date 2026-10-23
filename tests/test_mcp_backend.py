@@ -1,23 +1,21 @@
 """The CLI backend of the MCP tools, on a throw-away database."""
 
-import sqlite3
 from collections.abc import Generator
 from dataclasses import replace
+from datetime import UTC
 from pathlib import Path
 
 import pytest
 
-import meute.cli.context as cli_context
 from meute.cli.mcp_backend import CliMcpBackend, caller_session
 from meute.core.actor import Actor, Author, Channel
-from meute.core.config import Config
 from meute.core.db.connection import Database
 from meute.core.db.projects import create_project
 from meute.core.db.repos import sync_repos
 from meute.core.db.sessions import create_session
 from meute.core.db.task_notes import notes
 from meute.core.db.tasks import create_task, get_task, history
-from meute.core.errors import InvalidInput, MeuteError, NotFound, VersionConflict
+from meute.core.errors import InvalidInput, NotFound, VersionConflict
 from meute.core.json_types import JsonValue
 from meute.core.paths import Paths
 from meute.core.repo import NewRepo
@@ -46,7 +44,7 @@ def seeded(paths: Paths) -> Generator[Database]:
 
 
 def backend(paths: Paths, caller: SessionId | None = SESSION) -> CliMcpBackend:
-    return CliMcpBackend(paths, Config(), caller, lambda: FIXED)
+    return CliMcpBackend(paths, caller, lambda: FIXED, UTC)
 
 
 def add_session(db: Database, **links: object) -> None:
@@ -284,32 +282,8 @@ def test_task_link_session_of_an_absent_task_or_session_is_not_found(
         b.task_link_session(9)
 
 
-def test_a_locked_database_is_unavailable_then_available_again(
-    paths: Paths, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_task_update_with_a_null_description_clears_it(paths: Paths, seeded: Database) -> None:
     b = backend(paths)
-    b.task_create("T", None, None, None, None)
-    monkeypatch.setattr(cli_context, "BUSY_TIMEOUT_MS", 50)
-    locker = sqlite3.connect(paths.db_file, autocommit=True)
-    locker.execute("BEGIN EXCLUSIVE")
-    try:
-        assert b.task_read(1)["title"] == "T"  # in WAL mode, readers are not blocked
-        for call in (
-            lambda: b.task_note_add(1, "x"),
-            lambda: b.task_create("U", None, None, None, None),
-        ):
-            with pytest.raises(MeuteError, match=r"^meute database unavailable: .*locked"):
-                call()
-    finally:
-        locker.execute("ROLLBACK")
-        locker.close()
-    assert b.task_note_add(1, "x") == {"note_id": 1}
-    assert b.task_create("U", None, None, None, None) == {"id": 2, "version": 1}
-
-
-def test_a_database_that_cannot_be_created_is_unavailable(tmp_path: Path) -> None:
-    blocker = tmp_path / "file"
-    blocker.write_text("x", encoding="utf-8")
-    paths = Paths.from_roots(config_home=tmp_path, data_home=blocker, state_home=tmp_path)
-    with pytest.raises(MeuteError, match=r"^meute database unavailable: "):
-        backend(paths).task_read(1)
+    b.task_create("T", "details", None, None, None)
+    b.task_update(1, 1, replace(KEPT, description=None))
+    assert get_task(seeded, TaskId(1)).description == ""

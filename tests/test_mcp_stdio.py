@@ -138,3 +138,18 @@ def test_a_tool_call_on_a_broken_database_answers_and_keeps_stdout_clean(
     result = as_object(answers[1]["result"])
     assert result["isError"] is True
     assert "meute database unavailable: " in str(result["content"])
+
+
+def test_the_first_tool_call_creates_and_migrates_the_database_without_leaking_to_stdout(
+    sandbox: Sandbox,
+) -> None:
+    create = jsonrpc("tools/call", 2, name="task_create", arguments={"title": "First"})
+    read = jsonrpc("tools/call", 3, name="task_list", arguments={})
+    assert not (sandbox.root / "data").exists()
+    answers, stderr = converse(sandbox, [INITIALIZE, INITIALIZED, create, read], 3)
+    assert sorted(str(a["id"]) for a in answers) == ["1", "2", "3"]  # calls run concurrently
+    assert all(a["jsonrpc"] == "2.0" for a in answers)
+    for answer in (a for a in answers if a["id"] != 1):
+        assert as_object(answer["result"])["isError"] is False
+    assert (sandbox.root / "data/meute/meute.db").is_file()
+    assert stderr == ""
