@@ -51,7 +51,6 @@ from meute.core.db.task_notes import add_note
 from meute.core.db.task_update import delete_task, update_task
 from meute.core.errors import MeuteError, PromptNotPasted
 from meute.core.git_folder import git_folder
-from meute.core.git_state import GitState
 from meute.core.paths import resolved
 from meute.core.session import SessionId
 from meute.core.task import TaskId
@@ -62,6 +61,7 @@ from meute.tmux.panes import detach_client
 
 if TYPE_CHECKING:
     from meute.core.agents import AgentInfo
+    from meute.core.git_state import GitState
 
 TMUX_REREAD_SECONDS = 2.0
 SAMPLE_RETENTION = timedelta(days=30)
@@ -105,9 +105,11 @@ class CliBoardBackend:
         self._known: tuple[AgentInfo, ...] | None = None  # last result of `claude agents`
         self._git = git or GitPoller(find_git(environ) if "PATH" in environ else None, environ)
         self._git_state: Mapping[Path, GitState] = {}  # last result of the Git poller
-        self._folders: tuple[Path, ...] | None = None  # the folders of the last read
+        self._last: BoardData | None = None  # the last read, without its Git state
+        self._folders: tuple[Path, ...] = ()  # the folders of the last read
         self._live: tuple[Path, ...] = ()  # where the live sessions of the last read work
         self._status: str | None = None  # last text written to the tmux status line
+        self._launch = BoardLaunch(ctx=ctx, env=env, environ=environ, on_task=self._launch_on_task)
 
     def load(self) -> BoardData | None:
         """Return the reconciled data, or `None` when nothing can have changed.
@@ -127,35 +129,38 @@ class CliBoardBackend:
         if fresh is not None and fresh != self._known:
             self._known = fresh
             self._read_at = None  # the assumed states and the outside list changed
-        if self._folders is not None:
-            self._take_git(self._git.poll(self._folders))
-        if (
-            self._read_at is not None
-            and version == self._data_version
-            and now - self._read_at < TMUX_REREAD_SECONDS
-        ):
+        reread = (
+            self._last is None
+            or self._read_at is None
+            or version != self._data_version
+            or now - self._read_at >= TMUX_REREAD_SECONDS
+        )
+        if reread:
+            self._last = self._read(version, now)
+        # Polled with the folders of the last read: the first round starts at the first load.
+        fresh = self._git.poll(self._folders)
+        git_changed = fresh is not None and fresh != self._git_state
+        if fresh is not None:
+            self._git_state = fresh
+        if self._last is None or not (reread or git_changed):
             return None
+        return replace(self._last, git=self._git_state)
+
+    def _read(self, version: int, now: float) -> BoardData:
+        """Read the board's data, and keep its folders for the Git poller."""
         data = load_board_data(self._ctx, self._env, self._environ, self._known)
         self._data_version, self._read_at = version, now
-        # Polled again with the folders just read: the first round starts at the first load.
         self._folders = tuple(
             git_folder(row.session, data.metrics.get(row.session.id))
             for row in (*data.sessions, *data.ended)
         )
-        self._take_git(self._git.poll(self._folders))
         self._live = live_session_folders((row.session for row in data.sessions), data.metrics)
         self._publish_status(data)
-        return replace(data, git=self._git_state)
+        return data
 
     def live_folders(self) -> tuple[Path, ...]:
         """The resolved folders where the live sessions of the last load work."""
         return tuple(map(resolved, self._live))
-
-    def _take_git(self, fresh: Mapping[Path, GitState] | None) -> None:
-        """Keep a fresh Git state; when it changed, the next load rereads."""
-        if fresh is not None and fresh != self._git_state:
-            self._git_state = fresh
-            self._read_at = None
 
     def _publish_status(self, data: BoardData) -> None:
         """Write the tmux status line when its text changed since the last write."""
@@ -190,13 +195,7 @@ class CliBoardBackend:
             case ShowSession():
                 show_session(self._ctx, self._env, action.session_id)
             case LaunchBash() | LaunchClaude():
-                launch = BoardLaunch(
-                    ctx=self._ctx,
-                    env=self._env,
-                    environ=self._environ,
-                    on_task=self._launch_on_task,
-                )
-                launch.perform(action)
+                self._launch.perform(action)
             case StopSession():
                 self._stop(action.session_id)
             case ResumeSession():

@@ -199,7 +199,7 @@ def test_board_git_inspects_with_the_live_folders(repo: GitRepo) -> None:
     refused = git.inspect(repo.path)
     assert isinstance(refused, str)
     assert refused.startswith("not a linked worktree: ")
-    assert CliBoardGit({"PATH": "/nonexistent"}).inspect(path) == "git not found"
+    assert CliBoardGit({"PATH": "/nonexistent"}, tuple).inspect(path) == "git not found"
 
 
 def test_refusals_name_the_resolved_folder(repo: GitRepo, tmp_path: Path) -> None:

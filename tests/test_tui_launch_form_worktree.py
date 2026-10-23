@@ -179,17 +179,17 @@ def test_form_worktree_44_columns(snap_compare: SnapCompare) -> None:
 def test_cli_board_git_lists_the_linked_worktrees(git_repo: GitRepo, tmp_path: Path) -> None:
     other = tmp_path / "linked"
     git_repo.git("worktree", "add", "--quiet", str(other), "-b", "feat/y")
-    listed = CliBoardGit(git_repo.env).worktrees(git_repo.path)
+    listed = CliBoardGit(git_repo.env, tuple).worktrees(git_repo.path)
     assert isinstance(listed, tuple)
     assert [(w.path, w.branch) for w in listed] == [(other, "feat/y")]
 
 
 def test_cli_board_git_says_git_not_found(tmp_path: Path) -> None:
-    assert CliBoardGit({"PATH": str(tmp_path)}).worktrees(tmp_path) == "git not found"
+    assert CliBoardGit({"PATH": str(tmp_path)}, tuple).worktrees(tmp_path) == "git not found"
 
 
 def test_cli_board_git_shows_the_failure_of_git(tmp_path: Path) -> None:
-    answer = CliBoardGit({"PATH": os.environ["PATH"]}).worktrees(tmp_path / "missing")
+    answer = CliBoardGit({"PATH": os.environ["PATH"]}, tuple).worktrees(tmp_path / "missing")
     assert isinstance(answer, str)
     assert answer
     assert answer != "git not found"
