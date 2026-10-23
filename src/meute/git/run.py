@@ -1,9 +1,16 @@
 """Running git safely in repositories that Claude may have tampered with.
 
-Reads never run a command that the repository's configuration can choose (`core.fsmonitor`,
-external diff drivers, `textconv`), never take the index lock and never prompt. Writes keep the
-user's hooks but not `core.fsmonitor`. Every command runs under a timeout, and git with every
-process it started is killed when the timeout expires.
+Reads never run a command that the repository's configuration can choose:
+
+- `core.fsmonitor` is turned off;
+- `diff` gets `--no-ext-diff` and `--no-textconv` (external diff drivers, `textconv`);
+- every configured filter driver is emptied (`clean`, `process`, not `required`), after a
+  lookup with `git config`, which runs nothing; a name `-c` cannot express is refused;
+- `status` and `diff` get `--ignore-submodules=all`, so no submodule configuration is used.
+
+Reads also never take the index lock and never prompt. Writes keep the user's hooks but not
+`core.fsmonitor`. Every command runs under a timeout, and git with every process it started is
+killed when the timeout expires.
 """
 
 import os
@@ -16,6 +23,9 @@ from pathlib import Path
 
 _NO_FSMONITOR = ("-c", "core.fsmonitor=false")
 _DIFF_GUARD = ("--no-ext-diff", "--no-textconv")
+_NO_SUBMODULES = "--ignore-submodules=all"
+_FILTER_LOOKUP = ("config", "--null", "--get-regexp", r"^filter\.")
+_LOOKUP_TIMEOUT = 5.0  # for `start_read`, whose command has no timeout of its own
 _GUARD_ENV = {"GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
 _MESSAGE_LIMIT = 200
 
@@ -40,12 +50,23 @@ def _target(folder: Path) -> tuple[str, str]:
     return ("-C", str(folder))
 
 
-def read_args(folder: Path, args: Sequence[str]) -> tuple[str, ...]:
-    """The guarded argv of a read command in `folder`, without the git binary."""
+def read_args(folder: Path, args: Sequence[str], filters: Sequence[str] = ()) -> tuple[str, ...]:
+    """The guarded argv of a read command in `folder`, without the git binary.
+
+    `filters` are the filter driver names to neutralise (see `filter_drivers`).
+    """
     command = tuple(args)
     if command[:1] == ("diff",):
-        command = ("diff", *_DIFF_GUARD, *command[1:])
-    return (*_NO_FSMONITOR, "--no-optional-locks", *_target(folder), *command)
+        command = ("diff", *_DIFF_GUARD, _NO_SUBMODULES, *command[1:])
+    elif command[:1] == ("status",):
+        command = ("status", _NO_SUBMODULES, *command[1:])
+    neutralised = tuple(
+        word
+        for name in filters
+        for key in ("clean=", "process=", "required=false")
+        for word in ("-c", f"filter.{name}.{key}")
+    )
+    return (*_NO_FSMONITOR, *neutralised, "--no-optional-locks", *_target(folder), *command)
 
 
 def _environment(environ: Mapping[str, str]) -> dict[str, str]:
@@ -80,12 +101,15 @@ def _kill(process: subprocess.Popen[bytes]) -> None:
     process.wait()
 
 
-def _first_line(stderr: bytes) -> str:
+def _failure(returncode: int, stderr: bytes) -> GitError:
     lines = stderr.decode("utf-8", errors="replace").strip().splitlines()
-    return lines[0][:_MESSAGE_LIMIT] if lines else ""
+    first = lines[0][:_MESSAGE_LIMIT] if lines else f"exit status {returncode}"
+    return GitError(f"git: {first}")
 
 
-def _run(git: Path, argv: Sequence[str], timeout: float, environ: Mapping[str, str]) -> str:
+def _communicate(
+    git: Path, argv: Sequence[str], timeout: float, environ: Mapping[str, str]
+) -> tuple[int, bytes, bytes]:
     process = _start(git, argv, environ)
     try:
         stdout, stderr = process.communicate(timeout=timeout)
@@ -93,10 +117,50 @@ def _run(git: Path, argv: Sequence[str], timeout: float, environ: Mapping[str, s
         _kill(process)
         msg = f"git timed out after {timeout:g} s"
         raise GitError(msg) from error
-    if process.returncode != 0:
-        msg = f"git: {_first_line(stderr) or f'exit status {process.returncode}'}"
-        raise GitError(msg)
+    return process.returncode, stdout, stderr
+
+
+def _run(git: Path, argv: Sequence[str], timeout: float, environ: Mapping[str, str]) -> str:
+    returncode, stdout, stderr = _communicate(git, argv, timeout, environ)
+    if returncode != 0:
+        raise _failure(returncode, stderr)
     return stdout.decode("utf-8", errors="replace")
+
+
+def filter_names(output: str) -> tuple[str, ...]:
+    """The distinct filter driver names in `git config --null --get-regexp` output, in order.
+
+    Raises:
+        GitError: a name that `-c` cannot express (it holds `=`), so it cannot be neutralised.
+    """
+    names: dict[str, None] = {}
+    for record in output.split("\0"):
+        key = record.partition("\n")[0]
+        name = key.removeprefix("filter.").rpartition(".")[0]
+        if not key.startswith("filter.") or not name:
+            continue
+        if "=" in name:
+            msg = "git: unsupported filter driver name"
+            raise GitError(msg)
+        names[name] = None
+    return tuple(names)
+
+
+def filter_drivers(
+    git: Path, folder: Path, *, timeout: float, environ: Mapping[str, str]
+) -> tuple[str, ...]:
+    """The filter drivers configured for `folder`, read without running any of them.
+
+    Raises:
+        GitError: git is missing, failed, timed out or reported a name it cannot neutralise.
+    """
+    argv = read_args(folder, _FILTER_LOOKUP)
+    returncode, stdout, stderr = _communicate(git, argv, timeout, environ)
+    if returncode == 1:  # no matching key
+        return ()
+    if returncode != 0:
+        raise _failure(returncode, stderr)
+    return filter_names(stdout.decode("utf-8", errors="replace"))
 
 
 def read_git(
@@ -107,7 +171,8 @@ def read_git(
     Raises:
         GitError: git is missing, failed or did not finish within `timeout` seconds.
     """
-    return _run(git, read_args(folder, args), timeout, environ)
+    filters = filter_drivers(git, folder, timeout=timeout, environ=environ)
+    return _run(git, read_args(folder, args, filters), timeout, environ)
 
 
 def start_read(
@@ -115,10 +180,13 @@ def start_read(
 ) -> subprocess.Popen[bytes]:
     """Start the same command as `read_git` without waiting for it.
 
+    The filter driver lookup runs first and is waited for (it is quick).
+
     Raises:
-        GitError: git is missing.
+        GitError: git is missing, or the filter driver lookup failed.
     """
-    return _start(git, read_args(folder, args), environ)
+    filters = filter_drivers(git, folder, timeout=_LOOKUP_TIMEOUT, environ=environ)
+    return _start(git, read_args(folder, args, filters), environ)
 
 
 def write_git(

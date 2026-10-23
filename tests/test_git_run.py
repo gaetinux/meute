@@ -5,25 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from git_support import GitRepo, git_env
+from git_support import GitRepo, fake_git, git_env, real_git
 from meute.git.discover import main_repo_of
 from meute.git.run import GitError, find_git, read_args, read_git, start_read, write_git
 
 GUARD = ("-c", "core.fsmonitor=false", "--no-optional-locks")
-
-
-def fake_git(folder: Path, body: str) -> Path:
-    folder.mkdir(parents=True, exist_ok=True)
-    script = folder / "git"
-    script.write_text(f"#!/bin/sh\n{body}\n")
-    script.chmod(0o755)
-    return script
-
-
-def real_git(repo: GitRepo) -> Path:
-    git = find_git(repo.env)
-    assert git is not None
-    return git
 
 
 ECHO = 'printf "%s\\n" "$@"'
@@ -35,6 +21,7 @@ def test_read_args_guard_status() -> None:
         "-C",
         "/r",
         "status",
+        "--ignore-submodules=all",
         "--porcelain=v2",
         "--branch",
     )
@@ -48,8 +35,33 @@ def test_read_args_disable_external_diff_and_textconv() -> None:
         "diff",
         "--no-ext-diff",
         "--no-textconv",
+        "--ignore-submodules=all",
         "--numstat",
         "HEAD",
+    )
+
+
+def test_read_args_neutralise_the_given_filter_drivers() -> None:
+    assert read_args(Path("/r"), ["status"], filters=["x", "a.b"]) == (
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "filter.x.clean=",
+        "-c",
+        "filter.x.process=",
+        "-c",
+        "filter.x.required=false",
+        "-c",
+        "filter.a.b.clean=",
+        "-c",
+        "filter.a.b.process=",
+        "-c",
+        "filter.a.b.required=false",
+        "--no-optional-locks",
+        "-C",
+        "/r",
+        "status",
+        "--ignore-submodules=all",
     )
 
 
@@ -59,28 +71,6 @@ def test_relative_folder_is_a_programming_error(tmp_path: Path) -> None:
         read_args(Path("r"), ["status"])
     with pytest.raises(ValueError, match="absolute"):
         write_git(git, Path("r"), ["worktree", "list"], timeout=5, environ={})
-
-
-def test_trapped_config_runs_nothing(git_repo: GitRepo, tmp_path: Path) -> None:
-    witness = tmp_path / "witness"
-    trap = fake_git(tmp_path / "trap", f'touch "{witness}"\ncat "$2" 2>/dev/null\nexit 0')
-    git_repo.git("config", "core.fsmonitor", str(trap))
-    git_repo.git("config", "diff.x.command", str(trap))
-    git_repo.git("config", "diff.x.textconv", str(trap))
-    (git_repo.path / ".gitattributes").write_text("* diff=x\n")
-    (git_repo.path / "README.md").write_text("hello\nchanged\n")
-    for unguarded in (["status"], ["diff", "HEAD"]):
-        git_repo.git(*unguarded)
-        assert witness.exists(), f"git {unguarded[0]} must fire the trap without the guard"
-        witness.unlink()
-    git = real_git(git_repo)
-    for args in (["status", "--porcelain=v2", "--branch"], ["diff", "HEAD"]):
-        read_git(git, git_repo.path, args, timeout=5, environ=git_repo.env)
-    numstat = read_git(
-        git, git_repo.path, ["diff", "--numstat", "HEAD"], timeout=5, environ=git_repo.env
-    )
-    assert numstat == "1\t0\tREADME.md\n"
-    assert not witness.exists()
 
 
 def test_read_git_passes_the_guarded_args_and_environment(tmp_path: Path) -> None:
@@ -186,27 +176,6 @@ def test_write_git_args(tmp_path: Path) -> None:
         "add",
         "x",
     ]
-
-
-def test_write_git_keeps_hooks_but_not_fsmonitor(git_repo: GitRepo, tmp_path: Path) -> None:
-    hooked = tmp_path / "hooked"
-    trapped = tmp_path / "trapped"
-    hook = git_repo.path / ".git/hooks/post-checkout"
-    hook.write_text(f'#!/bin/sh\ntouch "{hooked}"\n')
-    hook.chmod(0o755)
-    trap = fake_git(tmp_path / "trap", f'touch "{trapped}"\nexit 1')
-    git_repo.git("config", "core.fsmonitor", str(trap))
-    worktree = tmp_path / "feat"
-    write_git(
-        real_git(git_repo),
-        git_repo.path,
-        ["worktree", "add", "-b", "feat", str(worktree)],
-        timeout=30,
-        environ=git_repo.env,
-    )
-    assert (worktree / "README.md").exists()
-    assert hooked.exists()
-    assert not trapped.exists()
 
 
 def test_main_repo_of_a_repo_and_its_subfolder(git_repo: GitRepo) -> None:

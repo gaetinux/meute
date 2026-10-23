@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from meute.git.run import find_git
+
 
 def git_env(root: Path) -> dict[str, str]:
     """A git environment confined to `root`: no user or system configuration, fixed identity."""
@@ -65,3 +67,19 @@ def make_repo(path: Path, env: Mapping[str, str]) -> GitRepo:
 def git_repo(tmp_path: Path) -> GitRepo:
     """A fresh repository at `tmp_path / "repo"` with one commit."""
     return make_repo(tmp_path / "repo", git_env(tmp_path))
+
+
+def fake_git(folder: Path, body: str) -> Path:
+    """Write an executable `folder/git` shell script running `body`."""
+    folder.mkdir(parents=True, exist_ok=True)
+    script = folder / "git"
+    script.write_text(f"#!/bin/sh\n{body}\n")
+    script.chmod(0o755)
+    return script
+
+
+def real_git(repo: GitRepo) -> Path:
+    """The real git found on the PATH of `repo`'s environment."""
+    git = find_git(repo.env)
+    assert git is not None
+    return git
