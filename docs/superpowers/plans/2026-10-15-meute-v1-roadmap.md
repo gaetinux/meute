@@ -7,7 +7,7 @@
 
 meute passe de Rust à Python, pour que l'auteur, qui maîtrise Python et non Rust, puisse comprendre et relire le code que Claude écrit. Conception : `docs/superpowers/specs/2026-10-16-migration-python-design.md`. Le code Rust est conservé sous deux tags, qui servent de référence de comportement : `rust-plan-1` (`main` à la fin du plan 1 Rust) et `rust-plan-2-wip` (plan 2 Rust largement implémenté, non mergé). Le découpage en six plans ne change pas.
 
-La V1 est découpée en six plans ; le plan 4 est lui-même découpé en 4, 4b et 4c. Chacun produit un logiciel utilisable et testé, et donne lieu à une PR. Le plan N+1 n'est rédigé qu'une fois le plan N mergé, pour tenir compte de ce que son implémentation a appris.
+La V1 est découpée en six plans ; le plan 4 est lui-même découpé en 4, 4b et 4c, et le plan 6 en 6a, 6b et 6c (décision de l'auteur, 2026-10-23). Chacun produit un logiciel utilisable et testé, et donne lieu à une PR. Le plan N+1 n'est rédigé qu'une fois le plan N mergé, pour tenir compte de ce que son implémentation a appris.
 
 | # | Plan | Livrable | Sections de la spécification |
 |---|---|---|---|
@@ -18,7 +18,9 @@ La V1 est découpée en six plans ; le plan 4 est lui-même découpé en 4, 4b e
 | 4b | Vue Tâches — *fait en Python* : `docs/superpowers/plans/2026-10-20-meute-plan-4b-python-vue-taches.md` | Onglet Tâches (filtres, regroupements, détail et ses actions, « launch Claude on this task »), saisie rapide globale `M-t` avec aperçu | § 9.5, 9.6 |
 | 4c | Lancement depuis le tableau — *fait en Python* : `docs/superpowers/plans/2026-10-21-meute-plan-4c-python-lancement.md` | Formulaire `N`, « dernier type utilisé » de `n`, actions sur les panneaux orphelins (adopter, fermer), reprise d'une session Claude terminée (`claude --resume`, avancée du plan 6 par l'auteur le 2026-10-19) | § 5.4, 6.4, 6.5 |
 | 5 | MCP — *fait en Python* : `docs/superpowers/plans/2026-10-22-meute-plan-5-python-mcp.md` | `meute mcp` et les sept outils de tâches, `--mcp-config` et outils autorisés d'office sur chaque session Claude, contexte composé (§ 8) avec consignes globales et de projet (`meute project edit` / `show`, `[claude] instructions`), `L` et `N` collent « Work on task #N. » ; spike S11 | § 8, 12 |
-| 6 | Finitions de la V1 | Worktrees, états sauvegardés, projets créés automatiquement, `meute doctor`, README | § 6.5, 6.6, 10, 11, 13 |
+| 6a | Git et worktrees — *fait en Python* : `docs/superpowers/plans/2026-10-23-meute-plan-6a-python-git-worktrees.md` (conception : `docs/superpowers/specs/2026-10-23-meute-git-worktrees-design.md`) | État Git des sessions sur les cartes (relevé en fond), champ `Worktree` de `N` et recommandation de worktree, `meute session new --worktree`, touche `W` et `meute worktree list` / `remove` (branche toujours gardée) | § 3.1, 6.4, 10, 11 |
+| 6b | Reprise et états sauvegardés | « recent sessions to resume », `meute state` | § 6.5, 6.6 |
+| 6c | Préparation de la V1 | Projets créés automatiquement, `meute doctor` (dont la version de git), purge de `session_events`, README | § 10, 13 |
 
 Règles communes à tous les plans :
 
@@ -129,3 +131,20 @@ Limites connues, relevées pendant le plan 5 :
 - **Dépendances** : `[tool.uv] exclude-newer = "2026-10-15T00:00:00Z"` plus six exceptions par paquet (décision de l'auteur, 2026-10-23) ; à relever à la prochaine mise à jour. La sentinelle de champ omis de `task_update` s'appuie sur un comportement non documenté de pydantic (gardée par un instantané et un test) ; `MCPServer` appelle `logging.basicConfig` (stderr), à surveiller avec `mcp.log`.
 - **Tests** : `test_launch_context.py` (282 lignes) répète un scénario long vers court et une fermeture `ended()` ; le test du marqueur de fin dans le titre (`test_task_launch.py`) passe désormais à vide, le titre n'étant plus collé (laissé tel quel, règle des tests) ; la docstring de `tests/test_task_launch_form.py` parle encore du « task text pasted » ; pas de test d'un `--instructions-file` non UTF-8.
 - **Essai réel** : le vrai Claude n'a tourné que pour le spike S11 ; l'essai de la session complète (contexte suivi, outils appelés, contexte long) reste à faire par l'auteur (liste dans le rapport de mutation et dans la PR).
+
+## Reports issus du plan 6a
+
+Ce que le plan 6a laisse volontairement de côté. Le plan 6a livre l'état Git des sessions (ligne 3 des cartes, sessions Bash comprises), le champ `Worktree` de `N` (aucun / nouveau / existant) et sa recommandation, `meute session new --worktree`, la touche `W` et `meute worktree list` / `remove`. Rapport de mutation et essai scripté : `docs/dev/mutants/2026-plan-6a-python.md`. Écarts à la conception : `docs/superpowers/specs/2026-10-23-meute-git-worktrees-design.md` (« Écarts constatés à la réalisation »).
+
+- **Plan 6b — reprise et états sauvegardés** : « recent sessions to resume », `meute state` (le worktree d'une session y figure par son dossier).
+- **Plan 6c — préparation de la V1** : projets créés automatiquement, `meute doctor` (dont la version de git : `--no-optional-locks` demande git 2.15), purge de `session_events`, README.
+- **Hors périmètre, restent ouverts** : l'état Git en base, une mention « worktree » sur les cartes, la suppression de branches, les rappels « worktree to delete » après un merge (V1.1, forges).
+
+Limites connues, relevées pendant le plan 6a :
+
+- **Relevé** : la sortie de git est vidée d'environ un tampon de tube par relecture (2 s) ; un `git status` de plus de quelques centaines de Ko (dépôt énorme plein de fichiers non suivis) ne finit jamais avant le délai de 5 s, et ce dossier n'a jamais de ligne Git, sans message. `os.waitid` n'existe pas sur macOS : le relevé y lèverait une `AttributeError` (meute ne vise que Linux aujourd'hui). Tuer une commande (`kill_read`) et tester qu'un dossier existe peuvent bloquer le fil de l'interface sur un montage réseau figé. Une lecture concurrente de la configuration entre la recherche des pilotes de filtre et la commande elle-même reste possible (il faut pouvoir écrire dans le dépôt). Les sessions terminées sont relevées même quand `e` ne les montre pas (40 dossiers au plus par tour).
+- **Formulaire `N`** : la liste des worktrees est lue sur le fil de l'interface (2 s au plus par changement de dépôt) ; la recommandation est tronquée sous 74 colonnes environ ; `Branch`, prérempli depuis le titre, peut proposer un nom que `branch_error` refuse (`a..b`), refusé au lancement ; la recommandation s'affiche aussi avec `new` quand le chemin calculé est déjà occupé.
+- **Lancement dans un nouveau worktree** : entre la vérification du chemin et `worktree add`, un dossier créé par un tiers (il faut pouvoir écrire à côté du dépôt) est signalé par git, pas par meute ; un hook `post-checkout` qui laisse un processus d'arrière-plan fait dépasser le délai de 30 s.
+- **`W`** : la nouvelle vérification avant l'enlèvement utilise les dossiers des sessions vivantes de la dernière relecture (2 s au plus de retard) ; aucun texte dans le pied pendant l'enlèvement (30 s au plus), et un second `W` est ignoré sans rien dire ; `W` sur une ligne de dépôt n'affiche rien. Les messages d'erreur de `meute worktree remove` montrent l'argument tel quel (`not a linked worktree: .`) ; un worktree cassé fait échouer la liste de tout son dépôt.
+- **Dette de code** : `tests/test_launch_form_worktree.py` fait 317 lignes et `sessions_tab.py` 299 (limite : 300) ; `Worktree.prunable` est toujours faux (champ prévu par le plan, jamais rempli) ; `WorktreeCheck.commits` mêle lignes de `git log` et identifiants nus ; quelques tests importent des fixtures privées d'autres modules de test.
+- **Essai réel** : la ligne Git, le formulaire et `W` n'ont été essayés qu'avec le faux `claude` ; l'essai avec le vrai Claude dans un vrai terminal (confiance du nouveau dossier, worktree créé par Claude lui-même) reste à faire par l'auteur (liste dans le rapport de mutation et dans la PR).
