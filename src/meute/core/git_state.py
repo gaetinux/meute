@@ -7,6 +7,10 @@ from meute.core.text import printable
 _SHORT_OID = 7
 _MAX_DIGITS = 18
 _MINUS = chr(0x2212)
+_LINE_BREAKS = {
+    0x2028: 0xFFFD,
+    0x2029: 0xFFFD,
+}  # `printable` keeps them, `splitlines` breaks on them
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -117,4 +121,4 @@ def git_text(state: GitState) -> str:
         parts.append(f"↓{state.behind}")
     if not state.upstream and state.detached is None:
         parts.append("(not pushed)")
-    return printable(" ".join(parts))
+    return printable(" ".join(parts)).translate(_LINE_BREAKS)

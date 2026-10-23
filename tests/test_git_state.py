@@ -1,6 +1,7 @@
 """Tests of the Git state parsers and its card text (outputs captured from real git, frozen)."""
 
 import unicodedata
+from dataclasses import replace
 
 import pytest
 from hypothesis import given
@@ -183,3 +184,13 @@ def test_detached_without_oid_shows_a_question_mark() -> None:
     assert parsed is not None
     assert parsed.detached == "?"
     assert git_text(parsed) == "(detached ?)"
+
+
+@pytest.mark.parametrize("separator", ["\u2028", "\u2029", "\x1c", "\x85", "\v", "\f", "\r"])
+def test_git_text_never_breaks_the_line(separator: str) -> None:
+    state = GitState(
+        branch=f"a{separator}b", detached=None, upstream=True, ahead=0, behind=0, dirty=False
+    )
+    detached = replace(state, branch=None, detached=separator)
+    assert len(git_text(state).splitlines()) == 1
+    assert len(git_text(detached).splitlines()) == 1
