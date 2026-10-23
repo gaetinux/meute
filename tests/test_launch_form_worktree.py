@@ -256,8 +256,10 @@ def test_shares_folder_follows_the_chosen_worktree() -> None:
     assert shares_folder(form, BOARD_HOME)
     assert shares_folder(replace(form, worktree=ExistingWorktree(index=0)), BOARD_HOME)
     assert not shares_folder(replace(form, worktree=ExistingWorktree(index=1)), BOARD_HOME)
-    assert not shares_folder(replace(form, branch="other"), BOARD_HOME)
-    assert not shares_folder(replace(form, branch=""), BOARD_HOME)
+    assert shares_folder(replace(form, branch="other"), BOARD_HOME)  # `new`: the repository folder
+    assert shares_folder(replace(form, branch=""), BOARD_HOME)
+    free = replace(form, busy=frozenset({_FIX.path}))
+    assert not shares_folder(free, BOARD_HOME)  # `new`, the repository folder is not busy
     assert shares_folder(replace(form, worktree=NoWorktree()), BOARD_HOME)
 
 

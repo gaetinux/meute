@@ -11,6 +11,7 @@
     'Title     L…',
     'Task      ◂…',
     'Mode      ◂…',
+    '⚠ another l…',
     'Enter launc…',
   ])
 # ---
@@ -26,6 +27,7 @@
     'Title     Long',
     'Task      ◂ none ▸',
     'Mode      ◂ auto ▸',
+    '⚠ another live session works in this fo…',
     'Enter launch · Tab next · ←→ choose · E…',
   ])
 # ---
@@ -38,6 +40,7 @@
     'Branch    fix-login',
     '          → ~/git/meute.worktrees/fix-login',
     'Title     ',
+    '⚠ another live session works in this folder: a new worktree is recommended',
     'Enter launch · Tab next · ←→ choose · Esc cancel',
   ])
 # ---
@@ -53,6 +56,7 @@
     'Title     Fix login',
     'Task      ◂ none ▸',
     'Mode      ◂ auto ▸',
+    '⚠ another live session works in this folder: a new worktree is recommended',
     'Enter launch · Tab next · ←→ choose · Esc cancel',
   ])
 # ---

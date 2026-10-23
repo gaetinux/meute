@@ -290,6 +290,11 @@ def form_action(form: LaunchForm, home: Path) -> LaunchBash | LaunchClaude | str
 
 
 def shares_folder(form: LaunchForm, home: Path) -> bool:
-    """Return whether another live session works in the folder the form would launch in."""
+    """Return whether another live session works in the folder the choice is about.
+
+    With a new worktree that is the folder of the repository; otherwise the target folder.
+    """
+    if isinstance(chosen_worktree(form), NewWorktree) and form.repo is not None:
+        return resolved(form.repos[form.repo].path) in form.busy
     cwd = target_folder(form, home)
     return not isinstance(cwd, str) and resolved(cwd) in form.busy

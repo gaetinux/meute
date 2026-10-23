@@ -68,7 +68,7 @@ def _run(
     asyncio.run(run())
 
 
-def test_opening_on_a_busy_folder_shows_new_instead_of_the_warning() -> None:
+def test_opening_on_a_busy_folder_shows_new_and_the_recommendation() -> None:
     git = FakeGit()
 
     async def scenario(app: BoardApp, pilot: Pilot[None]) -> None:
@@ -76,7 +76,7 @@ def test_opening_on_a_busy_folder_shows_new_instead_of_the_warning() -> None:
         shown = _text(app)
         assert "Worktree  ◂ new ▸" in shown
         assert "Branch" in shown
-        assert "⚠" not in shown
+        assert "⚠ another live session works in this folder" in shown
 
     _run(FakeBackend(_busy_data()), git, scenario)
     assert git.asked == [_MEUTE]
