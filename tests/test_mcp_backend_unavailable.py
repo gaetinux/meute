@@ -9,6 +9,7 @@ import pytest
 import meute.cli.context as cli_context
 from meute.cli import mcp_backend
 from meute.cli.mcp_backend import CliMcpBackend
+from meute.core.db import connection
 from meute.core.errors import MeuteError
 from meute.core.paths import Paths
 from support import FIXED
@@ -86,3 +87,21 @@ def test_a_bug_in_the_middle_of_a_call_stays_unexpected(
     monkeypatch.setattr(mcp_backend, "get_task", fail)
     with pytest.raises(type(error)):
         b.task_read(1)
+
+
+def test_the_database_is_migrated_by_the_first_successful_call_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    migrations: list[object] = []
+    real = connection.migrate
+
+    def counted(conn: sqlite3.Connection, db_path: Path | None) -> None:
+        migrations.append(db_path)
+        real(conn, db_path)
+
+    monkeypatch.setattr(connection, "migrate", counted)
+    b = backend(paths_in(tmp_path))
+    b.task_create("T", None, None, None, None)
+    assert b.task_read(1)["title"] == "T"
+    b.task_note_add(1, "x")
+    assert len(migrations) == 1

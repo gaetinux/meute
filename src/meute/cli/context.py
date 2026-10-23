@@ -4,7 +4,7 @@ import sqlite3
 from collections.abc import Callable, Generator, Mapping
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 
 from meute.core.actor import Actor, Author, Channel
@@ -24,20 +24,29 @@ ENVIRONMENT_ERRORS = (OSError, sqlite3.Error, TmuxError)
 BUSY_TIMEOUT_MS = 5000
 
 
-def current_time(environ: Mapping[str, str]) -> datetime:
-    """Return `MEUTE_NOW` when set (end-to-end tests), else the current local time.
+def current_time(environ: Mapping[str, str], zone: tzinfo | None = None) -> datetime:
+    """Return `MEUTE_NOW` when set (end-to-end tests), else the current time in `zone`.
+
+    `zone` defaults to the local zone of `environ`.
 
     Raises:
         InvalidInput: `MEUTE_NOW` is not a zoned time.
     """
     frozen = environ.get("MEUTE_NOW")
     if frozen is None:
-        return datetime.now(local_zone(environ))
+        return datetime.now(local_zone(environ) if zone is None else zone)
     try:
         return parse_zoned(frozen)
     except InvalidInput:
         message = f"invalid MEUTE_NOW: {frozen}"
         raise InvalidInput(message) from None
+
+
+def database_clock(environ: Mapping[str, str], now: datetime) -> Callable[[], datetime]:
+    """Return the clock that stamps rows: `now` when `MEUTE_NOW` is set, else the UTC time."""
+    if "MEUTE_NOW" in environ:
+        return lambda: now
+    return lambda: datetime.now(UTC)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -61,6 +70,18 @@ def open_database(paths: Paths, clock: Callable[[], datetime]) -> AbstractContex
     return Database.open(paths.db_file, busy_timeout_ms=BUSY_TIMEOUT_MS, clock=clock)
 
 
+def open_existing_database(
+    paths: Paths, clock: Callable[[], datetime]
+) -> AbstractContextManager[Database]:
+    """Open the database of `paths` as it is, never migrated, with meute's busy timeout.
+
+    Raises:
+        FileNotFoundError: there is no database file.
+        MigrationError: its schema is not the current one.
+    """
+    return Database.open_existing(paths.db_file, busy_timeout_ms=BUSY_TIMEOUT_MS, clock=clock)
+
+
 @contextmanager
 def open_context(environ: Mapping[str, str]) -> Generator[CliContext]:
     """Prepare the folders and configuration, open the database and close it on exit."""
@@ -69,8 +90,7 @@ def open_context(environ: Mapping[str, str]) -> Generator[CliContext]:
     paths.ensure_dirs()
     ensure_config(paths.config_file)
     config = load_config(paths.config_file)
-    frozen = "MEUTE_NOW" in environ
-    with open_database(paths, (lambda: now) if frozen else (lambda: datetime.now(UTC))) as db:
+    with open_database(paths, database_clock(environ, now)) as db:
         actor = Actor(
             author=Author.USER, channel=Channel.CLI, session_id=environ.get("MEUTE_SESSION")
         )

@@ -5,7 +5,7 @@ from collections.abc import Callable, Generator, Mapping
 from contextlib import ExitStack, contextmanager
 from datetime import datetime, tzinfo
 
-from meute.cli.context import open_database
+from meute.cli.context import open_database, open_existing_database
 from meute.core.actor import Actor, Author, Channel
 from meute.core.db.connection import Database
 from meute.core.db.projects import project_by_name, project_refs
@@ -35,44 +35,40 @@ from meute.core.mcp_data import (
 )
 from meute.core.paths import Paths
 from meute.core.project import ProjectId
-from meute.core.session import SessionId, parse_session_id
+from meute.core.session import SessionId
 from meute.core.session_project import session_project
-from meute.core.status import parse_status_kind
+from meute.core.status import Priority, parse_status_kind
 from meute.core.task import KEEP, Keep, NewTask, TaskId, TaskPatch
 from meute.core.views import sort_for_display
+from meute.ingest.hook import session_from_env
 from meute.mcp.backend import TaskChanges
 
 
 def caller_session(environ: Mapping[str, str]) -> SessionId | None:
     """Return `MEUTE_SESSION` when it is a session id in its exact (canonical) form, else None."""
-    text = environ.get("MEUTE_SESSION")
-    if text is None:
-        return None
-    try:
-        parsed = parse_session_id(text)
-    except InvalidInput:
-        return None
-    return parsed if parsed == text else None  # parse_session_id also lower-cases
+    parsed = session_from_env(environ)
+    # session_from_env also lower-cases: only the exact form names the caller.
+    return parsed if parsed == environ.get("MEUTE_SESSION") else None
 
 
 _INT64_MIN = -(2**63)
 _INT64_MAX = 2**63 - 1
 
 
-def _task_id(value: int) -> TaskId:
-    """A task id within SQLite's integer range; ids start at 1."""
-    if not 1 <= value <= _INT64_MAX:
-        message = f"id out of range: {value}"
+def _in_range(name: str, value: int, low: int, high: int) -> int:
+    """`value` when it lies within `low`..`high` (SQLite's integer range at most)."""
+    if not low <= value <= high:
+        message = f"{name} out of range: {value}"
         raise InvalidInput(message)
-    return TaskId(value)
+    return value
+
+
+def _task_id(value: int) -> TaskId:
+    return TaskId(_in_range("id", value, 1, _INT64_MAX))  # ids start at 1
 
 
 def _version(value: int) -> int:
-    """An expected version within SQLite's integer range."""
-    if not _INT64_MIN <= value <= _INT64_MAX:
-        message = f"expected_version out of range: {value}"
-        raise InvalidInput(message)
-    return value
+    return _in_range("expected_version", value, _INT64_MIN, _INT64_MAX)
 
 
 def _unavailable(error: BaseException) -> MeuteError:
@@ -95,15 +91,21 @@ class CliMcpBackend:
         self._caller = caller
         self._clock = clock
         self._actor = Actor(author=Author.CLAUDE, channel=Channel.MCP, session_id=caller)
+        self._migrated = False
 
     @contextmanager
     def _database(self) -> Generator[Database]:
-        """Open the database for one call; a missing or locked one is `unavailable`."""
+        """Open the database for one call; a missing or locked one is `unavailable`.
+
+        The first successful call creates and migrates it; later calls open it as it is.
+        """
+        opener = open_existing_database if self._migrated else open_database
         with ExitStack() as stack:
             try:
-                db = stack.enter_context(open_database(self._paths, self._clock))
+                db = stack.enter_context(opener(self._paths, self._clock))
             except (sqlite3.Error, OSError) as error:
                 raise _unavailable(error) from None
+            self._migrated = True
             try:
                 yield db
             except (sqlite3.OperationalError, OSError) as error:
@@ -123,6 +125,8 @@ class CliMcpBackend:
             session = get_session(db, self._caller)
         except NotFound:
             return None
+        if session.project_id is not None:
+            return session.project_id
         repos = {repo.id: repo for repo in list_repos(db)}
         found = session_project(session, projects=project_refs(db), repos=repos)
         return None if found is None else found.id
@@ -177,13 +181,12 @@ class CliMcpBackend:
             project_id = (
                 self._caller_project(db) if project is None else self._project_id(db, project)
             )
-            defaults = NewTask(title=title)
             task = create_task(
                 db,
                 NewTask(
                     title=title,
-                    description=description or defaults.description,
-                    priority=defaults.priority if parsed_priority is None else parsed_priority,
+                    description=description or "",
+                    priority=Priority.NORMAL if parsed_priority is None else parsed_priority,
                     due=parsed_due,
                     project_id=project_id,
                 ),

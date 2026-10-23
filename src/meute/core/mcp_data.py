@@ -25,6 +25,17 @@ from meute.core.task import Due, DueAt, DueDate, Note, Task, due_text
 MCP_SERVER_NAME = "meute"
 """The name of meute's MCP server: its key in `mcp.json` and the `mcp__meute__` tool prefix."""
 
+MCP_TOOL_NAMES: tuple[str, ...] = (
+    "task_list",
+    "task_read",
+    "task_create",
+    "task_update",
+    "task_set_status",
+    "task_note_add",
+    "task_link_session",
+)
+"""The tools of meute's MCP server, in the order they are allowed."""
+
 _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _WEEK = timedelta(days=7)
 

@@ -60,6 +60,9 @@ def build_server(
 ) -> MCPServer:
     server = MCPServer(MCP_SERVER_NAME, log_level="WARNING")
 
+    def answer(run: Callable[[], JsonValue]) -> CallToolResult:
+        return _answer(run, on_unexpected)
+
     def tool[F: Callable[..., CallToolResult]](fn: F) -> F:
         server.add_tool(fn, structured_output=False)
         return fn
@@ -73,12 +76,12 @@ def build_server(
         include_done: bool = False,
     ) -> CallToolResult:
         """List tasks, by project name, status and due (overdue, today or week)."""
-        return _answer(lambda: backend.task_list(project, status, due, include_done), on_unexpected)
+        return answer(lambda: backend.task_list(project, status, due, include_done))
 
     @tool
     def task_read(*, id: int) -> CallToolResult:  # noqa: A002 — the tool input is named `id`
         """Read a task with its notes."""
-        return _answer(lambda: backend.task_read(id), on_unexpected)
+        return answer(lambda: backend.task_read(id))
 
     @tool
     def task_create(
@@ -90,9 +93,7 @@ def build_server(
         project: str | None = None,
     ) -> CallToolResult:
         """Create a task; due is an ISO date or an ISO instant with a time zone."""
-        return _answer(
-            lambda: backend.task_create(title, description, priority, due, project), on_unexpected
-        )
+        return answer(lambda: backend.task_create(title, description, priority, due, project))
 
     @tool
     def task_update(  # noqa: PLR0913 — one parameter per tool input
@@ -113,7 +114,7 @@ def build_server(
             due=_kept(due),
             project=_kept(project),
         )
-        return _answer(lambda: backend.task_update(id, expected_version, changes), on_unexpected)
+        return answer(lambda: backend.task_update(id, expected_version, changes))
 
     @tool
     def task_set_status(
@@ -124,19 +125,17 @@ def build_server(
         reason: str | None = None,
     ) -> CallToolResult:
         """Set the status of a task (todo, in_progress, blocked, review, done); blocked needs a reason."""  # noqa: E501 — one-line tool description
-        return _answer(
-            lambda: backend.task_set_status(id, status, reason, expected_version), on_unexpected
-        )
+        return answer(lambda: backend.task_set_status(id, status, reason, expected_version))
 
     @tool
     def task_note_add(*, id: int, body: str) -> CallToolResult:  # noqa: A002 — the tool input is named `id`
         """Add a note to a task."""
-        return _answer(lambda: backend.task_note_add(id, body), on_unexpected)
+        return answer(lambda: backend.task_note_add(id, body))
 
     @tool
     def task_link_session(*, id: int) -> CallToolResult:  # noqa: A002 — the tool input is named `id`
         """Link the calling Claude session to a task."""
-        return _answer(lambda: backend.task_link_session(id), on_unexpected)
+        return answer(lambda: backend.task_link_session(id))
 
     return server
 

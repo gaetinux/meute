@@ -7,6 +7,7 @@ from pathlib import Path
 
 from meute.core.config import write_atomic
 from meute.core.json_types import JsonObject
+from meute.core.mcp_data import MCP_SERVER_NAME, MCP_TOOL_NAMES
 from meute.core.paths import make_private_dir
 from meute.core.session import SessionId
 
@@ -25,15 +26,7 @@ HOOK_EVENTS: tuple[str, ...] = (
 )
 
 
-MEUTE_TOOLS: tuple[str, ...] = (
-    "mcp__meute__task_list",
-    "mcp__meute__task_read",
-    "mcp__meute__task_create",
-    "mcp__meute__task_update",
-    "mcp__meute__task_set_status",
-    "mcp__meute__task_note_add",
-    "mcp__meute__task_link_session",
-)
+MEUTE_TOOLS: tuple[str, ...] = tuple(f"mcp__{MCP_SERVER_NAME}__{name}" for name in MCP_TOOL_NAMES)
 
 
 def settings_document(

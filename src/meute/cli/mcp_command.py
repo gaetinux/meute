@@ -1,10 +1,9 @@
 """`meute mcp`: serve the task tools over stdio, with nothing but the protocol on stdout."""
 
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
 from pathlib import Path
 
-from meute.cli.context import current_time
+from meute.cli.context import current_time, database_clock
 from meute.cli.mcp_backend import CliMcpBackend, caller_session
 from meute.core.clock import local_zone
 from meute.core.paths import Paths
@@ -34,8 +33,8 @@ def serve(environ: Mapping[str, str]) -> None:
 
     The database is neither opened nor migrated here: the first tool call does it.
     """
-    now = current_time(environ)
-    clock = (lambda: now) if "MEUTE_NOW" in environ else (lambda: datetime.now(UTC))
+    zone = local_zone(environ)
+    clock = database_clock(environ, current_time(environ, zone))
     paths = Paths.from_env(environ, home=Path.home())
-    backend = CliMcpBackend(paths, caller_session(environ), clock, local_zone(environ))
+    backend = CliMcpBackend(paths, caller_session(environ), clock, zone)
     run_stdio(build_server(backend, on_unexpected=journal(paths.state_dir)))
