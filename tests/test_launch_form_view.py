@@ -9,6 +9,7 @@ from syrupy.assertion import SnapshotAssertion
 from meute.core.board_view import RepoEntry
 from meute.core.launch_form import FormField, LaunchForm, open_form
 from meute.core.launch_form_view import form_lines
+from meute.core.launch_form_worktree import NoWorktree
 from meute.core.project import ProjectId, ProjectRef, RepoId
 from meute.core.session import AgentKind
 from meute.core.styled import Role, StyledLine, plain
@@ -20,7 +21,7 @@ def _form() -> LaunchForm:
     task = replace(make_task(12), title="Fix the bug", project=project)
     data = replace(board_data(), tasks=(task,), repo_projects={RepoId(1): project.id})
     form = open_form(data, RepoEntry(repo=BOARD_REPO_1), default_mode="auto", now=BOARD_AT)
-    return replace(form, task=0)
+    return replace(form, task=0, worktree=NoWorktree())
 
 
 def _texts(lines: list[StyledLine]) -> list[str]:

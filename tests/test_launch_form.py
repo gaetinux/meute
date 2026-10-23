@@ -30,6 +30,7 @@ from meute.core.launch_form import (
     shares_folder,
     type_text,
 )
+from meute.core.launch_form_worktree import NoWorktree
 from meute.core.orphans import Orphan
 from meute.core.project import ProjectId, ProjectRef, RepoId
 from meute.core.session import AgentKind
@@ -167,7 +168,15 @@ def _visited(form: LaunchForm, count: int) -> list[FormField]:
 
 
 def test_move_cycles_and_skips_task_and_mode_for_bash() -> None:
-    assert _visited(_form(), 7) == [*FormField, FormField.TYPE]
+    assert _visited(_form(), 7) == [
+        FormField.TYPE,
+        FormField.REPO,
+        FormField.FOLDER,
+        FormField.TITLE,
+        FormField.TASK,
+        FormField.MODE,
+        FormField.TYPE,
+    ]
     bash = replace(_form(), agent=AgentKind.BASH)
     assert _visited(bash, 5) == [
         FormField.TYPE,
@@ -268,7 +277,9 @@ def test_typing_is_bounded() -> None:
 
 
 def test_form_action_claude_carries_task_mode_and_title() -> None:
-    form = replace(_form(RepoEntry(repo=BOARD_REPO_1)), task=0, title="  fix  ", mode=1)
+    form = replace(
+        _form(RepoEntry(repo=BOARD_REPO_1)), task=0, title="  fix  ", mode=1, worktree=NoWorktree()
+    )
     action = form_action(form, BOARD_HOME)
     assert action == LaunchClaude(
         cwd=BOARD_REPO_1.path,
@@ -280,7 +291,13 @@ def test_form_action_claude_carries_task_mode_and_title() -> None:
 
 
 def test_form_action_bash_ignores_task_and_mode_and_an_empty_title_is_none() -> None:
-    form = replace(_form(RepoEntry(repo=BOARD_REPO_1)), agent=AgentKind.BASH, task=0, title=" ")
+    form = replace(
+        _form(RepoEntry(repo=BOARD_REPO_1)),
+        agent=AgentKind.BASH,
+        task=0,
+        title=" ",
+        worktree=NoWorktree(),
+    )
     assert form_action(form, BOARD_HOME) == LaunchBash(
         cwd=BOARD_REPO_1.path, repo_id=RepoId(1), title=None
     )

@@ -4,9 +4,10 @@
     '── New session ─────────────────────────────────────────────────────────',
     'Type      ◂ Bash ▸',
     'Repo      ◂ meute ▸',
+    'Worktree  ◂ none ▸',
     'Folder    ~/git/meute',
     'Title     ',
-    '⚠ another live session works in this folder',
+    '⚠ another live session works in this folder: a new worktree is recommen…',
     'Enter launch · Tab next · ←→ choose · Esc cancel',
   ])
 # ---
@@ -15,11 +16,12 @@
     '── New session ─────────────────────────────────────────────────────────',
     'Type      ◂ Claude ▸',
     'Repo      ◂ meute ▸',
+    'Worktree  ◂ none ▸',
     'Folder    ~/git/meute',
     'Title     ',
     'Task      ◂ #12 Fix the bug ▸',
     'Mode      ◂ auto ▸',
-    '⚠ another live session works in this folder',
+    '⚠ another live session works in this folder: a new worktree is recommen…',
     'Enter launch · Tab next · ←→ choose · Esc cancel',
   ])
 # ---
@@ -32,7 +34,7 @@
     'Title     ',
     'Task      ◂ #12 Fix the bug ▸',
     'Mode      ◂ auto ▸',
-    '⚠ another live session works in this folder',
+    '⚠ another live session works in this folder: a new worktree is recommen…',
     "Error: folder not found: /n'existe/pas�[2J",
     'Enter launch · Tab next · ←→ choose · Esc cancel',
   ])
@@ -42,11 +44,12 @@
     '── New session ─────────────────────────────────────────────',
     'Type      ◂ Claude ▸',
     'Repo      ◂ meute ▸',
+    'Worktree  ◂ none ▸',
     'Folder    ~/git/meute',
     'Title     a very long title a very long title a very long t…',
     'Task      ◂ #12 An extremely long task title An extremely… ▸',
     'Mode      ◂ auto ▸',
-    '⚠ another live session works in this folder',
+    '⚠ another live session works in this folder: a new worktree…',
     'Error: something went wrong something went wrong something …',
     'Enter launch · Tab next · ←→ choose · Esc cancel',
   ])

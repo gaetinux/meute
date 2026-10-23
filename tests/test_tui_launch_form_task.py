@@ -21,7 +21,7 @@ _NO_POLL = 3600.0
 _SIZE = (72, 30)
 _LAUNCHING = "Launching Claude on #2…"
 # The Title field, "mine" typed, then the Task field: the second task is picked.
-_PICK = ("N", "tab", "tab", "tab", "m", "i", "n", "e", "tab", "right")
+_PICK = ("N", "tab", "tab", "tab", "tab", "m", "i", "n", "e", "tab", "right")
 
 
 def _text(app: BoardApp, widget_id: str) -> str:

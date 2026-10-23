@@ -23,6 +23,7 @@ from meute.core.launch_form_view import (
     _choice,  # pyright: ignore[reportPrivateUsage] — no public caller reaches a width this small
     form_lines,
 )
+from meute.core.launch_form_worktree import NoWorktree
 from meute.core.orphans import Orphan, orphan_line
 from meute.core.repo import NewRepo
 from meute.core.session import AgentKind
@@ -98,7 +99,7 @@ def test_typed_text_keeps_one_space_at_each_edge() -> None:
 
 
 def test_a_bash_launch_carries_its_title() -> None:
-    form = _form(agent=AgentKind.BASH, title="  logs ", folder="/w")
+    form = _form(agent=AgentKind.BASH, title="  logs ", folder="/w", worktree=NoWorktree())
     assert form_action(form, BOARD_HOME) == LaunchBash(
         cwd=Path("/w"), repo_id=BOARD_REPO_1.id, title="logs"
     )
@@ -131,13 +132,13 @@ def test_a_claude_form_without_a_task_says_none() -> None:
 
 def test_a_folder_not_canonical_is_shown_as_typed() -> None:
     folder = f"{BOARD_HOME}/git/meute/"
-    lines = _lines(_form(folder=folder), 72)
+    lines = _lines(_form(folder=folder, worktree=NoWorktree()), 72)
     assert any(plain(line) == f"Folder    {folder}" for line in lines)
 
 
 def test_the_warning_expands_a_typed_home_and_is_a_warning() -> None:
     busy = frozenset({(BOARD_HOME / "git/meute").resolve()})
-    lines = _lines(_form(folder="~/git/meute", busy=busy), 72)
+    lines = _lines(_form(folder="~/git/meute", busy=busy, worktree=NoWorktree()), 80)
     warning = [line for line in lines if plain(line).startswith("⚠")]
     assert [span.role for span in warning[0]] == [Role.WARN]
 
