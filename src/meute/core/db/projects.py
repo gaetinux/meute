@@ -12,6 +12,7 @@ from meute.core.db.rows import (
 from meute.core.errors import InvalidInput, NotFound
 from meute.core.instants import to_db
 from meute.core.project import Project, ProjectId, ProjectRef
+from meute.core.text import INSTRUCTIONS_CONTROL, has_control_character
 
 
 def create_project(db: Database, name: str, description: str = "") -> Project:
@@ -72,8 +73,11 @@ def set_project_instructions(db: Database, project_id: ProjectId, instructions: 
     """Replace the instructions of a project; an empty string clears them.
 
     Raises:
+        InvalidInput: they hold a control character other than a newline or a tab.
         NotFound: no such project.
     """
+    if has_control_character(instructions):
+        raise InvalidInput(INSTRUCTIONS_CONTROL)
     with db.transaction() as conn:
         row = fetch_one(
             conn,

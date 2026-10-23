@@ -43,6 +43,13 @@ def test_none_gives_none_and_a_short_context_removes_the_stale_file(tmp_path: Pa
     assert not stale.exists()
 
 
+def test_a_short_context_holding_a_nul_goes_to_a_file(tmp_path: Path) -> None:
+    chosen = prepare_context(tmp_path, SID, "a\x00b")
+    expected = tmp_path / "sessions" / SID / "context.md"
+    assert chosen == ContextFile(expected)
+    assert expected.read_text(encoding="utf-8") == "a\x00b"
+
+
 def test_the_file_variant_takes_the_place_before_the_name() -> None:
     argv = claude_argv(
         claude=Path("c"), settings=Path("s"), session_id=SID, permission_mode="auto",

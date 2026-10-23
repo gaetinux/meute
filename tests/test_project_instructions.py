@@ -7,7 +7,7 @@ import pytest
 from conftest import Sandbox
 from meute.core.db.connection import Database
 from meute.core.db.projects import create_project, project_by_name, set_project_instructions
-from meute.core.errors import NotFound
+from meute.core.errors import InvalidInput, NotFound
 from meute.core.project import ProjectId
 from support import load_json
 
@@ -25,6 +25,16 @@ def test_set_and_clear_instructions(db: Database) -> None:
 def test_set_instructions_of_unknown_project(db: Database) -> None:
     with pytest.raises(NotFound):
         set_project_instructions(db, ProjectId(99), "x")
+
+
+@pytest.mark.parametrize("text", ["a\x00b", "a\x1b[31m", "a\rb"])
+def test_set_instructions_refuses_control_characters(db: Database, text: str) -> None:
+    project = create_project(db, "meute")
+    with pytest.raises(InvalidInput, match=r"^instructions contain a control character$"):
+        set_project_instructions(db, project.id, text)
+    stored = project_by_name(db, "meute")
+    assert stored is not None
+    assert stored.instructions == ""
 
 
 def test_edit_with_text(sandbox: Sandbox) -> None:
@@ -88,10 +98,8 @@ def test_edit_unknown_project(sandbox: Sandbox) -> None:
 
 def test_show_text(sandbox: Sandbox) -> None:
     sandbox.run("project", "add", "meute", "--description", "The app")
-    with sandbox.db() as db:  # `project edit` refuses control characters: stored directly
-        project = project_by_name(db, "meute")
-        assert project is not None
-        _ = set_project_instructions(db, project.id, "a\nb\x1b[31m")
+    with sandbox.db() as db:  # control characters are refused on write: an older row has them
+        _ = db.conn.execute("UPDATE projects SET instructions = ?", ("a\nb\x1b[31m",))
     out = sandbox.run("project", "show", "meute").stdout
     assert out == "name: meute\ndescription: The app\ninstructions: a\nb�[31m\nrepos:\n"
 
@@ -138,3 +146,14 @@ def test_edit_with_a_file_that_is_not_utf8(sandbox: Sandbox, tmp_path: Path) -> 
         1,
         f"meute: cannot read {file}: not valid UTF-8\n",
     )
+
+
+def test_edit_accepts_a_crlf_file_and_stores_newlines(sandbox: Sandbox, tmp_path: Path) -> None:
+    sandbox.run("project", "add", "meute")
+    file = tmp_path / "rules.md"
+    file.write_bytes(b"one\r\ntwo\rthree\n")
+    result = sandbox.run("project", "edit", "meute", "--instructions-file", str(file))
+    assert (result.returncode, result.stderr) == (0, "")
+    shown = load_json(sandbox.run("project", "show", "meute", "--json").stdout)
+    assert isinstance(shown, dict)
+    assert shown["instructions"] == "one\ntwo\nthree\n"

@@ -18,7 +18,7 @@ from meute.core.db.repos import project_repos
 from meute.core.errors import InvalidInput, NotFound
 from meute.core.project import Project, project_to_json
 from meute.core.repo import repo_to_json
-from meute.core.text import INSTRUCTIONS_CONTROL, has_control_character, printable
+from meute.core.text import printable
 
 project_app = typer.Typer(no_args_is_help=True, help="Manage projects.")
 
@@ -47,13 +47,6 @@ def list_(*, json_: Annotated[bool, typer.Option("--json", help="Print JSON.")] 
 
 
 def _read_instructions(instructions: str | None, instructions_file: Path | None) -> str:
-    text = _given_instructions(instructions, instructions_file)
-    if has_control_character(text):
-        raise InvalidInput(INSTRUCTIONS_CONTROL)
-    return text
-
-
-def _given_instructions(instructions: str | None, instructions_file: Path | None) -> str:
     if instructions is not None and instructions_file is not None:
         message = "give either --instructions or --instructions-file, not both"
         raise InvalidInput(message)
