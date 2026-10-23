@@ -175,3 +175,18 @@ La dépendance est ajoutée par `uv add mcp`, et `uv.lock` est commité. Le guid
 4. **Taille du contexte :** des consignes longues dans l'argv, et l'option fichier si S11 la confirme.
 5. **Écritures concurrentes avec le tableau :** la version les règle, et Claude reçoit la version actuelle.
 6. **SDK `mcp` :** des dépendances nouvelles (pydantic, anyio, starlette…), à surveiller avec pip-audit et la vérification des licences.
+
+## Écarts constatés à la réalisation
+
+Ce que le plan 5 a fait autrement que ce texte, ou précisé en le réalisant (les numéros sont ceux du registre de décisions du plan).
+
+- **SDK (R6)** : « `FastMCP` » désigne la classe serveur de haut niveau du SDK installé. En `mcp` 2.x elle s'appelle `MCPServer` (`mcp.server.mcpserver`) ; `from mcp.server.fastmcp import FastMCP` échoue. Les outils sont des fonctions synchrones : `meute.mcp` ne contient ni `await` ni fil d'exécution, au-delà du `run()` du SDK. La phrase « seuls `backend.py` et `server.py` sont asynchrones » est donc sans objet.
+- **Contexte en argument jusqu'à 8 000 octets, fichier au-delà (R5, R10)** : S11 a établi que `--append-system-prompt-file` fonctionne, mais il n'est pas documenté. Le contexte part donc en argument (`--append-system-prompt`, option documentée) tant qu'il tient dans 8 000 octets UTF-8, et dans un fichier 0600 `context.md` du dossier de la session (`--append-system-prompt-file`) au-delà. Raison : tmux refuse une commande d'environ 16 Ko. Coût si Claude retire l'option : les contextes longs font échouer le lancement, bruyamment.
+- **`mcp.json` garde `env: {MEUTE_SESSION}` (R4)** : S11 a vu que l'environnement est hérité, mais le fichier le déclare quand même, pour le cas où Claude filtrerait un jour l'environnement des serveurs.
+- **Entiers souples (R7)** : les entiers des outils acceptent la conversion du SDK (`"3"`, `true`, `1.0` deviennent des entiers). Refuser demanderait `pydantic.Field(strict=True)`, hors de la frontière d'imports de `meute.mcp` ; la valeur reste un entier validé.
+- **Pas de `config.toml` (R9)** : `meute mcp` ne charge plus la configuration, et `CliMcpBackend` ne la prend pas. Une faute de frappe dans un réglage sans rapport arrêtait tous les outils. À rouvrir si un outil a besoin d'un réglage.
+- **Dépendances datées (R8)** : le SDK `mcp` a ajouté des paquets neufs. Sur décision de l'auteur (2026-10-23), `pyproject.toml` fixe `[tool.uv] exclude-newer = "2026-10-15T00:00:00Z"`, avec `exclude-newer-package` pour six paquets déjà verrouillés (`tomlkit`, `hypothesis`, `ruff`, `certifi`, `platformdirs`, `pluggy`), pour que la date globale ne rétrograde pas `certifi` (version vulnérable GHSA-6q48-6c7w-9gw2) ni `ruff`.
+- **Contexte sans session enregistrée (R1)** : au lancement, la session n'existe pas encore ; le contexte se calcule par `session_context(ctx, project_id=…, repo_id=…, task_id=…)`, partagé par le lancement et la reprise.
+- **Journal injecté (R2)** : `build_server(backend, *, on_unexpected)` reçoit le journal des erreurs inattendues ; il ne lève jamais.
+- **`task_prompt` supprimé (R11, exceptions n° 24 à 26)** : le collage complet disparaît, `core/task_prompt.py` et son test aussi, et le fichier quitte la sélection mutmut. Deux tests existants attendent désormais `work_on_task_text(task.id)`, et le test de l'argv exact gagne `--mcp-config`.
+- **Limites relevées** : « no such table » se lit « database unavailable » ; les fichiers de session (`mcp.json`, `context.md`) suivent un lien symbolique planté dans le dossier de la session (hérité de `write_settings`) ; un titre de session très long peut encore dépasser la limite de tmux ; un `--instructions-file` non UTF-8 n'a pas de test.

@@ -381,13 +381,17 @@ Ces commandes sont appelées par Claude Code à chaque événement. Elles **ne d
 
 ## 8. Contexte transmis à Claude
 
-`--append-system-prompt` reçoit un texte composé de trois niveaux, du plus général au plus spécifique :
+Le contexte composé (`compose_context`, fonction pure du cœur) est un texte de trois niveaux, du plus général au plus spécifique :
 
-1. les consignes globales (configuration) ;
-2. les consignes du projet ;
+1. les consignes globales (`[claude] instructions` de la configuration), sous `Global instructions:` ;
+2. les consignes du projet de la session (`meute project edit <nom> --instructions …`), sous `Project instructions (<nom>):` ;
 3. pour une session liée à une tâche : « You are working on task #N. Read it with the `task_read` tool and report your progress with `task_note_add`. »
 
-Le texte de la tâche n'est pas injecté : Claude le lit via MCP.
+Si les trois niveaux sont vides, aucune option n'est passée.
+
+**Transmission** (spike S11, plan 5) : le texte part en argument d'`--append-system-prompt` jusqu'à 8 000 octets UTF-8. Au-delà, il est écrit dans un fichier privé (0600) `context.md` du dossier de la session et passé par `--append-system-prompt-file`, ce qui évite un argument très long (tmux refuse une commande d'environ 16 Ko). Cette variante fichier fonctionne mais n'est pas documentée dans `claude --help` ; si Claude Code la retire, les contextes longs échouent bruyamment au lancement. Le contexte est calculé au lancement et recalculé à la reprise (`r`) ; `task_link_session`, appelé pendant une session, ne change que la reprise suivante.
+
+Le texte de la tâche n'est pas injecté : Claude le lit via MCP. `L` (et `N` avec une tâche) colle seulement « Work on task #N. » sans l'envoyer.
 
 **Règle de résolution des contradictions**, écrite en tête du texte composé : « The repository's `CLAUDE.md` files are authoritative on code conventions. The task is authoritative on the goal. If they contradict each other, point it out to the user instead of choosing. »
 
@@ -466,7 +470,7 @@ Précisions de l'auteur, 2026-10-19. L'usage principal est de noter vite une id�
 - **Onglets** : le tableau de bord a deux onglets, Sessions et Tâches, dans le même panneau. Le titre affiche `Sessions · Tasks 2!` (nombre de tâches en retard) ; `Tab` ou un clic sur le nom change d'onglet.
 - **Contenu de l'onglet** : la ligne de filtres (`f` les fait défiler ; « this project » est le projet de la session affichée), les compteurs (`12 open · 2 overdue`), les groupes (urgence par défaut, `g` pour le regroupement par projet, repliables comme dans la vue Sessions), une ligne par tâche (les tâches en retard en rouge), puis le détail de la tâche sélectionnée sous la liste (description, dernières notes, sessions liées).
 - **Touches** : `a` ajoute une tâche par la saisie rapide, en bas du tableau ; sur une tâche, `s` statut, `p` priorité, `d` reports rapides, `e` titre, `D` description, `@` projet, `o` note, `L` « launch Claude on this task », `Del` supprimer ; `Entrée` sur une session liée l'affiche. Le texte se saisit dans une ligne en bas du tableau, les choix (statut, priorité, report) dans une courte liste.
-- **Launch Claude on this task** : la session est liée à la tâche et s'ouvre dans le dépôt de la tâche, à défaut le premier dépôt lié à son projet, à défaut le dépôt qui porte le nom du projet (casse et espaces ignorés, décision de l'auteur, 2026-10-20) ; sans aucun des trois, rien n'est lancé et un message l'indique. Une fois Claude prêt (hook `SessionStart` reçu), meute colle dans sa saisie, sans l'envoyer, le texte de la tâche (`#12 Titre`, la description et les notes) ; l'utilisateur le relit et appuie sur `Entrée`. Si Claude n'est pas prêt au bout de 10 s, la session reste lancée et le tableau affiche « prompt not pasted ». Le statut de la tâche ne change pas (§ 9.4). Le contexte composé du § 8 remplace ce texte au plan 5.
+- **Launch Claude on this task** : la session est liée à la tâche et s'ouvre dans le dépôt de la tâche, à défaut le premier dépôt lié à son projet, à défaut le dépôt qui porte le nom du projet (casse et espaces ignorés, décision de l'auteur, 2026-10-20) ; sans aucun des trois, rien n'est lancé et un message l'indique. Une fois Claude prêt (hook `SessionStart` reçu), meute colle dans sa saisie, sans l'envoyer, « Work on task #12. » (plan 5) ; l'utilisateur appuie sur `Entrée`, et Claude lit la tâche par l'outil MCP `task_read` (le texte complet n'est plus collé). Le contexte composé du § 8 porte la ligne de la tâche. Si Claude n'est pas prêt au bout de 10 s, la session reste lancée et le tableau affiche « prompt not pasted ». Le statut de la tâche ne change pas (§ 9.4).
 - **Détails de la vue Sessions** : `Espace` / `←` / `→` sur une carte « Needs you » replient la section « Needs you », pas le groupe de la session plus bas ; les libellés du détail (`Reply`, `Folder`, `Waiting for`) sont alignés sur 12 colonnes. Mise en page de la maquette C2 (décision de l'auteur, 2026-10-20) : un filet `─` grisé sur toute la largeur sous les quotas et un autre au-dessus des sections du bas (`Without session`, `Outside meute`, `Orphans`), non sélectionnables ; une ligne vide après « Needs you » et entre les blocs de projets, aucune entre les sections du bas ; le fond du bandeau « Needs you » et du groupe « Overdue » est `#4a1c22`, lisible sur un terminal sombre.
 - **Formats gardés** : les nombres gardent les formats de l'interface (`62%`, `1h19`, `4m ago`, `$4.40`, `6pm`) ; les espaces des maquettes (`62 %`, `1 h 19`) relevaient de la typographie française.
 - **Reports rapides** (`d`) : `+1h` = maintenant + 1 h ; `tonight 6pm` = aujourd'hui 18:00, ou demain si 18:00 est passé ; `tomorrow 9am` = demain 9:00 ; `Monday 9am` = le premier lundi 9:00 strictement après maintenant ; `clear` retire l'échéance. Les heures sont celles du fuseau local, comme pour `>due` (§ 9.3). Dans la ligne de statut d'une tâche bloquée, l'échéance n'est pas répétée : la raison du blocage tient la place.
@@ -521,6 +525,11 @@ Le serveur stdio `meute mcp` propose les outils suivants :
 - Les outils de suppression et d'arrêt de session ne sont pas exposés. **La V1 n'a donc pas besoin du mécanisme de confirmations en attente** : il ne sera conçu que si un outil sensible est ajouté.
 - L'identité de la session appelante provient de `MEUTE_SESSION`. Les écritures sont historisées avec `claude/mcp` et l'identifiant de session.
 - Les réponses ne contiennent que les données demandées.
+- **Branchement** (plan 5, spike S11) : chaque session Claude lancée par meute (`c`, `n`, `N`, `L`, `r`, la CLI) reçoit `--mcp-config <dossier de la session>/mcp.json` (0600, juste après `--settings`). Le fichier déclare un serveur stdio `meute` (même commande que les hooks, suivie de `mcp`) avec `env: {MEUTE_SESSION}` explicite, même si l'héritage suffirait. Pas de `--strict-mcp-config` : les serveurs de l'utilisateur restent chargés.
+- **Outils autorisés d'office** : le `settings.json` de la session porte `permissions.allow` avec les sept `mcp__meute__task_*`, qui s'ajoutent aux réglages de l'utilisateur (S11) ; sans cela, `manual` demanderait une autorisation à chaque lecture.
+- **SDK** : le SDK officiel `mcp` 2.x (classe `MCPServer` de `mcp.server.mcpserver`, anciennement `FastMCP`). Seul `meute.mcp` l'importe. Les entiers des outils acceptent la conversion souple du SDK (`"3"`, `1.0`).
+- **Erreurs** : une `MeuteError` devient une erreur d'outil ; un conflit de version donne la version actuelle ; une base indisponible répond `meute database unavailable: <raison>` ; toute autre exception va dans `<state>/mcp.log` et répond `internal error`. La sortie standard ne porte que le protocole.
+- `meute mcp` ne charge pas `config.toml` : un réglage sans rapport, mal écrit, n'arrête pas les outils.
 
 ## 13. Configuration et données
 
@@ -550,10 +559,11 @@ Les spikes S1 à S5 ont été réalisés le 2026-10-15 sur Claude Code 2.1.301 e
 | S5 | Worktrees natifs | Ils existent, mais on garde la convention du § 11 |
 | S6 | Démarrage de `meute ingest` en Python | ✅ Médiane ≈ 46,7 ms avec `--compile-bytecode` (bande 35–50 ms) : on continue, le test `importtime` reste un garde-fou strict (§ 4.3, § 7.3). [Rapport](../spikes/2026-10-16-spike-s6-demarrage-python.md) |
 | S10 | `claude --resume` sous meute (2026-10-21, Claude Code 2.1.306) | ✅ Même `session_id`, `SessionStart` avec `source=resume` et `MEUTE_SESSION` ; `--settings`, `--permission-mode` et `--name` acceptés avec `--resume`, mais `--session-id` y est refusé ; `respawn-pane` sur un panneau mort garde le `pane_id` (§ 6.5). [Rapport](../spikes/2026-10-21-spike-s10.md) |
+| S11 | Configuration MCP et prompt système sous meute (2026-10-22, Claude Code 2.1.307/308) | ✅ `--mcp-config` liste les outils (`/mcp`), `MEUTE_SESSION` arrive au serveur, `permissions.allow` de `--settings` supprime la demande et s'ajoute aux réglages de l'utilisateur, `--append-system-prompt` est suivi jusqu'à 100 000 caractères, `--append-system-prompt-file` existe (non documenté), démarrage du serveur environ 1,6 s et Claude l'attend (§ 8, § 12). [Rapport](../spikes/2026-10-22-spike-s11.md) |
+
+Tranchés par S11 (plan 5) : l'ajout des réglages de `--settings` à ceux de l'utilisateur, et le contenu effectif de `--mcp-config` et de `--append-system-prompt` (§ 8, § 12).
 
 Restent à vérifier pendant l'implémentation :
-- l'ajout des réglages de `--settings` à ceux de l'utilisateur ;
-- le contenu effectif de `--mcp-config` et `--append-system-prompt` ;
 - les hooks `SubagentStart` et `PreCompact`.
 
 ## 15. Décisions ouvertes, non bloquantes

@@ -200,4 +200,7 @@ pytest_add_cli_args_test_selection = [
     "tests/test_launch_form.py", "tests/test_launch_form_view.py", "tests/test_db_repo_links.py",
     "tests/test_db_last_agent.py", "tests/test_last_agent.py", "tests/test_launch_form_busy.py",
     "tests/test_orphan_adoption.py", "tests/test_resume_target.py", "tests/test_db_reopen.py", "tests/test_mutants_plan4c.py",
+    "tests/test_mcp_data.py", "tests/test_composed_context.py", "tests/test_context_arg.py",
+    "tests/test_claude_mcp_config.py", "tests/test_config_instructions.py", "tests/test_db_link_session.py",
+    "tests/test_mutants_plan5.py",
 ]
