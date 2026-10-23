@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 from datetime import tzinfo
-from pathlib import Path
 from typing import assert_never
 
 from textual.content import Content
@@ -19,7 +18,6 @@ from meute.core.board_view import (
     LaunchClaude,
     LaunchEntry,
     OrphanEntry,
-    RemoveWorktree,
     ShowPane,
     claude_action,
     confirm_stop_text,
@@ -47,7 +45,7 @@ from meute.tui.board_types import BoardGit
 from meute.tui.launch_form import FormSession, LaunchTask
 from meute.tui.sessions_cursor import SessionsCursor
 from meute.tui.sessions_pane import details_content, quota_content, view_content
-from meute.tui.worktree_removal import WorktreeRemoval
+from meute.tui.worktree_removal import WorktreeRemoval, WorktreeWorkers
 
 _ACTION_KEYS = frozenset({"enter", "c", "n", "r", "x", "W"})
 _SESSION_ONLY_KEYS = frozenset({"c", "n", "r", "W"})
@@ -68,8 +66,7 @@ class SessionsTab:
         adopt: Callable[[Orphan], None],
         close: Callable[[Orphan], None],
         is_closing: Callable[[Orphan], bool],
-        remove_worktree: Callable[[RemoveWorktree, str], None],
-        is_removing: Callable[[Path], bool],
+        worktrees: WorktreeWorkers,
         launch: Callable[[LaunchBash | LaunchClaude], None],
         launch_task: LaunchTask,
         default_mode: str,
@@ -86,9 +83,7 @@ class SessionsTab:
         self._adopt = adopt
         self._close = close
         self._is_closing = is_closing
-        self._removal = WorktreeRemoval(
-            git=git, remove=remove_worktree, is_removing=is_removing, notice=notice
-        )
+        self._removal = WorktreeRemoval(git=git, workers=worktrees, notice=notice)
         self._form = FormSession(
             launch=launch, launch_task=launch_task, default_mode=default_mode, git=git
         )

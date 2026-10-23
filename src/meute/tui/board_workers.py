@@ -1,4 +1,4 @@
-"""The board's slow actions, each in a thread worker: stopping a session, launching on a task."""
+"""The board's slow actions, each in a thread worker: stopping a session, checking a worktree…"""
 
 from collections.abc import Callable
 from contextlib import suppress
@@ -24,9 +24,12 @@ from meute.core.errors import MeuteError, PromptNotPasted
 from meute.core.orphans import Orphan, closing_text, orphan_agent
 from meute.core.session import Session, SessionId
 from meute.core.task import TaskId
+from meute.core.worktrees import WorktreeCheck
 
 # Told on the app's thread when an action ended: its error, or a notice, or neither.
 Finished = Callable[[str | None, str | None], None]
+Inspect = Callable[[Path], WorktreeCheck | str]
+Checked = Callable[[WorktreeCheck | str], None]
 
 
 class BoardWorkers:
@@ -44,7 +47,8 @@ class BoardWorkers:
         # Orphans being adopted or closed, by their tmux identifier: the selection may move.
         self._adopting: dict[str, None] = {}
         self._closing: dict[str, str] = {}  # id -> command
-        self._removing: dict[Path, None] = {}  # worktrees being removed
+        self._checking: dict[Path, str] = {}  # folders being checked before `W`: path -> shown
+        self._removing: dict[Path, str] = {}  # worktrees being removed: path -> shown
 
     def is_stopping(self, session_id: SessionId) -> bool:
         """Whether the session is being stopped."""
@@ -114,6 +118,30 @@ class BoardWorkers:
             CloseOrphan(meute_id=key, agent=orphan_agent(orphan)), partial(self._closing.pop, key)
         )
 
+    def check_worktree(self, folder: Path, shown: str, inspect: Inspect, ended: Checked) -> None:
+        """Run `inspect` on `folder` in a thread worker; ignored while that folder is checked.
+
+        `ended` gets the check, or the text saying why it failed, on the app's thread.
+        """
+        if folder in self._checking:
+            return
+        self._checking[folder] = shown
+        _ = self._app.run_worker(partial(self._check, folder, inspect, ended), thread=True)
+
+    def _check(self, folder: Path, inspect: Inspect, ended: Checked) -> None:
+        """Run in the worker thread, like `_off_thread`."""
+        try:
+            result = inspect(folder)
+        except Exception as failure:  # noqa: BLE001 — the check must end on screen whatever broke
+            result = str(failure) or type(failure).__name__
+        with suppress(RuntimeError):  # the app already quit: nobody left to tell
+            self._app.call_from_thread(self._checked, folder, ended, result)
+
+    def _checked(self, folder: Path, ended: Checked, result: WorktreeCheck | str) -> None:
+        _ = self._checking.pop(folder, None)
+        ended(result)
+        self._finished(None, None)
+
     def is_removing(self, path: Path) -> bool:
         """Whether the worktree `path` is being removed."""
         return path in self._removing
@@ -122,7 +150,7 @@ class BoardWorkers:
         """Remove a worktree in a thread worker; the footer then names it as `path_text`."""
         if action.path in self._removing:
             return
-        self._removing[action.path] = None
+        self._removing[action.path] = path_text
         told = partial(self._removed, path_text)
         self._run(action, partial(self._removing.pop, action.path), told)
 
@@ -143,6 +171,14 @@ class BoardWorkers:
             return closing_text(next(reversed(self._closing.values())))
         if self._launching:
             return launching_text(next(reversed(self._launching)))
+        return self._worktree_footer()
+
+    def _worktree_footer(self) -> str | None:
+        """What the latest worktree removal, else the latest check, says in the footer."""
+        if self._removing:
+            return f"removing worktree {next(reversed(self._removing.values()))}…"
+        if self._checking:
+            return f"checking worktree {next(reversed(self._checking.values()))}…"
         return None
 
     def _run(

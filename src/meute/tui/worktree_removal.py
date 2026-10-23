@@ -2,8 +2,9 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
-from typing import assert_never
+from typing import Protocol, assert_never
 
 from meute.core.board_view import BoardData, LaunchEntry, RemoveWorktree, SessionEntry
 from meute.core.git_folder import git_folder
@@ -41,25 +42,41 @@ class Listing:
 RemovalState = Idle | Asking | Listing
 
 
+class WorktreeWorkers(Protocol):
+    """Where `W` runs its slow steps: the check and the removal, each off the app's thread."""
+
+    def check_worktree(
+        self,
+        folder: Path,
+        shown: str,
+        inspect: Callable[[Path], WorktreeCheck | str],
+        ended: Callable[[WorktreeCheck | str], None],
+    ) -> None:
+        """Run `inspect` on `folder`, then give `ended` its result; `shown` names it meanwhile."""
+        ...
+
+    def is_removing(self, path: Path) -> bool:
+        """Whether the worktree `path` is being removed."""
+        ...
+
+    def remove_worktree(self, action: RemoveWorktree, path_text: str) -> None:
+        """Run the removal; the footer names the worktree as `path_text`."""
+        ...
+
+
 class WorktreeRemoval:
     """The confirmation of `W`: `y` goes on, any other key cancels; the removal runs elsewhere."""
 
     def __init__(
-        self,
-        *,
-        git: BoardGit | None,
-        remove: Callable[[RemoveWorktree, str], None],
-        is_removing: Callable[[Path], bool],
-        notice: Callable[[str], None],
+        self, *, git: BoardGit | None, workers: WorktreeWorkers, notice: Callable[[str], None]
     ) -> None:
         self._git = git
-        self._remove = remove
-        self._is_removing = is_removing
+        self._workers = workers
         self._notice = notice
         self._state: RemovalState = Idle()
 
     def ask(self, entry: LaunchEntry, data: BoardData) -> None:
-        """`W` on `entry`: check its worktree and ask, or say why it cannot be removed."""
+        """`W` on `entry`: check its worktree off the app's thread, or say why it cannot go."""
         if not isinstance(entry, SessionEntry):
             return
         session = entry.row.session
@@ -68,17 +85,24 @@ class WorktreeRemoval:
         elif self._git is None:
             self._notice(NO_GIT)
         else:
-            check = self._git.inspect(git_folder(session, data.metrics.get(session.id)))
-            if isinstance(check, str):
-                self._notice(check)
-            elif not self._is_removing(check.path):
-                _ = self.start(check, _shown(check.path, data.home))
+            folder = git_folder(session, data.metrics.get(session.id))
+            ended = partial(self._checked, home=data.home)
+            self._workers.check_worktree(
+                folder, _shown(folder, data.home), self._git.inspect, ended
+            )
+
+    def _checked(self, check: WorktreeCheck | str, *, home: Path | None) -> None:
+        """The check is back: ask the first question, unless another one is pending."""
+        if isinstance(check, str):
+            self._notice(check)
+        elif isinstance(self._state, Idle) and not self._workers.is_removing(check.path):
+            _ = self.start(check, _shown(check.path, home))
 
     def answer(self, key: str, home: Path | None) -> None:
         """Apply `key` to the pending question, starting the removal once it is confirmed."""
         action = self.key(key)
         if action is not None:
-            self._remove(action, _shown(action.path, home))
+            self._workers.remove_worktree(action, _shown(action.path, home))
 
     def start(self, check: WorktreeCheck, shown: str) -> str:
         """Ask the first question about `check`; return the footer text."""

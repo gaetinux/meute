@@ -78,6 +78,11 @@ def _removed(app: BoardApp) -> bool:
     return _footer(app).startswith("worktree removed")
 
 
+async def _checked(app: BoardApp, pilot: Pilot[None]) -> None:
+    """Wait for the check of `W`, which runs off the app's thread, to come back."""
+    await until(pilot, lambda: not _footer(app).startswith("checking worktree"), "still checking")
+
+
 def _footers(
     git: FakeGit | None, *keys: str, data: BoardData | None = None
 ) -> tuple[list[str], FakeBackend]:
@@ -91,6 +96,7 @@ def _footers(
             await pilot.press("e")
             for key in keys:
                 await pilot.press(key)
+                await _checked(app, pilot)
                 footers.append(_footer(app))
             if any(isinstance(action, RemoveWorktree) for action in backend.actions):
                 await until(pilot, lambda: _removed(app), "the removal never ended")
@@ -194,7 +200,9 @@ def test_a_failed_removal_shows_the_error() -> None:
 
     async def scenario() -> None:
         async with app.run_test(size=_SIZE) as pilot:
-            await pilot.press("e", "W", "y")
+            await pilot.press("e", "W")
+            await _checked(app, pilot)
+            await pilot.press("y")
             await until(pilot, lambda: "cannot remove" in _footer(app), "no error shown")
 
     asyncio.run(scenario())
@@ -207,9 +215,13 @@ def test_w_again_while_removing_sends_one_action() -> None:
 
     async def scenario() -> None:
         async with app.run_test(size=_SIZE) as pilot:
-            await pilot.press("e", "W", "y")
+            await pilot.press("e", "W")
+            await _checked(app, pilot)
+            await pilot.press("y")
             await until(pilot, lambda: backend.actions, "the removal never started")
-            await pilot.press("W", "y")
+            await pilot.press("W")
+            await _checked(app, pilot)
+            await pilot.press("y")
             backend.release.set()
             await until(pilot, lambda: "worktree removed" in _footer(app), "never removed")
 
@@ -227,7 +239,13 @@ def test_the_keys_help_tells_what_w_does() -> None:
 
 def test_worktree_list_44_columns(snap_compare: SnapCompare) -> None:
     app = BoardApp(FakeBackend(_data()), poll_seconds=_NO_POLL, git=FakeGit(_DIRTY))
-    assert snap_compare(app, press=["e", "W", "y"], terminal_size=(44, 30))
+
+    async def list_it(pilot: Pilot[None]) -> None:
+        await pilot.press("e", "W")
+        await _checked(app, pilot)
+        await pilot.press("y")
+
+    assert snap_compare(app, terminal_size=(44, 30), run_before=list_it)
 
 
 def test_a_click_cancels_the_removal() -> None:
@@ -237,6 +255,7 @@ def test_a_click_cancels_the_removal() -> None:
     async def scenario() -> None:
         async with app.run_test(size=_SIZE) as pilot:
             await pilot.press("e", "W")
+            await _checked(app, pilot)
             _ = await pilot.click("#board", offset=(2, 0))
             assert _footer(app) == FOOTER
             await pilot.press("y")
