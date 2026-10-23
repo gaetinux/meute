@@ -16,6 +16,11 @@ dependencies = [
 [project.scripts]
 meute = "meute._entry:console"
 
+[tool.uv]
+exclude-newer = "2026-10-15T00:00:00Z"
+# Each exemption keeps the version already locked: the day after its upload, UTC midnight.
+exclude-newer-package = { certifi = "2026-10-21T00:00:00Z", hypothesis = "2026-10-17T00:00:00Z", platformdirs = "2026-10-17T00:00:00Z", pluggy = "2026-10-16T00:00:00Z", ruff = "2026-10-16T00:00:00Z", tomlkit = "2026-10-17T00:00:00Z" }
+
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14.0"]
 build-backend = "uv_build"
