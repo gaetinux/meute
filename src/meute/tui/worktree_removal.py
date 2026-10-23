@@ -100,7 +100,7 @@ class WorktreeRemoval:
     def _checked(self, check: WorktreeCheck | str, *, home: Path | None) -> None:
         """The check is back: ask the first question, dropped while another one is pending."""
         if isinstance(check, str):
-            self._notice(check)
+            self._notice(printable(check))
         elif (
             isinstance(self._state, Idle)
             and not self._asking()

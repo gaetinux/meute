@@ -119,6 +119,19 @@ def test_a_refusal_found_off_thread_goes_to_the_footer() -> None:
     asyncio.run(scenario())
 
 
+def test_a_refusal_reaches_the_footer_printable() -> None:
+    git = BlockingGit("git: bad \x1b[31mred")
+    git.release.set()
+    app = BoardApp(FakeBackend(_data()), poll_seconds=_NO_POLL, git=git)
+
+    async def scenario() -> None:
+        async with app.run_test(size=_SIZE) as pilot:
+            await pilot.press("e", "W")
+            await until(pilot, lambda: _footer(app) == "git: bad �[31mred", "not printable")
+
+    asyncio.run(scenario())
+
+
 def test_a_broken_check_shows_its_error() -> None:
     git = BlockingGit(RuntimeError("boom"))
     git.release.set()
