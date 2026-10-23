@@ -80,6 +80,14 @@ def board() -> None:
             backend.close()
 
 
+@app.command("mcp")
+def mcp() -> None:
+    """MCP server for Claude sessions (stdio)."""
+    from meute.cli.mcp_command import serve  # noqa: PLC0415 — only this command needs the MCP SDK
+
+    serve(os.environ)
+
+
 @app.command("welcome", hidden=True)
 def welcome() -> None:
     """Show the welcome text until the pane is killed."""
