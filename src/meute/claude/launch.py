@@ -3,10 +3,24 @@
 import shutil
 from collections.abc import Mapping
 from pathlib import Path
+from typing import assert_never
 
+from meute.claude.context_arg import ContextArg, ContextFile, ContextText
 from meute.core.config_validate import PERMISSION_MODES
 from meute.core.errors import InvalidInput
 from meute.core.session import SessionId
+
+
+def _context_options(context: ContextArg | None) -> tuple[str, ...]:
+    match context:
+        case None:
+            return ()
+        case ContextText(text=text):
+            return ("--append-system-prompt", text)
+        case ContextFile(path=path):
+            return ("--append-system-prompt-file", str(path))
+        case _:
+            assert_never(context)
 
 
 def claude_argv(  # noqa: PLR0913 — keyword-only: each argument is a distinct part of the command
@@ -18,12 +32,12 @@ def claude_argv(  # noqa: PLR0913 — keyword-only: each argument is a distinct 
     title: str,
     resume: bool = False,
     mcp_config: Path | None = None,
-    context: str | None = None,
+    context: ContextArg | None = None,
 ) -> tuple[str, ...]:
     """Build the argv; the title is glued to `--name=` so a leading dash stays data.
 
     With `resume`, `--resume <id>` replaces `--session-id <id>`: Claude refuses both together.
-    `context` is one argv word, handed to tmux as data and never through a shell.
+    A `ContextText` is one argv word, handed to tmux as data and never through a shell.
     """
     if permission_mode not in PERMISSION_MODES:
         message = f"unknown permission mode: {permission_mode}"
@@ -37,7 +51,7 @@ def claude_argv(  # noqa: PLR0913 — keyword-only: each argument is a distinct 
         session_id,
         "--permission-mode",
         permission_mode,
-        *(() if context is None else ("--append-system-prompt", context)),
+        *_context_options(context),
         f"--name={title}",
     )
 

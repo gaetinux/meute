@@ -1,10 +1,12 @@
 """The MCP configuration and the composed context reach the Claude command line."""
 
+import stat
 from pathlib import Path
 
 import pytest
 
 from conftest import FAKE_CLAUDE_DIR, Sandbox
+from meute.claude.context_arg import ContextText
 from meute.claude.launch import claude_argv
 from meute.claude.mcp_config import mcp_config_document
 from meute.claude.settings import MEUTE_TOOLS, settings_document
@@ -39,7 +41,8 @@ _SPEC = LayoutSpec(
     sync_command=("true",),
     keys=Keys(focus_board="M-p", focus_main="M-o"),
 )
-NASTY = "--x leading dash\nline two;\n" + "y" * 12_000 + "\n;"
+LONG = "--x leading dash\nline two;\n" + "z" * 20_000 + "\n;"
+NASTY = "--x leading dash\nline two;\n" + "y" * 6_000 + "\n;"
 
 
 def test_argv_puts_mcp_config_after_settings_and_context_before_the_name() -> None:
@@ -50,7 +53,7 @@ def test_argv_puts_mcp_config_after_settings_and_context_before_the_name() -> No
         permission_mode="plan",
         title="Fix it",
         mcp_config=Path("/s/mcp.json"),
-        context="the context",
+        context=ContextText("the context"),
     )
     assert argv == (
         "/bin/claude", "--settings", "/s/settings.json", "--mcp-config", "/s/mcp.json",
@@ -227,3 +230,53 @@ def test_resume_recomputes_the_context_from_the_current_instructions(
 def list_sessions_safe(sandbox: Sandbox) -> list[object]:
     with sandbox.db() as db:
         return list(list_sessions(db))
+
+
+def _long_to_short(sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch) -> tuple[list[str], Path]:
+    """Launch with 20 000 characters of instructions, then resume after they were shortened."""
+    folder = (sandbox.root / "w").resolve()
+    folder.mkdir()
+    args = sandbox.root / "args.json"
+    ctx, env = _ctx(sandbox)
+    try:
+        _ = _repo_project(ctx, folder, LONG)
+        (repo,) = (r for r in sync_repos(ctx.db, []) if r.name == "w")
+        environ = _environ(sandbox, monkeypatch, args)
+        session = launch_claude(ctx, env, ClaudeLaunch(cwd=folder, repo_id=repo.id), environ)
+
+        def ended() -> bool:
+            row = get_session(ctx.db, session.id)
+            pane = pane_of_session(env.tmux, session.id)
+            return isinstance(row.state, Exited) and pane is not None and pane.dead
+
+        wait_until("the session to end", ended, timeout=30)
+        first = _recorded(args)
+        context_file = sandbox.root / "state/meute/sessions" / session.id / "context.md"
+        assert first[first.index("--append-system-prompt-file") + 1] == str(context_file)
+        assert "--append-system-prompt" not in first
+        assert first[-1] == "--name=w"
+        assert context_file.read_text(encoding="utf-8").endswith("(w):\n" + LONG.strip())
+        assert stat.S_IMODE(context_file.stat().st_mode) == 0o600
+        args.unlink()
+        project = create_repo_project(ctx.db, "w")
+        _ = set_project_instructions(ctx.db, project.id, "short")
+        _ = resume_session(ctx, env, session.id, environ)
+        return _recorded(args), context_file
+    finally:
+        ctx.db.close()
+
+
+def test_a_long_context_reaches_claude_as_a_private_file(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    resumed, _ = _long_to_short(sandbox, monkeypatch)
+    assert "--resume" in resumed
+    assert resumed[-2].endswith("Project instructions (w):\nshort")
+
+
+def test_resuming_with_a_short_context_removes_the_stale_file(
+    sandbox: Sandbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    resumed, context_file = _long_to_short(sandbox, monkeypatch)
+    assert "--append-system-prompt-file" not in resumed
+    assert not context_file.exists()

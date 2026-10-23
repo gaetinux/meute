@@ -4,6 +4,7 @@ import re
 from collections.abc import Mapping
 from contextlib import suppress
 
+from meute.claude.context_arg import prepare_context
 from meute.claude.launch import claude_argv, find_claude
 from meute.claude.mcp_config import write_mcp_config
 from meute.claude.settings import MEUTE_TOOLS, write_settings
@@ -63,9 +64,10 @@ def resume_session(
     command = meute_command()
     settings = write_settings(ctx.paths.state_dir, session_id, command, MEUTE_TOOLS)
     mcp_config = write_mcp_config(ctx.paths.state_dir, session_id, command)
-    context = session_context(
+    text = session_context(
         ctx, project_id=session.project_id, repo_id=session.repo_id, task_id=session.task_id
     )
+    context = prepare_context(ctx.paths.state_dir, session_id, text)
     argv = claude_argv(
         claude=claude,
         settings=settings,
