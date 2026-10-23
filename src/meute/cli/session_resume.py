@@ -5,8 +5,10 @@ from collections.abc import Mapping
 from contextlib import suppress
 
 from meute.claude.launch import claude_argv, find_claude
-from meute.claude.settings import write_settings
+from meute.claude.mcp_config import write_mcp_config
+from meute.claude.settings import MEUTE_TOOLS, write_settings
 from meute.cli.context import CliContext
+from meute.cli.session_context import session_context
 from meute.cli.session_launch import resolve_folder, session_spawn
 from meute.cli.session_launch_claude import CLAUDE_MISSING
 from meute.cli.tmux_env import TmuxEnv, meute_command
@@ -58,7 +60,12 @@ def resume_session(
         raise InvalidInput(message)
     known_mode = details.permission_mode
     mode = known_mode if known_mode in PERMISSION_MODES else ctx.config.claude.permission_mode
-    settings = write_settings(ctx.paths.state_dir, session_id, meute_command())
+    command = meute_command()
+    settings = write_settings(ctx.paths.state_dir, session_id, command, MEUTE_TOOLS)
+    mcp_config = write_mcp_config(ctx.paths.state_dir, session_id, command)
+    context = session_context(
+        ctx, project_id=session.project_id, repo_id=session.repo_id, task_id=session.task_id
+    )
     argv = claude_argv(
         claude=claude,
         settings=settings,
@@ -66,6 +73,8 @@ def resume_session(
         permission_mode=mode,
         title=session.title,
         resume=True,
+        mcp_config=mcp_config,
+        context=context,
     )
     spawn = session_spawn(session_id, cwd, argv)
     started = (

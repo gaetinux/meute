@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """A fake `claude` for tests: replays captured hook payloads through the --settings commands.
 
-Usage: `claude --settings <file> --session-id <id> ...` (or `--resume <id>`, which makes
+Usage: `claude --settings <file> [--mcp-config <file>] --session-id <id> ...` (or `--resume <id>`, which makes
 SessionStart say `source: resume`) or `claude agents --json`.
 A first Ctrl-C is ignored, a second within a second ends the session.
 MEUTE_FAKE_CLAUDE_SCRIPT picks the sequence (permission, done, exit, end, paste); `paste`
 starts like a session, then appends every byte typed or pasted to MEUTE_FAKE_CLAUDE_INPUT.
+`--mcp-config <file>` and `--append-system-prompt <text>` are accepted and only recorded.
 MEUTE_FAKE_CLAUDE_ARGS, when set, names a file receiving the arguments as a JSON list.
 MEUTE_FAKE_CLAUDE_AGENTS names a file printed by `claude agents --json`.
 Standard library only.

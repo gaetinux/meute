@@ -25,8 +25,24 @@ HOOK_EVENTS: tuple[str, ...] = (
 )
 
 
-def settings_document(meute_command: Sequence[str]) -> JsonObject:
-    """Build the settings document; every command is shell-quoted from `meute_command`."""
+MEUTE_TOOLS: tuple[str, ...] = (
+    "mcp__meute__task_list",
+    "mcp__meute__task_read",
+    "mcp__meute__task_create",
+    "mcp__meute__task_update",
+    "mcp__meute__task_set_status",
+    "mcp__meute__task_note_add",
+    "mcp__meute__task_link_session",
+)
+
+
+def settings_document(
+    meute_command: Sequence[str], allowed_tools: Sequence[str] = ()
+) -> JsonObject:
+    """Build the settings document; every command is shell-quoted from `meute_command`.
+
+    A non-empty `allowed_tools` is added as `permissions.allow`.
+    """
     hooks: JsonObject = {
         event: [
             {
@@ -40,21 +56,35 @@ def settings_document(meute_command: Sequence[str]) -> JsonObject:
         ]
         for event in HOOK_EVENTS
     }
-    return {
+    document: JsonObject = {
         "hooks": hooks,
         "statusLine": {
             "type": "command",
             "command": shlex.join([*meute_command, "ingest", "statusline"]),
         },
     }
+    if allowed_tools:
+        document["permissions"] = {"allow": list(allowed_tools)}
+    return document
 
 
-def write_settings(state_dir: Path, session_id: SessionId, meute_command: Sequence[str]) -> Path:
-    """Write `<state_dir>/sessions/<id>/settings.json` (folders 0700, file 0600) and return it."""
+def write_session_file(state_dir: Path, session_id: SessionId, name: str, text: str) -> Path:
+    """Write `<state_dir>/sessions/<id>/<name>` (folders 0700, file 0600) and return it."""
     folder = state_dir / "sessions" / session_id
     for private in (state_dir, folder.parent, folder):
         make_private_dir(private)
-    path = folder / "settings.json"
+    path = folder / name
     # The temporary file is created 0600 and renamed over the target, so the mode holds.
-    write_atomic(path, json.dumps(settings_document(meute_command), indent=2) + "\n")
+    write_atomic(path, text)
     return path
+
+
+def write_settings(
+    state_dir: Path,
+    session_id: SessionId,
+    meute_command: Sequence[str],
+    allowed_tools: Sequence[str] = (),
+) -> Path:
+    """Write `<state_dir>/sessions/<id>/settings.json` (folders 0700, file 0600) and return it."""
+    text = json.dumps(settings_document(meute_command, allowed_tools), indent=2) + "\n"
+    return write_session_file(state_dir, session_id, "settings.json", text)

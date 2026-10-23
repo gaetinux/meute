@@ -17,10 +17,13 @@ def claude_argv(  # noqa: PLR0913 — keyword-only: each argument is a distinct 
     permission_mode: str,
     title: str,
     resume: bool = False,
+    mcp_config: Path | None = None,
+    context: str | None = None,
 ) -> tuple[str, ...]:
     """Build the argv; the title is glued to `--name=` so a leading dash stays data.
 
     With `resume`, `--resume <id>` replaces `--session-id <id>`: Claude refuses both together.
+    `context` is one argv word, handed to tmux as data and never through a shell.
     """
     if permission_mode not in PERMISSION_MODES:
         message = f"unknown permission mode: {permission_mode}"
@@ -29,10 +32,12 @@ def claude_argv(  # noqa: PLR0913 — keyword-only: each argument is a distinct 
         str(claude),
         "--settings",
         str(settings),
+        *(() if mcp_config is None else ("--mcp-config", str(mcp_config))),
         "--resume" if resume else "--session-id",
         session_id,
         "--permission-mode",
         permission_mode,
+        *(() if context is None else ("--append-system-prompt", context)),
         f"--name={title}",
     )
 
