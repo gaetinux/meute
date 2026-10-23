@@ -80,7 +80,7 @@ La ligne 3 de la carte d'une session (`└ …`) montre l'état Git à la place 
 - `*` : modifications non commitées, fichiers non suivis compris. `+N −M` n'apparaît que si l'un des deux est non nul ; `↑N` et `↓N` seulement s'ils sont non nuls.
 - Le nom du worktree créé par Claude (statusline) reste affiché comme aujourd'hui, à côté.
 - La ligne est tronquée à la largeur, comme le reste de la carte (mode étroit compris).
-- `meute session show` affiche la même ligne, calculée sur le moment, avec les mêmes protections.
+- `meute session show` amène le panneau de la session et n'affiche rien : l'état Git reste propre au tableau.
 
 ## Le worktree dans le formulaire `N`
 
@@ -170,7 +170,7 @@ meute relève, avec les protections de lecture :
 
 ### Reprise après nettoyage
 
-`r` sur une session dont le dossier n'existe plus répond `folder not found: <chemin>`, au lieu d'ouvrir un panneau qui meurt aussitôt.
+`r` sur une session dont le dossier n'existe plus répond déjà `folder not found: <chemin>` (`resolve_folder`, plan 4c) ; rien à ajouter, un test le fixe pour un worktree enlevé.
 
 ## Architecture
 
