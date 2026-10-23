@@ -84,7 +84,7 @@ class SessionsTab:
         self._close = close
         self._is_closing = is_closing
         self._removal = WorktreeRemoval(
-            git=git, workers=worktrees, notice=notice, asking=lambda: self._confirming is not None
+            git=git, workers=worktrees, notice=notice, asking=self._asking
         )
         self._form = FormSession(
             launch=launch, launch_task=launch_task, default_mode=default_mode, git=git
@@ -121,9 +121,13 @@ class SessionsTab:
         self.cursor.resize(width)
         return True
 
+    def _asking(self) -> bool:
+        """Whether a question is pending: a stop, a close or a worktree removal."""
+        return self._confirming is not None or self._removal.active
+
     def handle_key(self, key: str) -> bool:
         """Apply `key`; `False` when the board should deal with it."""
-        if self._confirming is not None or self._removal.footer() is not None:
+        if self._asking():
             self._answer(key)  # a pending confirmation swallows any key
             return True
         if key == "a" and isinstance(self._selected_entry(), OrphanEntry):
@@ -222,7 +226,7 @@ class SessionsTab:
     def click(self, y: int, x: int) -> None:
         """Select or fold the line at row `y`; like a key, a click only cancels a stop."""
         _ = x
-        if self._confirming is not None or self._removal.footer() is not None:
+        if self._asking():
             self._confirming = None
             self._removal.cancel()
             return

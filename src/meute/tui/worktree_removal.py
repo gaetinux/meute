@@ -8,7 +8,7 @@ from typing import Protocol, assert_never
 
 from meute.core.board_view import BoardData, LaunchEntry, RemoveWorktree, SessionEntry
 from meute.core.git_folder import git_folder
-from meute.core.paths import display_path
+from meute.core.paths import shown_path
 from meute.core.session_state import is_live
 from meute.core.text import printable
 from meute.core.worktrees import WorktreeCheck, listed_text
@@ -36,7 +36,6 @@ class Listing:
     """The changes and commits `check` would lose, then the second question."""
 
     check: WorktreeCheck
-    shown: str
 
 
 RemovalState = Idle | Asking | Listing
@@ -95,7 +94,7 @@ class WorktreeRemoval:
             folder = git_folder(session, data.metrics.get(session.id))
             ended = partial(self._checked, home=data.home)
             self._workers.check_worktree(
-                folder, _shown(folder, data.home), self._git.inspect, ended
+                folder, shown_path(folder, data.home), self._git.inspect, ended
             )
 
     def _checked(self, check: WorktreeCheck | str, *, home: Path | None) -> None:
@@ -107,13 +106,13 @@ class WorktreeRemoval:
             and not self._asking()
             and not self._workers.is_removing(check.path)
         ):
-            _ = self.start(check, _shown(check.path, home))
+            _ = self.start(check, shown_path(check.path, home))
 
     def answer(self, key: str, home: Path | None) -> None:
         """Apply `key` to the pending question, starting the removal once it is confirmed."""
         action = self.key(key)
         if action is not None:
-            self._workers.remove_worktree(action, _shown(action.path, home))
+            self._workers.remove_worktree(action, shown_path(action.path, home))
 
     def start(self, check: WorktreeCheck, shown: str) -> str:
         """Ask the first question about `check`; return the footer text."""
@@ -132,7 +131,7 @@ class WorktreeRemoval:
             case Asking(check=check) if check.clean:
                 return RemoveWorktree(repo=check.repo, path=check.path, force=False)
             case Asking():
-                self._state = Listing(state.check, state.shown)
+                self._state = Listing(state.check)
                 return None
             case Listing(check=check):
                 return RemoveWorktree(repo=check.repo, path=check.path, force=True)
@@ -143,15 +142,15 @@ class WorktreeRemoval:
         """Drop the pending question."""
         self._state = Idle()
 
+    @property
+    def active(self) -> bool:
+        """Whether a question is pending."""
+        return not isinstance(self._state, Idle)
+
     def footer(self) -> str | None:
         """The pending question, or `None` when nothing is asked."""
         state = self._state
         return None if isinstance(state, Idle) else _question(state)
-
-
-def _shown(path: Path, home: Path | None) -> str:
-    """The worktree folder as the footer shows it."""
-    return printable(display_path(path, home))
 
 
 def _question(state: Asking | Listing) -> str:
