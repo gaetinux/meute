@@ -96,6 +96,7 @@ def rm(
         except NotFound as error:
             _unknown(error)
         if not yes and not confirmed(f'Remove saved state "{printable(name)}"? [y/N]'):
-            raise typer.Exit(code=_FAILURE)
+            typer.echo("Cancelled.")
+            return
         delete_state(ctx.db, name)
     typer.echo(f"Removed: {printable(name)}")

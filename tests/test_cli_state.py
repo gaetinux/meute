@@ -149,8 +149,7 @@ def test_rm_asks_then_removes(sandbox: Sandbox) -> None:
 def test_rm_without_confirmation_removes_nothing(sandbox: Sandbox) -> None:
     _seed(sandbox)
     result = sandbox.run("state", "rm", "review", stdin="n\n")
-    assert result.returncode == 1
-    assert "Removed" not in result.stdout
+    assert (result.returncode, result.stdout) == (0, "Cancelled.\n")
     with sandbox.db() as db:
         assert "review" in [s.name for s in list_states(db)]
 
