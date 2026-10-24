@@ -5,10 +5,10 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from meute.cli.last_state import LastState
 
 from meute.cli.board_backend import CliBoardBackend
 from meute.cli.context import CliContext
+from meute.cli.last_state import LastState
 from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import BoardData
