@@ -45,6 +45,7 @@ from meute.core.project import ProjectId, ProjectRef, RepoId
 from meute.core.quota_view import QuotaLine
 from meute.core.repo import Repo
 from meute.core.resume_texts import NOT_CLAUDE, no_native_id_text, still_running_text
+from meute.core.saved_state import SavedState
 from meute.core.session import AgentKind, Session, SessionId
 from meute.core.session_state import is_live
 from meute.core.statusline import StatuslineData
@@ -113,7 +114,8 @@ class BoardData:
     """Everything the board draws; `now` is the clock the ages are measured by.
 
     `sessions` are the live sessions and those that still have a pane; `ended` are the
-    other sessions that ended recently, shown only on demand.
+    other sessions that ended recently, shown only on demand. `saved_states` are listed
+    as `list_states` gives them.
     """
 
     sessions: tuple[SessionRow, ...]
@@ -138,6 +140,7 @@ class BoardData:
     displayed_project: ProjectRef | None = None
     last_agents: Mapping[RepoId, AgentKind] = field(default_factory=dict[RepoId, AgentKind])
     repo_projects: Mapping[RepoId, ProjectId] = field(default_factory=dict[RepoId, ProjectId])
+    saved_states: tuple[SavedState, ...] = ()
 
 
 def enter_action(entry: LaunchEntry) -> ShowSession | LaunchBash:

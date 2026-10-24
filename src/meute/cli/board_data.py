@@ -14,6 +14,7 @@ from meute.core.db.claude_sessions import claude_details_by_session
 from meute.core.db.projects import project_refs
 from meute.core.db.repos import list_repos, repo_project_links
 from meute.core.db.samples import latest_metrics_by_session, latest_quota, quota_history
+from meute.core.db.saved_states import list_states
 from meute.core.db.sessions import last_agent_by_repo, list_sessions
 from meute.core.db.task_reads import latest_notes
 from meute.core.db.tasks import TaskFilter, list_tasks
@@ -122,6 +123,7 @@ def load_board_data(
         project_refs=refs,
         last_agents=last_agent_by_repo(db),
         repo_projects=repo_projects(repo_project_links(db), repos, refs),
+        saved_states=list_states(db),
         displayed_project=None
         if displayed is None
         else session_project(displayed, projects=refs, repos=repo_by_id),

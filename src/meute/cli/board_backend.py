@@ -14,6 +14,7 @@ from meute.cli.board_data import load_board_data
 from meute.cli.board_launch import BoardLaunch
 from meute.cli.context import ENVIRONMENT_ERRORS, CliContext, open_database
 from meute.cli.git_poller import GitPoller
+from meute.cli.last_state import LastState
 from meute.cli.orphan_actions import adopt_orphan, close_orphan, show_orphan
 from meute.cli.session_launch_claude import ClaudeLaunch
 from meute.cli.session_next import order_if_shown, show_next
@@ -109,6 +110,7 @@ class CliBoardBackend:
         self._folders: tuple[Path, ...] = ()  # the folders of the last read
         self._live: tuple[Path, ...] = ()  # where the live sessions of the last read work
         self._status: str | None = None  # last text written to the tmux status line
+        self._last_state = LastState(ctx.db)
         self._launch = BoardLaunch(ctx=ctx, env=env, environ=environ, on_task=self._launch_on_task)
 
     def load(self) -> BoardData | None:
@@ -147,8 +149,9 @@ class CliBoardBackend:
         return replace(self._last, git=self._git_state)
 
     def _read(self, version: int, now: float) -> BoardData:
-        """Read the board's data, and keep its folders for the Git poller."""
+        """Read the board's data, keep its folders for the Git poller, and update `last`."""
         data = load_board_data(self._ctx, self._env, self._environ, self._known)
+        data = self._last_state.follow(data)
         self._data_version, self._read_at = version, now
         self._folders = tuple(
             git_folder(row.session, data.metrics.get(row.session.id))
