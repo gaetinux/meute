@@ -36,7 +36,9 @@ Dashboard, Sessions tab (`?` lists every key):
 | `W` | remove the Git worktree of an ended session (`git worktree remove`, the branch is kept); asks for confirmation, and when it still has uncommitted changes or unpushed commits, `y` lists them before a second `remove anyway? y/n` |
 | `r` | resume an ended Claude session (`claude --resume`, in its old pane when it is still there) |
 | `x` | stop the session (asks for confirmation); when it was the one shown, the next live session of the board takes its place |
-| `a` / `e` | show only what needs attention / show ended sessions |
+| `S` | save the live sessions as a state named after the local time (`2026-10-24 09:12`); the footer says `state saved: <name>` |
+| `O` | list the saved states (`last` first, then the newest): `↑` `↓` choose, `Enter` reopens the chosen one (the footer says `reopening <name>…`, then `reopened <n> · skipped <m>`), `Esc` or any other key closes the list |
+| `a` / `e` | show only what needs attention / show the sessions ended in the last `recent_days` days (`[ui] recent_days`, 7 by default, 1 to 365) |
 
 Each session card's third line shows the Git state of its folder, polled in the background every 10 s at most: `└ main* +12 −3 ↑2 ↓1` (`*` uncommitted changes, untracked files included; added and removed lines; commits ahead of and behind the upstream), `└ feat/x (not pushed)` for a branch without upstream, `└ (detached a1b2c3d)`. Bash sessions get it too. meute never commits, merges, pushes or fetches.
 
@@ -66,6 +68,22 @@ meute worktree remove <path> [--yes] [--force]
 ```
 
 `meute worktree remove` never touches a repository's main folder, a locked worktree or one where a live session works, and always keeps the branch. Without `--force` it refuses a worktree with uncommitted changes or commits found on no remote and no other local branch, and lists them; `--force` removes it anyway after a confirmation (`--yes` skips it).
+
+## Saved states and recent sessions
+
+```bash
+meute state save [<name>]          # save the live sessions, in the board order (default name: the local time)
+meute state list [--json]          # last first, then the newest: <name>  <n> sessions  <age>
+meute state open <name>            # reopen what is not running: reopened <n> · skipped <m>, then one line per skipped session
+meute state rm <name> [--yes]      # asks Remove saved state "<name>"? [y/N]
+meute session recent [--json]      # Claude sessions ended in the last recent_days days, the latest first
+meute session resume <id|prefix>   # resume one, like r on the board
+meute config set ui.recent_days 14
+```
+
+A state records, for each live session, its type, folder, Claude conversation id, title, task, repository and whether it is the one shown. Reopening resumes each Claude session (`claude --resume`, same id, task and title) and starts a new shell in the same folder for each Bash session, then brings the session that was shown back to the main area. It never stops anything: a session still running, or a Bash session whose folder already has a live Bash session, is skipped as `already running`; a Claude session without a conversation id as `no conversation id`; a vanished folder as `folder not found: <path>`. A reopened shell has neither its history nor its processes.
+
+The ten newest named states are kept; saving under an existing name replaces it. The board keeps one more, `last`, rewritten whenever its list of live sessions changes and is not empty: after stopping everything or rebooting, `O` then `Enter` on `last` brings the day's sessions back. `last` is reserved for `meute state save` (`last is kept by the board`), but `meute state rm last` works; the board recreates it.
 
 ## Claude and tasks (MCP)
 
