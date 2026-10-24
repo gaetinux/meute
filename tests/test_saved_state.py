@@ -26,31 +26,23 @@ from meute.core.saved_state import (
 )
 from meute.core.session import AgentKind, SessionId
 from meute.core.task import TaskId
+from support import saved_session
 
 SID = SessionId("aaaa1111-0000-4000-8000-000000000000")
 BASH_SID = SessionId("bbbb2222-0000-4000-8000-000000000000")
 NOW = datetime(2026, 10, 24, 9, 12, tzinfo=UTC)
 
-CLAUDE = SavedSession(
-    session_id=SID,
-    agent=AgentKind.CLAUDE,
-    cwd=Path("/work/meute"),
-    native_id="native-1",
+CLAUDE = saved_session(
+    SID,
     title="fix the board",
+    cwd=Path("/work/meute"),
+    agent=AgentKind.CLAUDE,
+    native_id="native-1",
     task_id=TaskId(12),
     repo_id=RepoId(3),
     displayed=True,
 )
-BASH = SavedSession(
-    session_id=BASH_SID,
-    agent=AgentKind.BASH,
-    cwd=Path("/work/other"),
-    native_id=None,
-    title="shell",
-    task_id=None,
-    repo_id=None,
-    displayed=False,
-)
+BASH = saved_session(BASH_SID, cwd=Path("/work/other"))
 
 
 def test_constants() -> None:

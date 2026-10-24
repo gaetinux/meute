@@ -15,22 +15,13 @@ from meute.core.board_view import BoardData
 from meute.core.db.connection import Database
 from meute.core.db.saved_states import delete_state, get_state, list_states, save_state
 from meute.core.saved_state import LAST, SavedSession
-from meute.core.session import AgentKind, SessionId
-from support import FIXED
+from meute.core.session import SessionId
+from support import FIXED, saved_session
 from test_board_backend import _ENVIRON, _Clock, ctx, env  # noqa: F401 — fixtures reused  # pyright: ignore[reportPrivateUsage, reportUnusedImport] — fixtures reused
 
 
 def _saved(n: int) -> SavedSession:
-    return SavedSession(
-        session_id=SessionId(f"{n:08d}-0000-4000-8000-000000000000"),
-        agent=AgentKind.BASH,
-        cwd=Path("/work"),
-        native_id=None,
-        title=f"shell {n}",
-        task_id=None,
-        repo_id=None,
-        displayed=False,
-    )
+    return saved_session(SessionId(f"{n:08d}-0000-4000-8000-000000000000"), title=f"shell {n}")
 
 
 ONE, TWO, THREE = _saved(1), _saved(2), _saved(3)

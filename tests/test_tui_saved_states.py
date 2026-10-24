@@ -28,9 +28,8 @@ from meute.core.saved_state import (
     saved_text,
     state_line,
 )
-from meute.core.session import AgentKind
 from meute.tui.board import BoardApp
-from support import BOARD_AT, BOARD_ID_A, BOARD_ID_B, board_data, until
+from support import BOARD_AT, BOARD_ID_A, BOARD_ID_B, board_data, saved_session, until
 from test_tui_board import FakeBackend, SnapCompare
 
 _SIZE = (60, 30)
@@ -40,15 +39,8 @@ _REPORT = "reopened 2 · skipped 1"
 
 
 def _session(n: int) -> SavedSession:
-    return SavedSession(
-        session_id=BOARD_ID_A if n == 1 else BOARD_ID_B,
-        agent=AgentKind.BASH,
-        cwd=Path("/srv/work"),
-        native_id=None,
-        title=f"shell {n}",
-        task_id=None,
-        repo_id=None,
-        displayed=False,
+    return saved_session(
+        BOARD_ID_A if n == 1 else BOARD_ID_B, title=f"shell {n}", cwd=Path("/srv/work")
     )
 
 

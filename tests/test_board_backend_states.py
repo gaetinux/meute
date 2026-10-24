@@ -12,9 +12,9 @@ from meute.core.board_view import ReopenState, SaveState
 from meute.core.db.saved_states import get_state, save_state
 from meute.core.db.sessions import list_sessions
 from meute.core.errors import ActionNotice, MeuteError
-from meute.core.saved_state import SavedSession
-from meute.core.session import AgentKind, SessionId
+from meute.core.session import SessionId
 from meute.core.session_state import is_live
+from support import saved_session
 from test_board_backend import _ENVIRON, _Clock, env  # noqa: F401 — fixture reused  # pyright: ignore[reportPrivateUsage, reportUnusedImport] — fixture reused
 from test_board_backend_stop import ctx  # noqa: F401 — fixture reused  # pyright: ignore[reportUnusedImport] — fixture reused
 
@@ -55,25 +55,9 @@ def test_reopen_state_reopens_its_sessions_and_tells_the_counts(
     env: TmuxEnv,  # noqa: F811 — fixture
     tmp_path: Path,
 ) -> None:
-    saved = SavedSession(
-        session_id=SessionId("aaaa1111-0000-4000-8000-000000000000"),
-        agent=AgentKind.BASH,
-        cwd=tmp_path,
-        native_id=None,
-        title="shell",
-        task_id=None,
-        repo_id=None,
-        displayed=False,
-    )
-    gone = SavedSession(
-        session_id=SessionId("bbbb2222-0000-4000-8000-000000000000"),
-        agent=AgentKind.BASH,
-        cwd=tmp_path / "gone",
-        native_id=None,
-        title="gone",
-        task_id=None,
-        repo_id=None,
-        displayed=False,
+    saved = saved_session(SessionId("aaaa1111-0000-4000-8000-000000000000"), cwd=tmp_path)
+    gone = saved_session(
+        SessionId("bbbb2222-0000-4000-8000-000000000000"), title="gone", cwd=tmp_path / "gone"
     )
     _ = save_state(ctx.db, "morning", (saved, gone))
     backend = CliBoardBackend(ctx, env, _ENVIRON, monotonic=_Clock())

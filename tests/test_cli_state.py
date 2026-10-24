@@ -7,8 +7,8 @@ from syrupy.assertion import SnapshotAssertion
 from conftest import Sandbox
 from meute.core.db.saved_states import get_state, list_states, save_state
 from meute.core.saved_state import SavedSession
-from meute.core.session import AgentKind, SessionId
-from support import load_json
+from meute.core.session import SessionId
+from support import load_json, saved_session
 
 _IDS = {
     "one": SessionId("aaaa1111-0000-4000-8000-000000000000"),
@@ -18,16 +18,7 @@ _IDS = {
 
 
 def _entry(title: str, cwd: Path) -> SavedSession:
-    return SavedSession(
-        session_id=_IDS[title],
-        agent=AgentKind.BASH,
-        cwd=cwd,
-        native_id=None,
-        title=title,
-        task_id=None,
-        repo_id=None,
-        displayed=False,
-    )
+    return saved_session(_IDS[title], title=title, cwd=cwd)
 
 
 def _seed(sandbox: Sandbox) -> None:

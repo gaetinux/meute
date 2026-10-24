@@ -1,7 +1,6 @@
 """Tests that kill the mutants plan 6b left alive (docs/dev/mutants/2026-plan-6b-python.md)."""
 
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
 
@@ -10,7 +9,6 @@ from meute.core.db.saved_states import delete_state, get_state
 from meute.core.errors import NotFound
 from meute.core.project import RepoId
 from meute.core.saved_state import (
-    SavedSession,
     parse_sessions,
     reopening_text,
     saved_text,
@@ -18,7 +16,7 @@ from meute.core.saved_state import (
 )
 from meute.core.session import AgentKind, SessionId
 from meute.core.task import TaskId
-from support import FIXED
+from support import FIXED, saved_session
 
 # --- meute.core.saved_state
 
@@ -33,15 +31,13 @@ def test_saved_and_reopening_texts_neutralise_control_characters() -> None:
     assert reopening_text("a\x1bb") == "reopening a�b…"
 
 
-_ENTRY = SavedSession(
-    session_id=SessionId("aaaa1111-0000-4000-8000-000000000000"),
-    agent=AgentKind.CLAUDE,
-    cwd=Path("/work"),
-    native_id="native-1",
+_ENTRY = saved_session(
+    SessionId("aaaa1111-0000-4000-8000-000000000000"),
     title="t",
+    agent=AgentKind.CLAUDE,
+    native_id="native-1",
     task_id=TaskId(2**63 - 1),
     repo_id=RepoId(2**63 - 1),
-    displayed=False,
 )
 
 

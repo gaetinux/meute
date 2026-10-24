@@ -7,7 +7,6 @@ from meute.core.board_sessions import board_session_order
 from meute.core.board_view import SessionRow
 from meute.core.claude_session import ClaudeDetails
 from meute.core.project import RepoId
-from meute.core.saved_state import SavedSession
 from meute.core.session import AgentKind, SessionId
 from meute.core.state_capture import capture
 from meute.core.task import TaskId
@@ -20,6 +19,7 @@ from support import (
     BOARD_SESSION_B,
     board_data,
     board_session,
+    saved_session,
 )
 
 _ID_C = SessionId("33333333-3333-4333-8333-333333333333")
@@ -28,26 +28,8 @@ _ID_C = SessionId("33333333-3333-4333-8333-333333333333")
 def test_capture_follows_the_given_order_and_keeps_displayed() -> None:
     sessions = capture(board_data(), (BOARD_ID_B, BOARD_ID_A))
     assert sessions == (
-        SavedSession(
-            session_id=BOARD_ID_B,
-            agent=AgentKind.BASH,
-            cwd=Path("/srv/work"),
-            native_id=None,
-            title="tests",
-            task_id=None,
-            repo_id=None,
-            displayed=False,
-        ),
-        SavedSession(
-            session_id=BOARD_ID_A,
-            agent=AgentKind.BASH,
-            cwd=BOARD_HOME / "git" / "meute",
-            native_id=None,
-            title="build",
-            task_id=None,
-            repo_id=None,
-            displayed=True,
-        ),
+        saved_session(BOARD_ID_B, title="tests", cwd=Path("/srv/work")),
+        saved_session(BOARD_ID_A, title="build", cwd=BOARD_HOME / "git" / "meute", displayed=True),
     )
 
 

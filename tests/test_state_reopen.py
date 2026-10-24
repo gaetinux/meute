@@ -27,7 +27,7 @@ from meute.core.session_state import Exited, Running, Unknown
 from meute.tmux.conf import Keys, LayoutSpec
 from meute.tmux.layout import displayed_meute_id, ensure_layout
 from meute.tmux.panes import kill_pane, pane_of_session
-from support import FIXED, wait_until
+from support import FIXED, saved_session, wait_until
 
 _SLEEP = ("sh", "-c", "sleep 3600")
 _SPEC = LayoutSpec(
@@ -115,12 +115,12 @@ def _ended_claude(sandbox: Sandbox, title: str, folder: Path) -> Session:
 def _saved(
     session: Session, *, displayed: bool = False, native_id: str | None = None
 ) -> SavedSession:
-    return SavedSession(
-        session_id=session.id,
-        agent=session.agent,
-        cwd=session.cwd,
-        native_id=native_id,
+    return saved_session(
+        session.id,
         title=session.title,
+        cwd=session.cwd,
+        agent=session.agent,
+        native_id=native_id,
         task_id=session.task_id,
         repo_id=session.repo_id,
         displayed=displayed,
@@ -201,15 +201,8 @@ def test_claude_without_a_conversation_id_or_row_is_skipped(
     claude = _ended_claude(sandbox, "agent", folder)
     _ = ctx.db.conn.execute("UPDATE sessions SET native_id = NULL")
     ctx.db.conn.commit()
-    ghost = SavedSession(
-        session_id=_GHOST,
-        agent=AgentKind.CLAUDE,
-        cwd=folder,
-        native_id="native-1",
-        title="ghost",
-        task_id=None,
-        repo_id=None,
-        displayed=False,
+    ghost = saved_session(
+        _GHOST, title="ghost", cwd=folder, agent=AgentKind.CLAUDE, native_id="native-1"
     )
     report = reopen_state(ctx, env, _ENVIRON, _state(_saved(claude), ghost))
     assert report == ReopenReport(
@@ -253,16 +246,7 @@ def test_bash_keeps_its_title_and_repository(
     folder = _folder(sandbox, "r")
     (repo,) = sync_repos(ctx.db, [NewRepo(path=folder.resolve(), name="r", kind=None)])
     bash = _ended_bash(sandbox, "shell", folder)
-    entry = SavedSession(
-        session_id=bash.id,
-        agent=AgentKind.BASH,
-        cwd=bash.cwd,
-        native_id=None,
-        title="kept title",
-        task_id=None,
-        repo_id=repo.id,
-        displayed=False,
-    )
+    entry = saved_session(bash.id, title="kept title", cwd=bash.cwd, repo_id=repo.id)
     assert reopen_state(ctx, env, _ENVIRON, _state(entry)).reopened == 1
     (fresh,) = _live_bash(ctx, "kept title")
     assert fresh.repo_id == repo.id

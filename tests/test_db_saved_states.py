@@ -13,20 +13,11 @@ from meute.core.db.rows import fetch_all, fetch_one
 from meute.core.db.saved_states import delete_state, get_state, list_states, save_state
 from meute.core.errors import NotFound
 from meute.core.instants import to_db
-from meute.core.saved_state import LAST, RETAINED, SavedSession, SavedState
-from meute.core.session import AgentKind, SessionId
-from support import FIXED
+from meute.core.saved_state import LAST, RETAINED, SavedState
+from meute.core.session import SessionId
+from support import FIXED, saved_session
 
-SHELL = SavedSession(
-    session_id=SessionId("aaaa1111-0000-4000-8000-000000000000"),
-    agent=AgentKind.BASH,
-    cwd=Path("/work"),
-    native_id=None,
-    title="shell",
-    task_id=None,
-    repo_id=None,
-    displayed=True,
-)
+SHELL = saved_session(SessionId("aaaa1111-0000-4000-8000-000000000000"), displayed=True)
 
 
 class Clock:
