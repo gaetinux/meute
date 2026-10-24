@@ -13,7 +13,7 @@ from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.board_view import BoardData
 from meute.core.db.connection import Database
-from meute.core.db.saved_states import get_state, list_states, save_state
+from meute.core.db.saved_states import delete_state, get_state, list_states, save_state
 from meute.core.saved_state import LAST, SavedSession
 from meute.core.session import AgentKind, SessionId
 from support import FIXED
@@ -46,45 +46,62 @@ def _last_ids(db: Database) -> list[SessionId]:
     return [session.session_id for session in get_state(db, LAST).sessions]
 
 
+def _update(db: Database, sessions: tuple[SavedSession, ...]) -> bool:
+    """Update `last` from `sessions`, against the states as a board read finds them."""
+    return LastState(db).update(sessions, list_states(db))
+
+
 def test_a_first_list_is_written(db: Database) -> None:
-    assert LastState(db).update((ONE, TWO))
+    assert _update(db, (ONE, TWO))
     assert _last_ids(db) == [ONE.session_id, TWO.session_id]
 
 
 def test_the_same_list_is_not_written_again(db: Database) -> None:
-    last = LastState(db)
-    assert last.update((ONE, TWO))
+    assert _update(db, (ONE, TWO))
     # Same ids, another title: nothing to write.
-    assert not last.update((replace(ONE, title="renamed"), TWO))
+    assert not _update(db, (replace(ONE, title="renamed"), TWO))
     assert get_state(db, LAST).sessions[0].title == "shell 1"
 
 
 def test_an_empty_list_is_never_written(db: Database) -> None:
-    last = LastState(db)
-    assert not last.update(())
+    assert not _update(db, ())
     assert list_states(db) == ()
-    assert last.update((ONE,))
-    assert not last.update(())
+    assert _update(db, (ONE,))
+    assert not _update(db, ())
     assert _last_ids(db) == [ONE.session_id]
 
 
 def test_a_board_that_restarts_with_no_live_session_keeps_last(db: Database) -> None:
     _ = save_state(db, LAST, (ONE, TWO, THREE))
-    assert not LastState(db).update(())
+    assert not _update(db, ())
     assert _last_ids(db) == [ONE.session_id, TWO.session_id, THREE.session_id]
 
 
 def test_a_board_that_restarts_with_the_same_sessions_writes_nothing(db: Database) -> None:
     written = save_state(db, LAST, (ONE, TWO))
-    assert not LastState(db).update((ONE, TWO))
+    assert not _update(db, (ONE, TWO))
     assert get_state(db, LAST) == written
 
 
-def test_a_changed_order_is_written(db: Database) -> None:
-    last = LastState(db)
-    assert last.update((ONE, TWO))
-    assert last.update((TWO, ONE))
-    assert _last_ids(db) == [TWO.session_id, ONE.session_id]
+def test_a_changed_order_writes_nothing(db: Database) -> None:
+    # A session that asks for attention moves up the board: `last` keeps its order.
+    assert _update(db, (ONE, TWO))
+    assert not _update(db, (TWO, ONE))
+    assert _last_ids(db) == [ONE.session_id, TWO.session_id]
+
+
+def test_sessions_stopped_one_by_one_keep_the_full_set(db: Database) -> None:
+    assert _update(db, (ONE, TWO, THREE))
+    assert not _update(db, (ONE, TWO))
+    assert not _update(db, (ONE,))
+    assert _last_ids(db) == [ONE.session_id, TWO.session_id, THREE.session_id]
+
+
+def test_a_new_session_writes_the_whole_live_set(db: Database) -> None:
+    assert _update(db, (ONE, TWO))
+    assert not _update(db, (TWO,))
+    assert _update(db, (TWO, replace(THREE, displayed=True)))
+    assert get_state(db, LAST).sessions == (TWO, replace(THREE, displayed=True))
 
 
 def _loaded(backend: CliBoardBackend) -> BoardData:
@@ -121,3 +138,39 @@ def test_load_brings_the_saved_states(
     _ = save_state(ctx.db, "morning", (ONE,))
     data = _loaded(CliBoardBackend(ctx, env, _ENVIRON, monotonic=_Clock()))
     assert [state.name for state in data.saved_states] == ["morning"]
+
+
+def test_removing_last_makes_the_next_read_write_it_again(
+    ctx: CliContext,  # noqa: F811 — fixture
+    env: TmuxEnv,  # noqa: F811 — fixture
+    tmp_path: Path,
+) -> None:
+    clock = _Clock()
+    backend = CliBoardBackend(ctx, env, _ENVIRON, monotonic=clock)
+    shell = launch_bash(ctx, env, BashLaunch(cwd=tmp_path, title="shell"), _ENVIRON)
+    _ = _loaded(backend)
+    delete_state(ctx.db, LAST)  # `meute state rm last`
+    clock.now += 2.0
+    data = _loaded(backend)
+    assert _last_ids(ctx.db) == [shell.id]
+    assert [state.name for state in data.saved_states] == [LAST]
+
+
+def test_a_refused_write_of_last_leaves_the_read_as_it_is(
+    ctx: CliContext,  # noqa: F811 — fixture
+    env: TmuxEnv,  # noqa: F811 — fixture
+    tmp_path: Path,
+) -> None:
+    clock = _Clock()
+    backend = CliBoardBackend(ctx, env, _ENVIRON, monotonic=clock)
+    shell = launch_bash(ctx, env, BashLaunch(cwd=tmp_path, title="shell"), _ENVIRON)
+    ctx.db.conn.execute(
+        "CREATE TRIGGER refuse BEFORE INSERT ON saved_states BEGIN SELECT RAISE(ABORT, 'no'); END"
+    )
+    data = _loaded(backend)
+    assert [row.session.id for row in data.sessions] == [shell.id]
+    assert data.saved_states == ()
+    ctx.db.conn.execute("DROP TRIGGER refuse")
+    clock.now += 2.0
+    _ = _loaded(backend)  # the next read tries again
+    assert _last_ids(ctx.db) == [shell.id]
