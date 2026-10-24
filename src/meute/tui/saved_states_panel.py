@@ -1,8 +1,7 @@
 """`S` and `O` on the Sessions tab: save the open sessions, list the saved states to reopen one."""
 
 from collections.abc import Callable
-from datetime import UTC, datetime
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from textual.content import Content
 from textual.widgets import Static
@@ -11,6 +10,9 @@ from meute.core.board_view import BoardAction, BoardData, SaveState
 from meute.core.saved_state import NO_SAVED_STATE, SavedState, state_line
 from meute.core.styled import Role, Span, StyledLine, clip, title_rule
 from meute.tui.sessions_pane import highlighted_content
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 
 class StateWorkers(Protocol):
@@ -66,16 +68,16 @@ class SavedStates:
 
     def key(self, key: str) -> None:
         """Apply `key` to the open list."""
-        index = self._index()
-        if key in {"up", "down"}:
-            if self._states:
-                moved = min(max(index + (1 if key == "down" else -1), 0), len(self._states) - 1)
-                self._selected = self._states[moved].name
-        elif key == "enter":
-            if self._states and not self._workers.is_reopening():
-                self._workers.reopen(self._states[index].name)
-        else:
+        if key not in {"up", "down", "enter"}:
             self._open = False
+        elif not self._states:
+            return
+        elif key == "enter":
+            if not self._workers.is_reopening():
+                self._workers.reopen(self._states[self._index()].name)
+        else:
+            moved = self._index() + (1 if key == "down" else -1)
+            self._selected = self._states[min(max(moved, 0), len(self._states) - 1)].name
 
     def _index(self) -> int:
         """Where the chosen state is in the list: the first one when it is gone, or unset."""
@@ -83,10 +85,10 @@ class SavedStates:
         return names.index(self._selected) if self._selected in names else 0
 
     def content(self, width: int) -> Content | None:
-        """The list in colour, the chosen state highlighted; `None` while it is closed."""
-        if not self._open:
+        """The list in colour, the chosen state highlighted; `None` while closed or unread."""
+        now = self._now
+        if not self._open or now is None:
             return None
-        now = self._now or datetime.now(UTC)
         index = self._index()
         rule: StyledLine = title_rule(None, width, Role.DIM)
         rows = [(rule, False, False)]
