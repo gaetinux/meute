@@ -73,6 +73,7 @@ class SessionsTab:
         git: BoardGit | None,
         local: tzinfo,
         show_details: bool,
+        states_key: Callable[[str], bool],
     ) -> None:
         self._perform = perform
         self._notice = notice
@@ -91,6 +92,7 @@ class SessionsTab:
         )
         self._local = local
         self._show_details = show_details
+        self._states_key = states_key  # `S` and `O`: see `SavedStates.handle_key`
         self.cursor = SessionsCursor()
         self._confirming: Session | Orphan | None = None
 
@@ -133,7 +135,7 @@ class SessionsTab:
         if key == "a" and isinstance(self._selected_entry(), OrphanEntry):
             self._act(key)  # on an orphan pane `a` adopts; elsewhere it filters the view
             return True
-        if self.cursor.handle_key(key):
+        if self.cursor.handle_key(key) or self._states_key(key):
             return True
         if key == "N":
             self._form.open(self.cursor.model.data, self._selected_entry())
@@ -272,9 +274,7 @@ class SessionsTab:
 
     def details(self, width: int) -> Content | None:
         """The selected session's details, when shown and there is one."""
-        if not self._show_details:
-            return None
-        info = line_info(self.cursor.model, self.cursor.selected)
+        info = line_info(self.cursor.model, self.cursor.selected) if self._show_details else None
         return None if info is None else details_content(self.cursor.model, info, width)
 
     def prompt(self) -> str | None:

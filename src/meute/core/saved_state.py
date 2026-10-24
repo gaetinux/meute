@@ -169,6 +169,20 @@ def stamp_name(now: datetime) -> str:
     return now.strftime("%Y-%m-%d %H:%M")
 
 
+NO_SAVED_STATE = "no saved state"
+"""What the board's list of saved states shows when there is none."""
+
+
+def saved_text(name: str) -> str:
+    """Return what the board tells once it saved a state under `name`."""
+    return f"state saved: {printable(name)}"
+
+
+def reopening_text(name: str) -> str:
+    """Return what the board tells while it reopens the state `name`."""
+    return f"reopening {printable(name)}…"
+
+
 def reopen_text(reopened: int, skipped: Sequence[tuple[str, str]]) -> list[str]:
     """Return the report of a reopening: the counts, then `  <title>: <reason>` per skip."""
     return [

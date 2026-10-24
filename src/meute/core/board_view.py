@@ -22,7 +22,9 @@ from meute.core.board_actions import (
     MoveToRepoProject,
     OrphanAction,
     RemoveWorktree,
+    ReopenState,
     ResumeSession,
+    SaveState,
     ShowPane,
     ShowSession,
     StopSession,
@@ -72,8 +74,10 @@ __all__ = [
     "OrphanAction",
     "OrphanEntry",
     "RemoveWorktree",
+    "ReopenState",
     "RepoEntry",
     "ResumeSession",
+    "SaveState",
     "SessionEntry",
     "SessionRow",
     "ShowPane",
@@ -92,6 +96,7 @@ KEYS_HELP = (
     "c new Claude session · x stop\n"
     "r resume an ended Claude session\n"
     "W remove the worktree of an ended session\n"
+    "S save the open sessions · O reopen a saved state\n"
     "n new (this repository's last type)\n"
     "N choose what to launch\n"
     "a attention only · e ended sessions · Tab tasks · q detach\n"

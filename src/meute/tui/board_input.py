@@ -1,4 +1,5 @@
-"""Where the keys and pastes go while an input is open: the task input or the launch form."""
+"""Where the keys and pastes go while an input is open: the task input, the launch form, the
+list of the saved states."""
 
 from collections.abc import Callable
 from typing import Protocol
@@ -22,22 +23,32 @@ class _Form(Protocol):
     def form_paste(self, text: str) -> None: ...
 
 
+class _Panel(Protocol):
+    @property
+    def is_open(self) -> bool: ...
+
+    def key(self, key: str) -> None: ...
+
+
 class OpenInputs:
     """Takes the keys of an open input: none reaches the controllers, a click does not leave it.
 
-    The task input takes every key but Escape, which cancels it; the launch form takes
-    them all and applies them itself.
+    The task input takes every key but Escape, which cancels it; the launch form and the
+    list of the saved states take them all and apply them themselves.
     """
 
-    def __init__(self, editor: _Editor, form: _Form, reset: Callable[[], None]) -> None:
+    def __init__(
+        self, editor: _Editor, form: _Form, panel: _Panel, reset: Callable[[], None]
+    ) -> None:
         self._editor = editor
         self._form = form
+        self._panel = panel
         self._reset = reset
 
     @property
     def is_open(self) -> bool:
         """Whether an input is open."""
-        return self._editor.editing or self._form.form_open
+        return self._editor.editing or self._form.form_open or self._panel.is_open
 
     def key(self, event: events.Key) -> bool:
         """Apply `event` to the open input; `False` when no input is open."""
@@ -53,6 +64,12 @@ class OpenInputs:
             event.stop()
             self._reset()
             self._form.form_key(event.key, event.character)
+            return True
+        if self._panel.is_open:
+            event.prevent_default()
+            event.stop()
+            self._reset()
+            self._panel.key(event.key)
             return True
         return False
 

@@ -21,6 +21,7 @@ from meute.cli.session_next import order_if_shown, show_next
 from meute.cli.session_resume import resume_session
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
+from meute.cli.state_actions import reopen_board_state, save_board_state
 from meute.cli.status_publish import publish_status
 from meute.cli.task_launch import READY_TIMEOUT_SECONDS, launch_claude_on_task, launch_on_task
 from meute.cli.task_quick_create import TUI_ACTOR, create_quick_task, move_to_repo_project
@@ -42,7 +43,9 @@ from meute.core.board_view import (
     MoveToRepoProject,
     OrphanAction,
     RemoveWorktree,
+    ReopenState,
     ResumeSession,
+    SaveState,
     ShowPane,
     ShowSession,
     StopSession,
@@ -207,6 +210,13 @@ class CliBoardBackend:
                 self._perform_orphan(action)
             case Detach():
                 detach_client(self._env.tmux)
+            case SaveState():  # the last read, or a first one: the sessions the board shows
+                save_board_state(
+                    self._ctx,
+                    self._last or self._read(self._ctx.db.data_version(), self._monotonic()),
+                )
+            case ReopenState():
+                reopen_board_state(self._ctx, self._env, self._environ, action.name)
             case RemoveWorktree():  # checked again: a session may have started there since
                 perform_removal(self._environ, action, self.live_folders())
             # Task writes go as the TUI user, with the version the board last read.

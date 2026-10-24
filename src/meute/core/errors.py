@@ -57,6 +57,10 @@ class VersionConflict(MeuteError):  # noqa: N818 — name fixed by the specifica
         self.current = current
 
 
+class ActionNotice(MeuteError):  # noqa: N818 — a result to report, not a failure
+    """A board action went through and has a line to tell: shown as a notice, not an error."""
+
+
 class PromptNotPasted(MeuteError):  # noqa: N818 — a result to report, not a failure
     """Claude was launched on a task but not ready in time: the task text was not pasted."""
 
