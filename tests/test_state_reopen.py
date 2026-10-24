@@ -177,6 +177,23 @@ def test_a_second_reopening_skips_everything_as_already_running(
     assert displayed_meute_id(env.tmux) == fresh.id
 
 
+def test_a_bash_whose_folder_has_another_live_bash_is_already_running(
+    sandbox: Sandbox, ctx: CliContext, env: TmuxEnv
+) -> None:
+    folder = _folder(sandbox, "w")
+    ended = _ended_bash(sandbox, "shell", folder)
+    result = sandbox.run(
+        "session", "new", "--kind", "bash", "--cwd", str(folder), "--title", "other"
+    )  # fmt: skip
+    assert result.returncode == 0, result.stderr
+    (other,) = _live_bash(ctx, "other")
+    assert other.id != ended.id
+    report = reopen_state(ctx, env, _ENVIRON, _state(_saved(ended)))
+    assert report == ReopenReport(reopened=0, skipped=(("shell", "already running"),))
+    assert _live_bash(ctx, "shell") == []
+    assert [s.id for s in list_sessions(ctx.db) if s.state == Running()] == [other.id]
+
+
 def test_claude_without_a_conversation_id_or_row_is_skipped(
     sandbox: Sandbox, ctx: CliContext, env: TmuxEnv
 ) -> None:

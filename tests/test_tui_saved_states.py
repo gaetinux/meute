@@ -19,7 +19,7 @@ from meute.core.board_view import (
     SaveState,
     StopSession,
 )
-from meute.core.errors import ActionNotice
+from meute.core.errors import ActionNotice, MeuteError
 from meute.core.saved_state import (
     LAST,
     SavedSession,
@@ -118,6 +118,14 @@ def test_s_saves_the_open_sessions_and_tells_the_name() -> None:
     footer, _ = _run(backend, "S")
     assert backend.actions == [SaveState()]
     assert footer == _SAVED
+
+
+def test_a_failed_save_shows_the_error_in_the_footer() -> None:
+    backend = StatesBackend(_data())
+    backend.perform_error = MeuteError("database is locked")
+    footer, _ = _run(backend, "S")
+    assert backend.actions == [SaveState()]
+    assert footer == "Error: database is locked"
 
 
 def test_the_panel_is_hidden_until_o() -> None:
