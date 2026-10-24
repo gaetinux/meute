@@ -30,22 +30,8 @@ class ReopenReport:
     skipped: tuple[tuple[str, str], ...]
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
-class _Reopened:
-    session_id: SessionId
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class _Running:
-    session_id: SessionId
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class _Skipped:
-    reason: str
-
-
-type _Outcome = _Reopened | _Running | _Skipped
+type _Outcome = tuple[SessionId | None, str | None]
+"""The session reopened or already running (else None), and the reason it was skipped."""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -64,10 +50,11 @@ class _Live:
         )
 
 
-def _missing_folder(saved: SavedSession) -> _Skipped | None:
-    if resolved(saved.cwd).is_dir():
+def _missing_folder(folder: Path, cwd: Path) -> str | None:
+    """Why `cwd`, resolved as `folder`, cannot be reopened; None when it is a folder."""
+    if folder.is_dir():
         return None
-    return _Skipped(reason=f"folder not found: {shown_path(saved.cwd, Path.home())}")
+    return f"folder not found: {shown_path(cwd, Path.home())}"
 
 
 def _reopen_claude(
@@ -78,31 +65,32 @@ def _reopen_claude(
     except NotFound:
         native_id = None
     if native_id is None:
-        return _Skipped(reason=NO_CONVERSATION_ID)
-    missing = _missing_folder(saved)
+        return None, NO_CONVERSATION_ID
+    missing = _missing_folder(resolved(saved.cwd), saved.cwd)
     if missing is not None:
-        return missing
-    return _Reopened(session_id=resume_session(ctx, env, saved.session_id, environ).id)
+        return None, missing
+    return resume_session(ctx, env, saved.session_id, environ).id, None
 
 
 def _reopen_bash(
     ctx: CliContext, env: TmuxEnv, environ: Mapping[str, str], saved: SavedSession, live: _Live
 ) -> _Outcome:
-    running = live.bash.get(resolved(saved.cwd))
+    folder = resolved(saved.cwd)
+    running = live.bash.get(folder)
     if running is not None:
-        return _Running(session_id=running)
-    missing = _missing_folder(saved)
+        return running, ALREADY_RUNNING
+    missing = _missing_folder(folder, saved.cwd)
     if missing is not None:
-        return missing
+        return None, missing
     request = BashLaunch(cwd=saved.cwd, title=saved.title, repo_id=saved.repo_id)
-    return _Reopened(session_id=launch_bash(ctx, env, request, environ).id)
+    return launch_bash(ctx, env, request, environ).id, None
 
 
 def _reopen_one(
     ctx: CliContext, env: TmuxEnv, environ: Mapping[str, str], saved: SavedSession, live: _Live
 ) -> _Outcome:
     if saved.session_id in live.ids:
-        return _Running(session_id=saved.session_id)
+        return saved.session_id, ALREADY_RUNNING
     try:
         match saved.agent:
             case AgentKind.CLAUDE:
@@ -112,7 +100,7 @@ def _reopen_one(
             case _:
                 assert_never(saved.agent)
     except (MeuteError, *ENVIRONMENT_ERRORS) as failure:
-        return _Skipped(reason=str(failure))
+        return None, str(failure)
 
 
 def reopen_state(
@@ -134,17 +122,11 @@ def reopen_state(
     skipped: list[tuple[str, str]] = []
     shown: SessionId | None = None
     for saved in state.sessions:
-        outcome = _reopen_one(ctx, env, environ, saved, live)
-        match outcome:
-            case _Reopened(session_id=session_id):
-                reopened += 1
-            case _Running(session_id=session_id):
-                skipped.append((saved.title, ALREADY_RUNNING))
-            case _Skipped(reason=reason):
-                session_id = None
-                skipped.append((saved.title, reason))
-            case _:
-                assert_never(outcome)
+        session_id, reason = _reopen_one(ctx, env, environ, saved, live)
+        if reason is None:
+            reopened += 1
+        else:
+            skipped.append((saved.title, reason))
         if saved.displayed:
             shown = session_id
     if shown is not None:
