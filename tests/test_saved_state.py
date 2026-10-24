@@ -7,6 +7,10 @@ from pathlib import Path
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
+from syrupy.assertion import SnapshotAssertion
+
+from meute.core.errors import InvalidInput
+from meute.core.project import RepoId
 from meute.core.saved_state import (
     LAST,
     NAME_LIMIT,
@@ -20,10 +24,6 @@ from meute.core.saved_state import (
     state_line,
     state_name,
 )
-from syrupy.assertion import SnapshotAssertion
-
-from meute.core.errors import InvalidInput
-from meute.core.project import RepoId
 from meute.core.session import AgentKind, SessionId
 from meute.core.task import TaskId
 
