@@ -34,11 +34,11 @@ def save_state(db: Database, name: str, sessions: Sequence[SavedSession]) -> Sav
     """Save `sessions` under `name`, replacing a state of that name; it becomes the newest.
 
     `name` is stored as given (see `state_name` for the names a user types). Unless it is
-    `LAST`, the named states beyond the `RETAINED` newest are removed, `LAST` aside, in the
-    same transaction.
+    `LAST`, the named states beyond the `RETAINED` latest saved are removed, `LAST` aside,
+    in the same transaction.
     """
     with db.transaction() as conn:
-        # deleted then inserted: a fresh id orders the states saved at the same instant
+        # deleted then inserted: the id is the save order, whatever the clock says
         conn.execute("DELETE FROM saved_states WHERE name = ?", (name,))
         row = fetch_one(
             conn,
@@ -49,7 +49,7 @@ def save_state(db: Database, name: str, sessions: Sequence[SavedSession]) -> Sav
         if name != LAST:
             conn.execute(
                 "DELETE FROM saved_states WHERE id IN (SELECT id FROM saved_states"
-                " WHERE name != ? ORDER BY created_at DESC, id DESC LIMIT -1 OFFSET ?)",
+                " WHERE name != ? ORDER BY id DESC LIMIT -1 OFFSET ?)",
                 (LAST, RETAINED),
             )
     if row is None:
@@ -59,12 +59,8 @@ def save_state(db: Database, name: str, sessions: Sequence[SavedSession]) -> Sav
 
 
 def list_states(db: Database) -> tuple[SavedState, ...]:
-    """Return every state: `LAST` first, then the others from the newest to the oldest."""
-    rows = fetch_all(
-        db.conn,
-        f"{_SELECT} ORDER BY name = ? DESC, created_at DESC, id DESC",
-        (LAST,),
-    )
+    """Return every state: `LAST` first, then the others from the latest saved to the first."""
+    rows = fetch_all(db.conn, f"{_SELECT} ORDER BY name = ? DESC, id DESC", (LAST,))
     return tuple(_row_to_state(row) for row in rows)
 
 

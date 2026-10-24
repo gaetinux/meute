@@ -40,6 +40,17 @@ class Clock:
         return self.at
 
 
+class BackwardsClock:
+    """A clock that moves one minute back at each reading, as after a clock change."""
+
+    def __init__(self) -> None:
+        self.at = FIXED
+
+    def __call__(self) -> datetime:
+        self.at -= timedelta(minutes=1)
+        return self.at
+
+
 def _names(db: Database) -> list[str]:
     return [state.name for state in list_states(db)]
 
@@ -86,7 +97,7 @@ def test_eleven_saves_keep_ten_named_states_and_last(db: Database) -> None:
     assert _names(db) == [LAST, *(f"s{index}" for index in range(RETAINED, 0, -1))]
 
 
-def test_retention_drops_the_oldest_by_creation_time() -> None:
+def test_retention_drops_the_oldest_save() -> None:
     clock = Clock()
     with Database.in_memory(clock=clock) as db:
         save_state(db, "oldest", ())
@@ -140,6 +151,23 @@ def test_list_breaks_ties_by_save_order(db: Database) -> None:
     for name in ("b", "a", "c"):
         save_state(db, name, ())
     assert _names(db) == ["c", "a", "b"]
+
+
+def test_list_follows_the_save_order_when_the_clock_goes_back() -> None:
+    with Database.in_memory(clock=BackwardsClock()) as db:
+        save_state(db, "first", ())
+        save_state(db, LAST, ())
+        save_state(db, "second", ())
+        save_state(db, "third", ())
+        assert _names(db) == [LAST, "third", "second", "first"]
+
+
+def test_retention_keeps_the_latest_saves_when_the_clock_goes_back() -> None:
+    with Database.in_memory(clock=BackwardsClock()) as db:
+        save_state(db, LAST, ())
+        for index in range(RETAINED + 1):
+            save_state(db, f"s{index}", ())
+        assert _names(db) == [LAST, *(f"s{index}" for index in range(RETAINED, 0, -1))]
 
 
 def test_list_of_an_empty_table(db: Database) -> None:
