@@ -58,10 +58,10 @@ def recently_ended(
 def recent_ended_sessions(ctx: CliContext, now: datetime) -> tuple[Session, ...]:
     """Return the Claude sessions ended within `ui.recent_days`, the latest first."""
     claude = (s for s in _ended_since(ctx, now) if s.agent is AgentKind.CLAUDE)
-    return tuple(sorted(claude, key=_ended_instant, reverse=True))
+    return tuple(sorted(claude, key=ended_instant, reverse=True))
 
 
-def _ended_instant(session: Session) -> datetime:
+def ended_instant(session: Session) -> datetime:
     return session.ended_at or session.last_activity_at
 
 
@@ -70,7 +70,7 @@ def _ended_since(ctx: CliContext, now: datetime) -> Iterator[Session]:
     return (
         session
         for session in list_sessions(ctx.db, include_ended=True)
-        if not is_live(session.state) and _ended_instant(session) >= since
+        if not is_live(session.state) and ended_instant(session) >= since
     )
 
 
