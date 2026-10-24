@@ -183,16 +183,25 @@ def reopening_text(name: str) -> str:
     return f"reopening {printable(name)}…"
 
 
+def reopen_summary(reopened: int, skipped_count: int) -> str:
+    """Return the counts of a reopening: `reopened <n> · skipped <m>`."""
+    return f"reopened {reopened} · skipped {skipped_count}"
+
+
 def reopen_text(reopened: int, skipped: Sequence[tuple[str, str]]) -> list[str]:
     """Return the report of a reopening: the counts, then `  <title>: <reason>` per skip."""
     return [
-        f"reopened {reopened} · skipped {len(skipped)}",
+        reopen_summary(reopened, len(skipped)),
         *(f"  {printable(title)}: {printable(reason)}" for title, reason in skipped),
     ]
 
 
+def session_count(count: int) -> str:
+    """Return `<count> sessions`, or `1 session` in the singular."""
+    return "1 session" if count == 1 else f"{count} sessions"
+
+
 def state_line(state: SavedState, now: datetime) -> str:
     """Return `<name>  <n> sessions  <age>`, with `1 session` in the singular."""
-    count = len(state.sessions)
-    sessions = "1 session" if count == 1 else f"{count} sessions"
+    sessions = session_count(len(state.sessions))
     return f"{printable(state.name)}  {sessions}  {age_text(state.created_at, now)}"

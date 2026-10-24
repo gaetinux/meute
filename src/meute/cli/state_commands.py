@@ -15,7 +15,13 @@ from meute.cli.tmux_env import open_tmux_env
 from meute.core.db.saved_states import delete_state, get_state, list_states
 from meute.core.errors import NotFound
 from meute.core.instants import format_instant
-from meute.core.saved_state import reopen_text, stamp_name, state_line, state_name
+from meute.core.saved_state import (
+    reopen_text,
+    session_count,
+    stamp_name,
+    state_line,
+    state_name,
+)
 from meute.core.text import printable
 
 state_app = typer.Typer(no_args_is_help=True, help="Saved states: sets of open sessions.")
@@ -40,8 +46,7 @@ def save(
         # Like `board_order`: no `claude agents`, so assumed states stay the board's.
         data = load_board_data(ctx, env, os.environ, None, assume=False)
         sessions = save_live(ctx, data, chosen)
-    count = len(sessions)
-    typer.echo(f"Saved: {printable(chosen)} ({count} session{'' if count == 1 else 's'})")
+    typer.echo(f"Saved: {printable(chosen)} ({session_count(len(sessions))})")
 
 
 @state_app.command("list")
