@@ -159,6 +159,12 @@ def show(session_id: Annotated[str, typer.Argument(help="Session id or prefix.")
         show_session(ctx, open_tmux_env(ctx, os.environ), session.id)
 
 
+def _resumable(details: Mapping[SessionId, ClaudeDetails], session: Session) -> bool:
+    """Whether `session` has a conversation id to resume it with."""
+    found = details.get(session.id)
+    return found is not None and found.native_id is not None
+
+
 @session_app.command("recent")
 def recent(*, json_: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False) -> None:
     """List the Claude sessions that ended recently, the latest first."""
@@ -166,10 +172,6 @@ def recent(*, json_: Annotated[bool, typer.Option("--json", help="Print JSON.")]
         now = local_now(ctx)
         sessions = recent_ended_sessions(ctx, now)
         details = claude_details_by_session(ctx.db)
-    resumable = {
-        s.id: (found := details.get(s.id)) is not None and found.native_id is not None
-        for s in sessions
-    }
     if json_:
         echo_json(
             {
@@ -179,7 +181,7 @@ def recent(*, json_: Annotated[bool, typer.Option("--json", help="Print JSON.")]
                         "title": s.title,
                         "cwd": str(s.cwd),
                         "ended_at": format_instant(ended_instant(s)),
-                        "resumable": resumable[s.id],
+                        "resumable": _resumable(details, s),
                     }
                     for s in sessions
                 ]
@@ -191,7 +193,7 @@ def recent(*, json_: Annotated[bool, typer.Option("--json", help="Print JSON.")]
         typer.echo(
             f"{short_id(s.id)}  {printable(s.title)}  {shown_path(s.cwd, home)}"
             f"  {age_text(ended_instant(s), now)}"
-            f"  {'resumable' if resumable[s.id] else 'no conversation id'}"
+            f"  {'resumable' if _resumable(details, s) else 'no conversation id'}"
         )
 
 
