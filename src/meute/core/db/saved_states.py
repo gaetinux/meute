@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from meute.core.db.connection import Database
 from meute.core.db.rows import as_instant, as_text, fetch_all, fetch_one
-from meute.core.errors import NotFound
+from meute.core.errors import UnknownState
 from meute.core.instants import to_db
 from meute.core.saved_state import (
     LAST,
@@ -24,10 +24,6 @@ def _row_to_state(row: tuple[object, ...]) -> SavedState:
         created_at=as_instant(row[1]),
         sessions=parse_sessions(as_text(row[2])),
     )
-
-
-def _not_found(name: str) -> NotFound:
-    return NotFound("saved state", name, message=f"no saved state named {name}")
 
 
 def save_state(db: Database, name: str, sessions: Sequence[SavedSession]) -> SavedState:
@@ -68,11 +64,11 @@ def get_state(db: Database, name: str) -> SavedState:
     """Return the state called `name`.
 
     Raises:
-        NotFound: no state has that name (`no saved state named <name>`).
+        UnknownState: no state has that name.
     """
     row = fetch_one(db.conn, f"{_SELECT} WHERE name = ?", (name,))
     if row is None:
-        raise _not_found(name)
+        raise UnknownState(name)
     return _row_to_state(row)
 
 
@@ -80,9 +76,9 @@ def delete_state(db: Database, name: str) -> None:
     """Remove the state called `name`.
 
     Raises:
-        NotFound: no state has that name (`no saved state named <name>`).
+        UnknownState: no state has that name.
     """
     with db.transaction() as conn:
         removed = conn.execute("DELETE FROM saved_states WHERE name = ?", (name,)).rowcount
     if removed == 0:
-        raise _not_found(name)
+        raise UnknownState(name)

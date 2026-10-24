@@ -36,14 +36,22 @@ class NotFound(MeuteError):  # noqa: N818 — name fixed by the specification
 
     exit_code = 4
 
-    def __init__(self, entity: str, ident: str, *, message: str | None = None) -> None:
-        """Build the error for the `entity` kind (task, project, session, ...) and `ident`.
-
-        Its text is `<entity> not found: <ident>`, unless `message` replaces it.
-        """
-        super().__init__(f"{entity} not found: {ident}" if message is None else message)
+    def __init__(self, entity: str, ident: str) -> None:
+        """Build the error for the `entity` kind (task, project, session, ...) and `ident`."""
+        super().__init__(f"{entity} not found: {ident}")
         self.entity = entity
         self.ident = ident
+
+
+class UnknownState(NotFound):
+    """No saved state has the name asked for; the CLI stops with 1, not the 4 of `NotFound`."""
+
+    exit_code = 1
+
+    def __init__(self, name: str) -> None:
+        """Build the error for the state `name`: `no saved state named <name>`."""
+        super().__init__("saved state", name)
+        self.args = (f"no saved state named {name}",)
 
 
 class VersionConflict(MeuteError):  # noqa: N818 — name fixed by the specification

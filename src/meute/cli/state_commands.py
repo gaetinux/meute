@@ -1,7 +1,7 @@
 """The `meute state` commands: save, list, reopen and remove the saved states."""
 
 import os
-from typing import Annotated, NoReturn
+from typing import Annotated
 
 import typer
 
@@ -13,7 +13,6 @@ from meute.cli.state_actions import save_live
 from meute.cli.state_reopen import reopen_state
 from meute.cli.tmux_env import open_tmux_env
 from meute.core.db.saved_states import delete_state, get_state, list_states
-from meute.core.errors import NotFound
 from meute.core.instants import format_instant
 from meute.core.saved_state import (
     reopen_text,
@@ -25,14 +24,6 @@ from meute.core.saved_state import (
 from meute.core.text import printable
 
 state_app = typer.Typer(no_args_is_help=True, help="Saved states: sets of open sessions.")
-
-_FAILURE = 1
-
-
-def _unknown(error: NotFound) -> NoReturn:
-    """Stop with exit code 1 (not the 4 of other missing things) and the error's text."""
-    typer.echo(printable(f"meute: {error}"), err=True)
-    raise typer.Exit(code=_FAILURE)
 
 
 @state_app.command("save")
@@ -77,10 +68,7 @@ def list_(*, json_: Annotated[bool, typer.Option("--json", help="Print JSON.")] 
 def open_(name: Annotated[str, typer.Argument(help="The state's name.")]) -> None:
     """Reopen the sessions of a state; nothing running is stopped."""
     with open_context(os.environ) as ctx:
-        try:
-            state = get_state(ctx.db, name)
-        except NotFound as error:
-            _unknown(error)
+        state = get_state(ctx.db, name)
         report = reopen_state(ctx, open_tmux_env(ctx, os.environ), os.environ, state)
     for line in reopen_text(report.reopened, report.skipped):
         typer.echo(line)
@@ -94,10 +82,7 @@ def rm(
 ) -> None:
     """Remove a saved state; `last` too, which the board recreates."""
     with open_context(os.environ) as ctx:
-        try:
-            _ = get_state(ctx.db, name)
-        except NotFound as error:
-            _unknown(error)
+        _ = get_state(ctx.db, name)
         if not yes and not confirmed(f'Remove saved state "{printable(name)}"? [y/N]'):
             typer.echo("Cancelled.")
             return

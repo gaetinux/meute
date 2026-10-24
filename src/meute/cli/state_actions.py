@@ -38,7 +38,7 @@ def reopen_board_state(
     """Reopen the state `name` on a connection of its own: the board runs this in a worker.
 
     Raises:
-        NotFound: no state has that name.
+        UnknownState: no state has that name.
         ActionNotice: once reopened: `reopened <n> · skipped <m>`.
     """
     with open_database(ctx.paths, ctx.db.clock) as db:
