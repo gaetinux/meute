@@ -210,4 +210,6 @@ pytest_add_cli_args_test_selection = [
     "tests/test_launch_form_worktree.py", "tests/test_repo_holding.py", "tests/test_git_run.py",
     "tests/test_git_run_pipeline.py", "tests/test_git_run_traps.py", "tests/test_git_poller.py",
     "tests/test_worktree_launch.py", "tests/test_worktree_removal.py", "tests/test_mutants_plan6a.py",
+    "tests/test_saved_state.py", "tests/test_db_saved_states.py", "tests/test_state_capture.py",
+    "tests/test_recent_days.py", "tests/test_mutants_plan6b.py",
 ]
