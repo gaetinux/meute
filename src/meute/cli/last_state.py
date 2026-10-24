@@ -9,7 +9,15 @@ from meute.core.db.connection import Database
 from meute.core.db.saved_states import list_states, save_state
 from meute.core.errors import MeuteError
 from meute.core.saved_state import LAST, SavedSession, SavedState
+from meute.core.session import SessionId
+from meute.core.session_state import is_live
 from meute.core.state_capture import capture_board
+
+
+def _last_ids(states: Sequence[SavedState]) -> set[SessionId]:
+    """The ids of the sessions of the `last` of `states`; none without one."""
+    stored = next((state for state in states if state.name == LAST), None)
+    return {saved.session_id for saved in (() if stored is None else stored.sessions)}
 
 
 class LastState:
@@ -27,8 +35,7 @@ class LastState:
 
         Returns whether `last` was written.
         """
-        stored = next((state for state in states if state.name == LAST), None)
-        known = {saved.session_id for saved in (() if stored is None else stored.sessions)}
+        known = _last_ids(states)
         if all(session.session_id in known for session in sessions):
             return False
         _ = save_state(self._db, LAST, sessions)
@@ -40,9 +47,11 @@ class LastState:
         Returns `data`, with its saved states read again when `last` was written. A write the
         database refuses leaves `data` as read: the next read tries again.
         """
-        sessions = capture_board(data)
+        live = {row.session.id for row in data.sessions if is_live(row.session.state)}
+        if live <= _last_ids(data.saved_states):
+            return data
         try:
-            if not self.update(sessions, data.saved_states):
+            if not self.update(capture_board(data), data.saved_states):
                 return data
         except (MeuteError, sqlite3.Error):
             return data
