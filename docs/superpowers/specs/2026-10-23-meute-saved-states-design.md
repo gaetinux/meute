@@ -56,13 +56,15 @@ Un état est la liste des sessions vivantes au moment de la sauvegarde, dans l'o
 
 ### Rétention
 
-Au-delà de 10 états nommés, les plus anciens (par `created_at`) sont supprimés dans la même transaction que la sauvegarde. `last` ne compte pas dans les 10.
+Au-delà de 10 états nommés, les plus anciens (par ordre de sauvegarde, c'est-à-dire par `id`) sont supprimés dans la même transaction que la sauvegarde. `last` ne compte pas dans les 10.
 
 ### L'état `last`
 
-- Le backend du tableau compare, à chaque relecture, la liste des sessions vivantes (ids, dans l'ordre du tableau) à la dernière liste écrite. Si elle a changé **et n'est pas vide**, il réécrit `last`. Il n'écrit rien sinon.
-- Ainsi, quand tout est arrêté par `x`, ou après un redémarrage de la machine (les sessions deviennent `Unreachable` au démarrage du tableau), `last` garde la dernière liste non vide.
-- La dernière liste écrite est relue en base au démarrage du tableau : un tableau qui redémarre n'écrase pas `last`.
+- **`last` ne rétrécit jamais (décision de l'auteur, 2026-10-24).** À chaque relecture, le backend du tableau compare les sessions vivantes au `last` que cette relecture a lu en base. Il réécrit `last` seulement si une session vivante n'y figure pas ; il y écrit alors toutes les sessions vivantes, dans l'ordre du tableau, avec la session affichée.
+- Une session arrêtée, un nouvel ordre (une session qui demande l'attention remonte) ou l'absence de toute session vivante n'écrivent rien. Ainsi, quand tout est arrêté par `x`, une à une ou non, ou après un redémarrage de la machine (les sessions deviennent `Unreachable` au démarrage du tableau), `last` garde toute la liste de la journée.
+- Contrepartie : une session arrêtée exprès reste dans `last` jusqu'au démarrage d'une nouvelle session ; la réouverture de `last` la ramène d'ici là.
+- `last` est comparé à la base à chaque relecture, sans mémoire propre au tableau : après `meute state rm last`, le tableau le recrée à la relecture suivante qui voit des sessions vivantes.
+- Une écriture de `last` que la base refuse ne fait pas échouer la relecture : le tableau montre ce qu'il a lu, sans message, et la relecture suivante réessaie.
 
 ## Rouvrir un état
 
@@ -146,7 +148,7 @@ Ce que le plan 6b a fait autrement que ce texte, ou précisé en le réalisant (
 
 - **Exception n° 31 (Task 3, autorisée par l'auteur le 2026-10-24)** : la migration 005 fait passer la version du schéma de 4 à 5. Six tests de `main` fixaient la version 4 ou la liste des tables (`test_db_open.py`, `test_db_sessions.py`, `test_db_claude_sessions.py`) ; ils passent à 5 et gagnent `"saved_states"` dans la liste des tables, rien d'autre. L'exception n° 30 (clé `ui.recent_days` dans une liste de toutes les clés) n'a pas servi : aucun test ne liste toutes les clés.
 - **`NotFound` et son texte (R5)** : `NotFound` gagne un argument nommé facultatif, `message`, qui remplace le texte `<entité> not found: <id>` ; l'entité, l'identifiant et le code de sortie ne changent pas. Un état inconnu donne ainsi exactement `no saved state named <nom>`. La CLI de `meute state open` et `rm` sort avec le code 1, et non le 4 des autres absences, comme le veut ce texte.
-- **Sauvegarde par suppression puis insertion (R6)** : `save_state` supprime l'état du même nom puis en insère un neuf, dans la même transaction ; un état renouvelé reçoit un nouvel id. Deux sauvegardes au même instant sont ainsi rangées par ordre de sauvegarde (`created_at DESC, id DESC`), et l'état qui vient d'être sauvé n'est jamais celui que la rétention supprime, sauf si l'horloge recule (voir la feuille de route).
+- **Sauvegarde par suppression puis insertion (R6)** : `save_state` supprime l'état du même nom puis en insère un neuf, dans la même transaction ; un état renouvelé reçoit un nouvel id. L'`id` donne ainsi l'ordre de sauvegarde : depuis R11, la rétention et la liste rangent les états nommés par `id` décroissant, et l'état qui vient d'être sauvé n'est jamais celui que la rétention supprime, même si l'horloge recule.
 - **Noms tels que tapés pour `open` et `rm` (R2)** : seul `meute state save` passe le nom par `state_name` ; `open` et `rm` le prennent tel quel, si bien que `meute state rm last` fonctionne.
 - **`LastState.follow`** : le backend appelle `LastState(db).follow(data)` juste après `load_board_data`. Quand `last` vient d'être écrit, `follow` relit la liste des états (`BoardData.saved_states`) : la liste de `O` montre le nouveau `last` sans attendre la relecture suivante, puisqu'une écriture de cette connexion ne change pas sa `data_version`.
 - **Instantané des sessions vivantes avant la réouverture (R9)** : la réouverture relit les sessions une seule fois, avant la boucle (ids vivants, et sessions Bash vivantes par dossier résolu). Un état qui contient deux sessions Bash du même dossier revient donc entier, et une seconde réouverture ne double toujours rien. Un état écrit à la main qui contient deux fois le même id Claude rouvre le premier, puis ignore le second avec le texte de `resume_session`, `"<titre>" is still running`, au lieu de `already running`.
@@ -155,4 +157,5 @@ Ce que le plan 6b a fait autrement que ce texte, ou précisé en le réalisant (
 - **La liste de `O` reste ouverte après `Entrée`** : `Entrée` lance la réouverture et laisse la liste ouverte ; le pied montre `reopening <nom>…`, puis le compte rendu. `Échap` ou toute autre touche la ferme.
 - **`S` avant la première lecture** : si le tableau n'a encore rien lu, `S` fait d'abord une lecture, puis sauve les sessions qu'elle donne ; sinon il sauve celles de la dernière lecture, dans l'ordre du tableau.
 - **filelock 4.2.1 (R4)** : six nouvelles failles de filelock 4.2.0 faisaient échouer `pip-audit`, donc `scripts/verify.sh` et la CI. Le verrou passe à 4.2.1 avec une exemption datée `exclude-newer-package`, sur le modèle de celle de certifi au plan 5, dans un commit `build:` séparé. Elle est à retirer au prochain rafraîchissement du verrou.
+- **`last` ne rétrécit jamais, rétention par `id` (R11, décision de l'auteur du 2026-10-24)** : l'essai scripté a montré qu'arrêter les sessions une à une par `x` laissait dans `last` la seule dernière arrêtée. `last` n'est donc plus réécrit qu'à l'apparition d'une session vivante qu'il ne contient pas (voir « L'état `last` ») ; il est comparé au `last` lu par chaque relecture au lieu d'une liste gardée par le tableau, si bien que `meute state rm last` est suivi d'une recréation. Une écriture refusée de `last` (`MeuteError`, `sqlite3.Error`) laisse la relecture intacte. La rétention garde les 10 états nommés de plus grand `id` et `list_states` les range par `id` décroissant, au lieu de `created_at` : une horloge qui recule ne change plus rien.
 - **Limites relevées** : voir la feuille de route, « Reports issus du plan 6b ».

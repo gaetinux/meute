@@ -83,7 +83,7 @@ meute config set ui.recent_days 14
 
 A state records, for each live session, its type, folder, Claude conversation id, title, task, repository and whether it is the one shown. Reopening resumes each Claude session (`claude --resume`, same id, task and title) and starts a new shell in the same folder for each Bash session, then brings the session that was shown back to the main area. It never stops anything: a session still running, or a Bash session whose folder already has a live Bash session, is skipped as `already running`; a Claude session without a conversation id as `no conversation id`; a vanished folder as `folder not found: <path>`. A reopened shell has neither its history nor its processes.
 
-The ten newest named states are kept; saving under an existing name replaces it. The board keeps one more, `last`, rewritten whenever its list of live sessions changes and is not empty: after stopping everything or rebooting, `O` then `Enter` on `last` brings the day's sessions back. `last` is reserved for `meute state save` (`last is kept by the board`), but `meute state rm last` works; the board recreates it.
+The ten newest named states are kept; saving under an existing name replaces it. The board keeps one more, `last`, that never shrinks: it is rewritten with every live session only when a new one starts, so after stopping everything (one by one or not) or rebooting, `O` then `Enter` on `last` brings the day's sessions back; a session stopped on purpose stays in it until a new one starts. `last` is reserved for `meute state save` (`last is kept by the board`), but `meute state rm last` works; the board recreates it.
 
 ## Claude and tasks (MCP)
 
