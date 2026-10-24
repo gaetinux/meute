@@ -18,11 +18,12 @@ from meute.core.board_view import (
     TaskAction,
     error_text,
 )
-from meute.core.errors import MeuteError
+from meute.core.errors import ActionNotice, MeuteError
 from meute.tui.board_input import OpenInputs
 from meute.tui.board_types import DEFAULT_OPTIONS, BoardBackend, BoardGit, BoardOptions
 from meute.tui.board_workers import BoardWorkers
 from meute.tui.launch_form import LaunchFormPanel
+from meute.tui.saved_states_panel import SavedStates, SavedStatesPanel
 from meute.tui.sessions_pane import tabs_content
 from meute.tui.sessions_tab import SessionsTab
 from meute.tui.tab_controller import TabController
@@ -54,6 +55,7 @@ class BoardApp(App[None]):
         self._backend = backend
         self._poll_seconds = poll_seconds
         self._background = BoardWorkers(self, backend.perform, self._finished)
+        self._states = SavedStates(perform=self._perform, workers=self._background)
         self._sessions_tab = SessionsTab(
             perform=self._perform,
             notice=self._say,
@@ -71,6 +73,7 @@ class BoardApp(App[None]):
             git=git,
             local=options.local,
             show_details=options.show_details,
+            states_key=self._states.handle_key,
         )
         self._tasks_tab = TasksTab(
             perform=self._perform,
@@ -81,7 +84,9 @@ class BoardApp(App[None]):
             local=options.local,
         )
         self._editor = self._tasks_tab.editor
-        self._inputs = OpenInputs(self._editor, self._sessions_tab, self._clear_messages)
+        self._inputs = OpenInputs(
+            self._editor, self._sessions_tab, self._states, self._clear_messages
+        )
         self._tabs: dict[Tab, TabController] = {
             Tab.SESSIONS: self._sessions_tab,
             Tab.TASKS: self._tasks_tab,
@@ -98,6 +103,7 @@ class BoardApp(App[None]):
         self._sessions = VerticalScroll(self._board, id="sessions", can_focus=False)  # keys: on_key
         self._details = Static(id="details")
         self._form = LaunchFormPanel()
+        self._states_panel = SavedStatesPanel()
         self._footer = Static(id="footer")
 
     @property
@@ -110,6 +116,7 @@ class BoardApp(App[None]):
         yield self._sessions
         yield self._details
         yield self._form
+        yield self._states_panel
         yield self._editor.widget
         yield self._footer
 
@@ -212,6 +219,7 @@ class BoardApp(App[None]):
             data = None
         else:
             if data is not None:
+                self._states.refresh(data)
                 for tab in self._tabs.values():
                     tab.rebuild(data, self._board.size.width)
         if data is not None or self._error != error_before:
@@ -220,6 +228,8 @@ class BoardApp(App[None]):
     def _perform(self, action: BoardAction) -> None:
         try:
             self._backend.perform(action)
+        except ActionNotice as notice:
+            self._notice = str(notice)
         except MeuteError as error:
             self._error = str(error)
 
@@ -267,6 +277,10 @@ class BoardApp(App[None]):
         self._form.display = form is not None
         if form is not None:
             self._form.update(form)
+        states = self._states.content(width)
+        self._states_panel.display = states is not None
+        if states is not None:
+            self._states_panel.update(states)
         self._footer.update(Content(self._footer_text()))
         self.call_after_refresh(self._fit)  # a scrollbar that came or went changes the width
 

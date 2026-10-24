@@ -4,7 +4,7 @@ import sqlite3
 
 from meute.core.db.rows import as_integer, fetch_one
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def current_version(conn: sqlite3.Connection) -> int:

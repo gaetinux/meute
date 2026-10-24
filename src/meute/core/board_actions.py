@@ -143,6 +143,18 @@ class RemoveWorktree:
     force: bool
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SaveState:
+    """Save the board's live sessions, in its order, under the local time as a name."""
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ReopenState:
+    """Reopen the sessions of the saved state `name`."""
+
+    name: str
+
+
 TaskAction = CreateTask | ChangeTask | MoveToRepoProject | AddNote | DeleteTask | LaunchOnTask
 OrphanAction = ShowPane | AdoptOrphan | CloseOrphan
 BoardAction = (
@@ -154,5 +166,7 @@ BoardAction = (
     | OrphanAction
     | Detach
     | RemoveWorktree
+    | SaveState
+    | ReopenState
     | TaskAction
 )

@@ -32,7 +32,7 @@ class MigrationError(MeuteError):
 
 
 class NotFound(MeuteError):  # noqa: N818 — name fixed by the specification
-    """A task, a project or a session does not exist."""
+    """An entity (task, project, session, saved state, ...) does not exist."""
 
     exit_code = 4
 
@@ -41,6 +41,17 @@ class NotFound(MeuteError):  # noqa: N818 — name fixed by the specification
         super().__init__(f"{entity} not found: {ident}")
         self.entity = entity
         self.ident = ident
+
+
+class UnknownState(NotFound):
+    """No saved state has the name asked for; the CLI stops with 1, not the 4 of `NotFound`."""
+
+    exit_code = 1
+
+    def __init__(self, name: str) -> None:
+        """Build the error for the state `name`: `no saved state named <name>`."""
+        super().__init__("saved state", name)
+        self.args = (f"no saved state named {name}",)
 
 
 class VersionConflict(MeuteError):  # noqa: N818 — name fixed by the specification
@@ -52,6 +63,10 @@ class VersionConflict(MeuteError):  # noqa: N818 — name fixed by the specifica
         """Build the error carrying the `current` state of the task."""
         super().__init__(f"modified in the meantime (current version: {current.version})")
         self.current = current
+
+
+class ActionNotice(MeuteError):  # noqa: N818 — a result to report, not a failure
+    """A board action went through and has a line to tell: shown as a notice, not an error."""
 
 
 class PromptNotPasted(MeuteError):  # noqa: N818 — a result to report, not a failure

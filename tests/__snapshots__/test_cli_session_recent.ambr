@@ -1,0 +1,28 @@
+# serializer version: 1
+# name: test_recent_json
+  dict({
+    'sessions': list([
+      dict({
+        'cwd': '/srv/a\x1bb',
+        'ended_at': '2026-10-14T05:30:00Z',
+        'id': 'aaaa1111-0000-4000-8000-000000000000',
+        'resumable': False,
+        'title': 'new\x1b[31mer',
+      }),
+      dict({
+        'cwd': '<root>/home/work',
+        'ended_at': '2026-10-12T08:30:00Z',
+        'id': 'bbbb2222-0000-4000-8000-000000000000',
+        'resumable': True,
+        'title': 'older',
+      }),
+    ]),
+  })
+# ---
+# name: test_recent_text
+  '''
+  aaaa1111  new�[31mer  /srv/a�b  3h  no conversation id
+  bbbb2222  older  ~/work  2d  resumable
+  
+  '''
+# ---

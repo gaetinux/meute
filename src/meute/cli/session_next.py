@@ -7,10 +7,9 @@ from meute.cli.context import CliContext
 from meute.cli.session_show import show_session
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.attention import next_live
-from meute.core.board_sessions import board_sessions
+from meute.core.board_sessions import board_session_order
 from meute.core.errors import InvalidInput
 from meute.core.session import Session
-from meute.core.sessions_view import SessionLine, ViewState
 from meute.tmux.errors import TmuxError
 from meute.tmux.layout import displayed_meute_id
 
@@ -23,12 +22,8 @@ def board_order(ctx: CliContext, env: TmuxEnv, environ: Mapping[str, str]) -> li
     """
     # No `claude agents` here: assumed states stay the board's, which has its readings.
     data = load_board_data(ctx, env, environ, None, assume=False)
-    board = board_sessions(data, ViewState())
-    return [
-        board.infos[line.session_id].row.session
-        for line in board.view.lines
-        if isinstance(line, SessionLine) and line.session_id in board.infos
-    ]
+    rows = {row.session.id: row.session for row in (*data.sessions, *data.ended)}
+    return [rows[session_id] for session_id in board_session_order(data)]
 
 
 def order_if_shown(

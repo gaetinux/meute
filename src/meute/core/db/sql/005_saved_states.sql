@@ -1,0 +1,1 @@
+CREATE TABLE saved_states (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, sessions TEXT NOT NULL);

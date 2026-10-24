@@ -14,12 +14,14 @@ from meute.cli.board_data import load_board_data
 from meute.cli.board_launch import BoardLaunch
 from meute.cli.context import ENVIRONMENT_ERRORS, CliContext, open_database
 from meute.cli.git_poller import GitPoller
+from meute.cli.last_state import LastState
 from meute.cli.orphan_actions import adopt_orphan, close_orphan, show_orphan
 from meute.cli.session_launch_claude import ClaudeLaunch
 from meute.cli.session_next import order_if_shown, show_next
 from meute.cli.session_resume import resume_session
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
+from meute.cli.state_actions import reopen_board_state, save_board_state
 from meute.cli.status_publish import publish_status
 from meute.cli.task_launch import READY_TIMEOUT_SECONDS, launch_claude_on_task, launch_on_task
 from meute.cli.task_quick_create import TUI_ACTOR, create_quick_task, move_to_repo_project
@@ -41,7 +43,9 @@ from meute.core.board_view import (
     MoveToRepoProject,
     OrphanAction,
     RemoveWorktree,
+    ReopenState,
     ResumeSession,
+    SaveState,
     ShowPane,
     ShowSession,
     StopSession,
@@ -109,6 +113,7 @@ class CliBoardBackend:
         self._folders: tuple[Path, ...] = ()  # the folders of the last read
         self._live: tuple[Path, ...] = ()  # where the live sessions of the last read work
         self._status: str | None = None  # last text written to the tmux status line
+        self._last_state = LastState(ctx.db)
         self._launch = BoardLaunch(ctx=ctx, env=env, environ=environ, on_task=self._launch_on_task)
 
     def load(self) -> BoardData | None:
@@ -147,8 +152,9 @@ class CliBoardBackend:
         return replace(self._last, git=self._git_state)
 
     def _read(self, version: int, now: float) -> BoardData:
-        """Read the board's data, and keep its folders for the Git poller."""
+        """Read the board's data, keep its folders for the Git poller, and update `last`."""
         data = load_board_data(self._ctx, self._env, self._environ, self._known)
+        data = self._last_state.follow(data)
         self._data_version, self._read_at = version, now
         self._folders = tuple(
             git_folder(row.session, data.metrics.get(row.session.id))
@@ -204,6 +210,13 @@ class CliBoardBackend:
                 self._perform_orphan(action)
             case Detach():
                 detach_client(self._env.tmux)
+            case SaveState():  # the last read, or a first one: the sessions the board shows
+                save_board_state(
+                    self._ctx,
+                    self._last or self._read(self._ctx.db.data_version(), self._monotonic()),
+                )
+            case ReopenState():
+                reopen_board_state(self._ctx, self._env, self._environ, action.name)
             case RemoveWorktree():  # checked again: a session may have started there since
                 perform_removal(self._environ, action, self.live_folders())
             # Task writes go as the TUI user, with the version the board last read.

@@ -323,9 +323,11 @@ Le champ `Worktree` du formulaire (aucun / nouveau / existant) et la recommandat
 - **Reprendre** (`r`, sans confirmation, plan 4c) n'agit que sur les sessions Claude terminées (`Exited` ou `Unreachable`) dont le `native_id` est connu ; sinon le pied explique pourquoi. La commande est celle d'un lancement normal avec `--resume <native_id>` à la place de `--session-id` ; Claude garde le même `session_id` et `SessionStart` arrive avec `source=resume` (spike S10, § 14). Si la session a gardé son panneau mort, `respawn-pane` y relance la commande (même `pane_id`, même place), **sans `-k`** : tmux refuse lui-même de relancer un panneau vivant, ce qui rend le test atomique quand deux reprises se croisent ; sinon un nouveau panneau est ouvert dans `meute-bg`. L'`id` interne, le dépôt, la tâche, le projet et le titre sont conservés ; l'état redevient `unknown`, `exit_code` et `ended_at` sont effacés. Rien ne ressuscite une session d'elle-même : seule `r` le fait. Une conversation que Claude ne retrouve plus s'arrête aussitôt : le panneau mort reste, la session repasse en `Exited` et `r` est de nouveau possible.
 - **Entrée** sur une session Claude terminée sans panneau affiche `"<titre>" has ended: r resumes · c starts a new session`.
 
-**Reste au plan 6** : la liste « recent sessions to resume » (sessions Claude terminées depuis moins de 7 jours, valeur réglable).
+**Sessions récentes** (plan 6b) : `e` montre les sessions terminées depuis moins de `[ui] recent_days` jours (7 par défaut, de 1 à 365) ; `meute session recent [--json]` liste les sessions Claude de meute terminées dans ce délai, et `meute session resume <id>` en reprend une comme `r`. Voir § 6.6 pour la conception.
 
 ### 6.6 États sauvegardés
+
+Conception détaillée et réalisation (plan 6b) : `docs/superpowers/specs/2026-10-23-meute-saved-states-design.md` (sessions récentes, `S` et `O` du tableau, état automatique `last`, `meute state save/list/open/rm`, `meute session recent` / `resume`, et ses « Écarts constatés à la réalisation »).
 
 - **`meute state save [nom]`**, ou l'action correspondante dans le TUI, enregistre la liste des sessions vivantes : type, `cwd`, worktree, `native_id`, titre, tâche et ordre d'affichage.
 - **Rouvrir un état** relance chaque session absente : `claude --resume` pour Claude, un nouveau shell dans le même `cwd` pour Bash. Les sessions encore vivantes sont ignorées.
@@ -544,7 +546,7 @@ Le serveur stdio `meute mcp` propose les outils suivants :
 - **`meute doctor`** vérifie les versions de `tmux` (minimum 3.2, pour les options de pane) et de `claude`, l'accès à la base, l'état du serveur tmux dédié et les options de Claude utilisées.
 - **`claude.permission_mode`** : le mode de permission par défaut des sessions lancées par meute (`auto` si rien n'est défini, § 6.2).
 - **Migrations SQLite** : versionnées, appliquées à l'ouverture, avec une sauvegarde de la base (`meute.db.bak-<version>`) avant chaque migration.
-- **Tables** : `projects`, `repos`, `project_repos`, `tasks`, `task_notes`, `task_events`, `sessions`, `session_events`, `metric_samples`, `quota_samples`, `saved_states`.
+- **Tables** : `projects`, `repos`, `project_repos`, `tasks`, `task_notes`, `task_events`, `sessions`, `session_events`, `metric_samples`, `quota_samples`, `saved_states` (migration `005_saved_states.sql`, plan 6b : un état par nom, sa date et la liste de ses sessions en JSON).
 - **Purge** : les relevés de métriques de plus de 30 jours sont supprimés au démarrage du TUI.
 - **V1.1** : `credentials.toml` (droits `0600`) pour les tokens des forges, ou le trousseau système s'il est disponible, ou `token_cmd`/`token_env`. Les tokens ne sont jamais stockés en base ni intégrés dans une URL de clone.
 

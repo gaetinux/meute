@@ -22,6 +22,7 @@ from meute.core.json_types import JsonObject, JsonValue
 from meute.core.orphans import Orphan
 from meute.core.project import ProjectId, RepoId
 from meute.core.repo import Repo
+from meute.core.saved_state import SavedSession
 from meute.core.session import AgentKind, Session, SessionId
 from meute.core.session_state import Exited, Running
 from meute.core.status import Blocked, InProgress, Priority, Review, TaskStatus, Todo
@@ -260,3 +261,27 @@ async def until(pilot: Pilot[None], condition: Callable[[], object], what: str) 
     while not condition():
         assert time.monotonic() < deadline, what
         await pilot.pause(0.01)
+
+
+def saved_session(  # noqa: PLR0913 — one keyword per field of a saved session
+    session_id: SessionId,
+    *,
+    title: str = "shell",
+    cwd: Path = Path("/work"),
+    agent: AgentKind = AgentKind.BASH,
+    native_id: str | None = None,
+    task_id: TaskId | None = None,
+    repo_id: RepoId | None = None,
+    displayed: bool = False,
+) -> SavedSession:
+    """Build a saved session: a Bash shell in `/work` by default."""
+    return SavedSession(
+        session_id=session_id,
+        agent=agent,
+        cwd=cwd,
+        native_id=native_id,
+        title=title,
+        task_id=task_id,
+        repo_id=repo_id,
+        displayed=displayed,
+    )

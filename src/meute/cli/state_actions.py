@@ -1,0 +1,47 @@
+"""The board's `S` and `O`: save its sessions as a state, reopen a saved state."""
+
+from collections.abc import Mapping
+from dataclasses import replace
+from typing import NoReturn
+
+from meute.cli.context import CliContext, local_now, open_database
+from meute.cli.state_reopen import reopen_state
+from meute.cli.tmux_env import TmuxEnv
+from meute.core.board_view import BoardData
+from meute.core.db.saved_states import get_state, save_state
+from meute.core.errors import ActionNotice
+from meute.core.saved_state import SavedSession, reopen_summary, saved_text, stamp_name
+from meute.core.state_capture import capture_board
+
+
+def save_live(ctx: CliContext, data: BoardData, name: str) -> tuple[SavedSession, ...]:
+    """Save the live sessions of `data`, in the board order, under `name`; return them."""
+    sessions = capture_board(data)
+    _ = save_state(ctx.db, name, sessions)
+    return sessions
+
+
+def save_board_state(ctx: CliContext, data: BoardData) -> NoReturn:
+    """Save the live sessions of `data`, in the board order, under the local time.
+
+    Raises:
+        ActionNotice: always, once saved: `state saved: <name>`.
+    """
+    name = stamp_name(local_now(ctx))
+    _ = save_live(ctx, data, name)
+    raise ActionNotice(saved_text(name))
+
+
+def reopen_board_state(
+    ctx: CliContext, env: TmuxEnv, environ: Mapping[str, str], name: str
+) -> NoReturn:
+    """Reopen the state `name` on a connection of its own: the board runs this in a worker.
+
+    Raises:
+        UnknownState: no state has that name.
+        ActionNotice: once reopened: `reopened <n> · skipped <m>`.
+    """
+    with open_database(ctx.paths, ctx.db.clock) as db:
+        ctx = replace(ctx, db=db)
+        report = reopen_state(ctx, env, environ, get_state(db, name))
+    raise ActionNotice(reopen_summary(report.reopened, len(report.skipped)))

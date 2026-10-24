@@ -87,6 +87,20 @@ def board_sessions(data: BoardData, state: ViewState, width: int = 72) -> BoardS
     return BoardSessions(data=data, infos=infos, view=view, now=now)
 
 
+def board_session_order(data: BoardData) -> tuple[SessionId, ...]:
+    """Return the ids of the sessions in the order the board's Sessions view lists them.
+
+    The view is the unfolded, unfiltered one (`ViewState()`), so recently ended sessions
+    without a pane are left out.
+    """
+    board = board_sessions(data, ViewState())
+    return tuple(
+        line.session_id
+        for line in board.view.lines
+        if isinstance(line, SessionLine) and line.session_id in board.infos
+    )
+
+
 def line_at(board: BoardSessions, index: int) -> ViewLine | None:
     """Return line `index` of the view, or None out of range (-1 included)."""
     return board.view.lines[index] if 0 <= index < len(board.view.lines) else None
