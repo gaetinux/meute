@@ -18,11 +18,20 @@ meute = "meute._entry:console"
 
 [tool.uv]
 exclude-newer = "2026-10-15T00:00:00Z"
-# Each exemption keeps the version already locked on 2026-10-23: the day after its upload,
-# UTC midnight. certifi's carries the GHSA-6q48-6c7w-9gw2 fix; filelock's carries the fix for CVE-2026-112906, CVE-2026-112907,
-# CVE-2026-112913, CVE-2026-112914, CVE-2026-112937 and CVE-2026-112940. Remove them at the next lock
-# refresh past their dates.
-exclude-newer-package = { certifi = "2026-10-21T00:00:00Z", filelock = "2026-10-18T00:00:00Z", hypothesis = "2026-10-17T00:00:00Z", platformdirs = "2026-10-17T00:00:00Z", pluggy = "2026-10-16T00:00:00Z", ruff = "2026-10-16T00:00:00Z", tomlkit = "2026-10-17T00:00:00Z" }
+# Each exemption is dated the day after its version's upload, UTC midnight. They keep the
+# versions locked on 2026-10-23, except filelock, moved to 4.2.1 for its security fixes
+# (CVE-2026-112906, CVE-2026-112907, CVE-2026-112913, CVE-2026-112914, CVE-2026-112937 and
+# CVE-2026-112940); certifi's carries the GHSA-6q48-6c7w-9gw2 fix. Remove them at the next
+# lock refresh past their dates.
+
+[tool.uv.exclude-newer-package]
+certifi = "2026-10-21T00:00:00Z"
+filelock = "2026-10-18T00:00:00Z"
+hypothesis = "2026-10-17T00:00:00Z"
+platformdirs = "2026-10-17T00:00:00Z"
+pluggy = "2026-10-16T00:00:00Z"
+ruff = "2026-10-16T00:00:00Z"
+tomlkit = "2026-10-17T00:00:00Z"
 
 [build-system]
 requires = ["uv_build>=0.13.1,<0.14.0"]
