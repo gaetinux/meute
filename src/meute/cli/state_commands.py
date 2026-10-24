@@ -9,14 +9,13 @@ from meute.cli.board_data import load_board_data
 from meute.cli.confirm import confirmed
 from meute.cli.context import local_now, open_context
 from meute.cli.json_out import echo_json
+from meute.cli.state_actions import save_live
 from meute.cli.state_reopen import reopen_state
 from meute.cli.tmux_env import open_tmux_env
-from meute.core.board_sessions import board_session_order
-from meute.core.db.saved_states import delete_state, get_state, list_states, save_state
+from meute.core.db.saved_states import delete_state, get_state, list_states
 from meute.core.errors import NotFound
 from meute.core.instants import format_instant
 from meute.core.saved_state import reopen_text, stamp_name, state_line, state_name
-from meute.core.state_capture import capture
 from meute.core.text import printable
 
 state_app = typer.Typer(no_args_is_help=True, help="Saved states: sets of open sessions.")
@@ -40,8 +39,7 @@ def save(
         env = open_tmux_env(ctx, os.environ)
         # Like `board_order`: no `claude agents`, so assumed states stay the board's.
         data = load_board_data(ctx, env, os.environ, None, assume=False)
-        sessions = capture(data, board_session_order(data))
-        _ = save_state(ctx.db, chosen, sessions)
+        sessions = save_live(ctx, data, chosen)
     count = len(sessions)
     typer.echo(f"Saved: {printable(chosen)} ({count} session{'' if count == 1 else 's'})")
 

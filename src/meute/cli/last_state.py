@@ -4,13 +4,12 @@ import sqlite3
 from collections.abc import Sequence
 from dataclasses import replace
 
-from meute.core.board_sessions import board_session_order
 from meute.core.board_view import BoardData
 from meute.core.db.connection import Database
 from meute.core.db.saved_states import list_states, save_state
 from meute.core.errors import MeuteError
 from meute.core.saved_state import LAST, SavedSession, SavedState
-from meute.core.state_capture import capture
+from meute.core.state_capture import capture_board
 
 
 class LastState:
@@ -41,7 +40,7 @@ class LastState:
         Returns `data`, with its saved states read again when `last` was written. A write the
         database refuses leaves `data` as read: the next read tries again.
         """
-        sessions = capture(data, board_session_order(data))
+        sessions = capture_board(data)
         try:
             if not self.update(sessions, data.saved_states):
                 return data

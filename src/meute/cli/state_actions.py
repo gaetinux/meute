@@ -7,12 +7,18 @@ from typing import NoReturn
 from meute.cli.context import CliContext, local_now, open_database
 from meute.cli.state_reopen import reopen_state
 from meute.cli.tmux_env import TmuxEnv
-from meute.core.board_sessions import board_session_order
 from meute.core.board_view import BoardData
 from meute.core.db.saved_states import get_state, save_state
 from meute.core.errors import ActionNotice
-from meute.core.saved_state import reopen_text, saved_text, stamp_name
-from meute.core.state_capture import capture
+from meute.core.saved_state import SavedSession, reopen_text, saved_text, stamp_name
+from meute.core.state_capture import capture_board
+
+
+def save_live(ctx: CliContext, data: BoardData, name: str) -> tuple[SavedSession, ...]:
+    """Save the live sessions of `data`, in the board order, under `name`; return them."""
+    sessions = capture_board(data)
+    _ = save_state(ctx.db, name, sessions)
+    return sessions
 
 
 def save_board_state(ctx: CliContext, data: BoardData) -> NoReturn:
@@ -22,7 +28,7 @@ def save_board_state(ctx: CliContext, data: BoardData) -> NoReturn:
         ActionNotice: always, once saved: `state saved: <name>`.
     """
     name = stamp_name(local_now(ctx))
-    _ = save_state(ctx.db, name, capture(data, board_session_order(data)))
+    _ = save_live(ctx, data, name)
     raise ActionNotice(saved_text(name))
 
 

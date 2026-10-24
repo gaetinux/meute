@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 
+from meute.core.board_sessions import board_session_order
 from meute.core.board_view import BoardData
 from meute.core.saved_state import SavedSession
 from meute.core.session import SessionId
@@ -35,3 +36,8 @@ def capture(data: BoardData, order: Sequence[SessionId]) -> tuple[SavedSession, 
             )
         )
     return tuple(captured)
+
+
+def capture_board(data: BoardData) -> tuple[SavedSession, ...]:
+    """Return the live sessions of `data` as saved entries, in the order the board lists them."""
+    return capture(data, board_session_order(data))
