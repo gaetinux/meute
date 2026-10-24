@@ -1,0 +1,4 @@
+# serializer version: 1
+# name: test_sessions_json_is_a_compact_array
+  '[{"session_id":"aaaa1111-0000-4000-8000-000000000000","agent":"claude","cwd":"/work/meute","native_id":"native-1","title":"fix the board","task_id":12,"repo_id":3,"displayed":true},{"session_id":"bbbb2222-0000-4000-8000-000000000000","agent":"bash","cwd":"/work/other","native_id":null,"title":"shell","task_id":null,"repo_id":null,"displayed":false}]'
+# ---

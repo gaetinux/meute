@@ -157,7 +157,7 @@ def test_migrating_a_v1_file_keeps_tasks_and_backs_it_up(tmp_path: Path) -> None
             " VALUES ('keep me', 'todo', 'normal', 1, 'x', 'x')"
         )
     with Database.open(path, busy_timeout_ms=1000) as db:
-        assert db.schema_version() == 4
+        assert db.schema_version() == 5
         assert fetch_one(db.conn, "SELECT title FROM tasks") == ("keep me",)
     assert (tmp_path / "meute.db.bak-1").exists()
 

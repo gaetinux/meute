@@ -36,9 +36,12 @@ class NotFound(MeuteError):  # noqa: N818 — name fixed by the specification
 
     exit_code = 4
 
-    def __init__(self, entity: str, ident: str) -> None:
-        """Build the error for the `entity` kind (task, project, session, ...) and `ident`."""
-        super().__init__(f"{entity} not found: {ident}")
+    def __init__(self, entity: str, ident: str, *, message: str | None = None) -> None:
+        """Build the error for the `entity` kind (task, project, session, ...) and `ident`.
+
+        Its text is `<entity> not found: <ident>`, unless `message` replaces it.
+        """
+        super().__init__(f"{entity} not found: {ident}" if message is None else message)
         self.entity = entity
         self.ident = ident
 
