@@ -31,6 +31,7 @@ from meute.core.text import printable
 from meute.tmux.client import Tmux
 
 _TIMEOUT_SECONDS = 5
+_DRAIN_SECONDS = 1  # after the kill, for the pipes to close
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,16 +67,39 @@ def tool_output(argv: Sequence[str], environ: Mapping[str, str]) -> ToolOutput:
     try:
         stdout, stderr = process.communicate(timeout=_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
-        with contextlib.suppress(OSError):
-            os.killpg(process.pid, signal.SIGKILL)
-        _ = process.communicate()
+        _kill_group(process)
         return TimedOut()
+    except BaseException:  # Ctrl-C during a slow tool: leave nothing running behind
+        _kill_group(process)
+        raise
     return subprocess.CompletedProcess(
         command,
         process.returncode,
         stdout.decode("utf-8", errors="replace"),
         stderr.decode("utf-8", errors="replace"),
     )
+
+
+def _kill_group(process: subprocess.Popen[bytes]) -> None:
+    """Kill the process group of `process` and reap it, without waiting on escaped children.
+
+    A grandchild that left the group (`setsid`) may keep the pipes open: they are closed.
+    """
+    with contextlib.suppress(OSError):
+        os.killpg(process.pid, signal.SIGKILL)
+    try:
+        _ = process.communicate(timeout=_DRAIN_SECONDS)
+    except subprocess.TimeoutExpired:
+        for pipe in (process.stdout, process.stderr):
+            if pipe is not None:
+                pipe.close()
+        _ = process.wait()
+
+
+def _failure(name: str, shown: str, error: OSError | sqlite3.Error) -> Check:
+    """A failed line `<shown>: <reason>`, the reason without the raw path an OSError repeats."""
+    reason = (error.strerror if isinstance(error, OSError) else None) or str(error)
+    return Check(level=CheckLevel.FAIL, name=name, text=printable(f"{shown}: {reason}"))
 
 
 def _tool_check(
@@ -107,7 +131,7 @@ def _config(path: Path, home: Path) -> Check:
     except ConfigError as error:
         return Check(level=CheckLevel.FAIL, name="config", text=printable(str(error)))
     except OSError as error:
-        return Check(level=CheckLevel.FAIL, name="config", text=printable(f"{shown}: {error}"))
+        return _failure("config", shown, error)
     text = shown if path.exists() else f"{shown} (absent: defaults are used)"
     return Check(level=CheckLevel.OK, name="config", text=text)
 
@@ -117,12 +141,19 @@ def _database(path: Path, home: Path) -> Check:
     try:
         version = read_schema_version(path)
     except (sqlite3.Error, OSError) as error:
-        return Check(level=CheckLevel.FAIL, name="database", text=printable(f"{shown}: {error}"))
+        return _failure("database", shown, error)
     return database_check(shown, version, SCHEMA_VERSION)
 
 
 def _writable_folder(path: Path) -> bool:
-    existing = next((folder for folder in (path, *path.parents) if folder.exists()), path)
+    """Whether `path`, or its first existing parent when absent, is writable and searchable.
+
+    A parent that cannot be searched makes `exists` raise: the folder is then not writable.
+    """
+    try:
+        existing = next((folder for folder in (path, *path.parents) if folder.exists()), path)
+    except OSError:
+        return False
     return os.access(existing, os.W_OK | os.X_OK)
 
 
@@ -153,7 +184,8 @@ def _server(environ: Mapping[str, str]) -> Check:
 def run_doctor(environ: Mapping[str, str], *, home: Path) -> list[Check]:
     """Run every check of `meute doctor`, in the order of its output; creates nothing.
 
-    A failed tmux check skips the `server` line; a claude that is not found skips `options`.
+    A failed tmux check skips the `server` line; a failed claude check (not
+    found, or no answer to `--version`) skips `options`.
     """
     paths = Paths.from_env(environ, home=home)
     tmux = _tool_check("tmux", ["tmux", "-V"], tmux_check, environ)

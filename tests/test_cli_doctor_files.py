@@ -23,6 +23,27 @@ def test_an_invalid_configuration_fails_with_its_error(sandbox: Sandbox, tmp_pat
     assert result.returncode == 1
 
 
+def test_a_folder_in_place_of_the_configuration_fails(sandbox: Sandbox, tmp_path: Path) -> None:
+    config = sandbox.root / "config/meute/config.toml"
+    config.mkdir(parents=True)
+    result = doctor(sandbox, tool_bin(tmp_path))
+    assert line(result.stdout, "config") == f"{config}: Is a directory"
+    assert level(result.stdout, "config") == "fail"
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root searches any folder")
+def test_an_unsearchable_database_folder_fails(sandbox: Sandbox, tmp_path: Path) -> None:
+    folder = sandbox.root / "data/meute"
+    folder.mkdir(parents=True)
+    folder.chmod(0o000)
+    try:
+        result = doctor(sandbox, tool_bin(tmp_path))
+    finally:
+        folder.chmod(0o700)
+    assert line(result.stdout, "database") == f"{folder / 'meute.db'}: Permission denied"
+    assert level(result.stdout, "database") == "fail"
+
+
 def test_a_valid_configuration_is_ok(sandbox: Sandbox, tmp_path: Path) -> None:
     assert sandbox.run("task", "list").returncode == 0
     result = doctor(sandbox, tool_bin(tmp_path))
@@ -100,6 +121,23 @@ def test_an_absent_state_folder_below_a_read_only_parent_fails(
     finally:
         parent.chmod(0o700)
     assert line(result.stdout, "state") == f"{parent / 'meute'}: not writable"
+    assert level(result.stdout, "state") == "fail"
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root searches any folder")
+def test_a_state_folder_below_an_unsearchable_parent_fails(
+    sandbox: Sandbox, tmp_path: Path
+) -> None:
+    locked = sandbox.root / "locked"
+    locked.mkdir()
+    locked.chmod(0o000)
+    state = locked / "state"
+    env = {"PATH": str(tool_bin(tmp_path)), "XDG_STATE_HOME": str(state)}
+    try:
+        result = sandbox.run("doctor", env=env)
+    finally:
+        locked.chmod(0o700)
+    assert line(result.stdout, "state") == f"{state / 'meute'}: not writable", result.stderr
     assert level(result.stdout, "state") == "fail"
 
 
