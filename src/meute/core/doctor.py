@@ -58,65 +58,86 @@ NOTE_CHECK = Check(
 )
 
 
+def _first_line(output: str) -> str:
+    return next(iter(output.splitlines()), "")
+
+
 def parse_version(output: str) -> tuple[int, ...] | None:
     """Return the first dotted number of the first line of `output`, or None."""
-    first = output.splitlines()[0] if output else ""
-    found = _VERSION.search(first)
+    found = _VERSION.search(_first_line(output))
     return tuple(int(part) for part in found.group().split(".")) if found else None
 
 
 def shown_version(output: str, prefix: str) -> str:
     """Return the first line of `output` without `prefix`, printable and cut to 40 characters."""
-    first = output.splitlines()[0].strip() if output.strip() else ""
-    return printable(first.removeprefix(prefix))[:_SHOWN_MAX]
+    return printable(_first_line(output).strip().removeprefix(prefix))[:_SHOWN_MAX]
 
 
-def _unreadable(name: str, output: str, level: CheckLevel) -> Check:
-    return Check(level=level, name=name, text=f"unreadable version: {shown_version(output, '')}")
+@dataclass(frozen=True, slots=True, kw_only=True)
+class _Tool:
+    """How the version output of a tool is judged."""
+
+    name: str
+    prefix: str  # removed from the shown version
+    missing: str  # why its absence matters
+    unreadable: CheckLevel
+    rules: tuple[tuple[tuple[int, ...], CheckLevel, str], ...]  # below a version: level, reason
+
+
+_TMUX = _Tool(
+    name="tmux",
+    prefix="tmux ",
+    missing=_TMUX_NEED,
+    unreadable=CheckLevel.FAIL,
+    rules=(
+        (_TMUX_MIN, CheckLevel.FAIL, _TMUX_NEED),
+        (_TMUX_META_T, CheckLevel.WARN, "M-t needs tmux 3.3 or later"),
+    ),
+)
+_GIT = _Tool(
+    name="git",
+    prefix="git version ",
+    missing=_GIT_NEED,
+    unreadable=CheckLevel.FAIL,
+    rules=((_GIT_MIN, CheckLevel.FAIL, _GIT_NEED),),
+)
+_CLAUDE = _Tool(
+    name="claude",
+    prefix="",
+    missing="Claude sessions are disabled",
+    unreadable=CheckLevel.WARN,
+    rules=((_CLAUDE_MIN, CheckLevel.WARN, "meute is tested with claude 2.1.301 or later"),),
+)
+
+
+def _versioned(tool: _Tool, output: str | None) -> Check:
+    """Judge a version output: not found, unreadable, the first rule it falls below, or ok."""
+    if output is None:
+        return Check(level=CheckLevel.FAIL, name=tool.name, text=f"not found: {tool.missing}")
+    version = parse_version(output)
+    if version is None:
+        text = f"unreadable version: {shown_version(output, '')}"
+        return Check(level=tool.unreadable, name=tool.name, text=text)
+    shown = shown_version(output, tool.prefix)
+    for minimum, level, reason in tool.rules:
+        if version < minimum:
+            return Check(level=level, name=tool.name, text=f"{shown}: {reason}")
+    return Check(level=CheckLevel.OK, name=tool.name, text=shown)
 
 
 def tmux_check(output: str | None) -> Check:
     """Judge the output of `tmux -V` (None: tmux was not found)."""
-    if output is None:
-        return Check(level=CheckLevel.FAIL, name="tmux", text=f"not found: {_TMUX_NEED}")
-    version = parse_version(output)
-    if version is None:
-        return _unreadable("tmux", output, CheckLevel.FAIL)
-    shown = shown_version(output, "tmux ")
-    if version < _TMUX_MIN:
-        return Check(level=CheckLevel.FAIL, name="tmux", text=f"{shown}: {_TMUX_NEED}")
-    if version < _TMUX_META_T:
-        text = f"{shown}: M-t needs tmux 3.3 or later"
-        return Check(level=CheckLevel.WARN, name="tmux", text=text)
-    return Check(level=CheckLevel.OK, name="tmux", text=shown)
+    return _versioned(_TMUX, output)
 
 
 def git_check(output: str | None) -> Check:
     """Judge the output of `git --version` (None: git was not found)."""
-    if output is None:
-        return Check(level=CheckLevel.FAIL, name="git", text=f"not found: {_GIT_NEED}")
-    version = parse_version(output)
-    if version is None:
-        return _unreadable("git", output, CheckLevel.FAIL)
-    shown = shown_version(output, "git version ")
-    if version < _GIT_MIN:
-        return Check(level=CheckLevel.FAIL, name="git", text=f"{shown}: {_GIT_NEED}")
-    return Check(level=CheckLevel.OK, name="git", text=shown)
+    return _versioned(_GIT, output)
 
 
 def claude_check(output: str | None) -> Check:
     """Judge the output of `claude --version` (None: claude was not found)."""
-    if output is None:
-        text = "not found: Claude sessions are disabled"
-        return Check(level=CheckLevel.FAIL, name="claude", text=text)
-    version = parse_version(output)
-    if version is None:
-        return _unreadable("claude", output, CheckLevel.WARN)
-    shown = shown_version(output, "")
-    if version < _CLAUDE_MIN:
-        text = f"{shown}: meute is tested with claude 2.1.301 or later"
-        return Check(level=CheckLevel.WARN, name="claude", text=text)
-    return Check(level=CheckLevel.OK, name="claude", text=shown)
+    return _versioned(_CLAUDE, output)
 
 
 def options_check(help_text: str) -> Check:
@@ -138,17 +159,17 @@ def timeout_check(name: str) -> Check:
 def database_check(shown: str, version: int | None, latest: int) -> Check:
     """Compare the schema `version` of the database at `shown` (None: absent) with `latest`."""
     if version is None:
-        text = f"{shown}: created at the first start"
-        return Check(level=CheckLevel.WARN, name="database", text=text)
-    text = f"{shown} (schema {version})"
-    if version < latest:
-        return Check(
-            level=CheckLevel.WARN, name="database", text=f"{text}: migrated at the next start"
+        level, text = CheckLevel.WARN, f"{shown}: created at the first start"
+    elif version < latest:
+        level, text = CheckLevel.WARN, f"{shown} (schema {version}): migrated at the next start"
+    elif version > latest:
+        level, text = (
+            CheckLevel.FAIL,
+            f"{shown} (schema {version}): newer than this meute ({latest})",
         )
-    if version > latest:
-        text = f"{text}: newer than this meute ({latest})"
-        return Check(level=CheckLevel.FAIL, name="database", text=text)
-    return Check(level=CheckLevel.OK, name="database", text=text)
+    else:
+        level, text = CheckLevel.OK, f"{shown} (schema {version})"
+    return Check(level=level, name="database", text=text)
 
 
 def render_checks(checks: Sequence[Check]) -> str:
