@@ -1,7 +1,6 @@
 """The start-up purge also drops old session events, and never blocks the dashboard."""
 
 import sqlite3
-from collections.abc import Iterator
 from datetime import timedelta
 from pathlib import Path
 
@@ -25,13 +24,13 @@ LIMIT = NOW - timedelta(days=30)
 
 
 @pytest.fixture
-def db(tmp_path: Path) -> Iterator[Database]:
-    with Database.open(tmp_path / "m.db", busy_timeout_ms=1000, clock=lambda: FIXED) as opened:
-        create_session(
-            opened,
-            NewSession(id=SID, agent=AgentKind.CLAUDE, title="c", cwd=Path("/w"), state=Running()),
-        )
-        yield opened
+def events_db(file_db: tuple[Database, Path]) -> Database:
+    """The conftest file database, holding the session the events belong to."""
+    db, _ = file_db
+    create_session(
+        db, NewSession(id=SID, agent=AgentKind.CLAUDE, title="c", cwd=Path("/w"), state=Running())
+    )
+    return db
 
 
 def _event(db: Database, name: str, days_old: float) -> None:
@@ -46,33 +45,33 @@ def _names(db: Database) -> list[str]:
     return [str(row[0]) for row in rows]
 
 
-def test_events_older_than_the_limit_are_deleted_newer_kept(db: Database) -> None:
-    _event(db, "old", 31)
-    _event(db, "recent", 29)
-    assert purge_samples(db, older_than=LIMIT) == 1
-    assert _names(db) == ["recent"]
+def test_events_older_than_the_limit_are_deleted_newer_kept(events_db: Database) -> None:
+    _event(events_db, "old", 31)
+    _event(events_db, "recent", 29)
+    assert purge_samples(events_db, older_than=LIMIT) == 1
+    assert _names(events_db) == ["recent"]
 
 
-def test_an_event_exactly_at_the_limit_is_kept(db: Database) -> None:
-    _event(db, "edge", 30)
-    assert purge_samples(db, older_than=LIMIT) == 0
-    assert _names(db) == ["edge"]
+def test_an_event_exactly_at_the_limit_is_kept(events_db: Database) -> None:
+    _event(events_db, "edge", 30)
+    assert purge_samples(events_db, older_than=LIMIT) == 0
+    assert _names(events_db) == ["edge"]
 
 
-def test_the_total_counts_metrics_quotas_and_events(db: Database) -> None:
+def test_the_total_counts_metrics_quotas_and_events(events_db: Database) -> None:
     stamp = to_db(NOW - timedelta(days=40))
-    db.conn.execute(
+    events_db.conn.execute(
         "INSERT INTO metric_samples (session_id, created_at) VALUES (?, ?)", (SID, stamp)
     )
-    db.conn.execute("INSERT INTO quota_samples (created_at) VALUES (?)", (stamp,))
-    _event(db, "old", 40)
-    assert purge_samples(db, older_than=LIMIT) == 3
+    events_db.conn.execute("INSERT INTO quota_samples (created_at) VALUES (?)", (stamp,))
+    _event(events_db, "old", 40)
+    assert purge_samples(events_db, older_than=LIMIT) == 3
 
 
-def test_the_session_itself_remains(db: Database) -> None:
-    _event(db, "old", 40)
-    assert purge_samples(db, older_than=LIMIT) == 1
-    row = fetch_one(db.conn, "SELECT count(*) FROM sessions")
+def test_the_session_itself_remains(events_db: Database) -> None:
+    _event(events_db, "old", 40)
+    assert purge_samples(events_db, older_than=LIMIT) == 1
+    row = fetch_one(events_db.conn, "SELECT count(*) FROM sessions")
     assert row is not None
     assert row[0] == 1
 
