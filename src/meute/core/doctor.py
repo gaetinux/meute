@@ -77,7 +77,6 @@ def shown_version(output: str, prefix: str) -> str:
 class _Tool:
     """How the version output of a tool is judged."""
 
-    name: str
     prefix: str  # removed from the shown version
     missing: str  # why its absence matters
     unreadable: CheckLevel
@@ -85,7 +84,6 @@ class _Tool:
 
 
 _TMUX = _Tool(
-    name="tmux",
     prefix="tmux ",
     missing=_TMUX_NEED,
     unreadable=CheckLevel.FAIL,
@@ -95,14 +93,12 @@ _TMUX = _Tool(
     ),
 )
 _GIT = _Tool(
-    name="git",
     prefix="git version ",
     missing=_GIT_NEED,
     unreadable=CheckLevel.FAIL,
     rules=((_GIT_MIN, CheckLevel.FAIL, _GIT_NEED),),
 )
 _CLAUDE = _Tool(
-    name="claude",
     prefix="",
     missing="Claude sessions are disabled",
     unreadable=CheckLevel.WARN,
@@ -110,34 +106,34 @@ _CLAUDE = _Tool(
 )
 
 
-def _versioned(tool: _Tool, output: str | None) -> Check:
+def _versioned(tool: _Tool, output: str | None, name: str) -> Check:
     """Judge a version output: not found, unreadable, the first rule it falls below, or ok."""
     if output is None:
-        return Check(level=CheckLevel.FAIL, name=tool.name, text=f"not found: {tool.missing}")
+        return Check(level=CheckLevel.FAIL, name=name, text=f"not found: {tool.missing}")
     version = parse_version(output)
     if version is None:
         text = f"unreadable version: {shown_version(output, '')}"
-        return Check(level=tool.unreadable, name=tool.name, text=text)
+        return Check(level=tool.unreadable, name=name, text=text)
     shown = shown_version(output, tool.prefix)
     for minimum, level, reason in tool.rules:
         if version < minimum:
-            return Check(level=level, name=tool.name, text=f"{shown}: {reason}")
-    return Check(level=CheckLevel.OK, name=tool.name, text=shown)
+            return Check(level=level, name=name, text=f"{shown}: {reason}")
+    return Check(level=CheckLevel.OK, name=name, text=shown)
 
 
-def tmux_check(output: str | None) -> Check:
-    """Judge the output of `tmux -V` (None: tmux was not found)."""
-    return _versioned(_TMUX, output)
+def tmux_check(output: str | None, *, name: str = "tmux") -> Check:
+    """Judge the output of `tmux -V` (None: tmux was not found) on the line `name`."""
+    return _versioned(_TMUX, output, name)
 
 
 def git_check(output: str | None) -> Check:
     """Judge the output of `git --version` (None: git was not found)."""
-    return _versioned(_GIT, output)
+    return _versioned(_GIT, output, "git")
 
 
 def claude_check(output: str | None) -> Check:
     """Judge the output of `claude --version` (None: claude was not found)."""
-    return _versioned(_CLAUDE, output)
+    return _versioned(_CLAUDE, output, "claude")
 
 
 def options_check(help_text: str) -> Check:
@@ -151,9 +147,10 @@ def options_check(help_text: str) -> Check:
     return Check(level=CheckLevel.OK, name="options", text=text)
 
 
-def timeout_check(name: str) -> Check:
-    """Return the failure for the tool `name` that did not answer within 5 s."""
-    return Check(level=CheckLevel.FAIL, name=name, text=f"{name} did not answer within 5 s")
+def timeout_check(tool: str, *, name: str | None = None) -> Check:
+    """Return the failure of the line `name` (default: `tool`): `tool` did not answer in 5 s."""
+    text = f"{tool} did not answer within 5 s"
+    return Check(level=CheckLevel.FAIL, name=tool if name is None else name, text=text)
 
 
 def database_check(shown: str, version: int | None, latest: int) -> Check:

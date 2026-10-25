@@ -157,6 +157,15 @@ def test_timeout_check() -> None:
     )
 
 
+def test_a_line_can_be_named_apart_from_its_tool() -> None:
+    assert timeout_check("claude", name="options") == Check(
+        level=FAIL, name="options", text="claude did not answer within 5 s"
+    )
+    assert tmux_check(None, name="server") == Check(
+        level=FAIL, name="server", text="not found: meute needs tmux 3.2 or later"
+    )
+
+
 def test_database_checks() -> None:
     assert database_check("/d/m.db", 5, 5) == Check(
         level=OK, name="database", text="/d/m.db (schema 5)"

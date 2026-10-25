@@ -1,6 +1,5 @@
 """`meute doctor`: probe the tools, the files and the tmux server, creating nothing."""
 
-import dataclasses
 import os
 import shutil
 import sqlite3
@@ -77,32 +76,27 @@ def tool_output(argv: Sequence[str], environ: Mapping[str, str]) -> ToolOutput:
     )
 
 
-def _failure(name: str, shown: str, error: OSError | sqlite3.Error) -> Check:
-    """A failed line `<shown>: <reason>`, the reason without the raw path an OSError repeats."""
-    reason = (error.strerror if isinstance(error, OSError) else None) or str(error)
+def _failure(name: str, shown: str, reason: str) -> Check:
     return Check(level=CheckLevel.FAIL, name=name, text=printable(f"{shown}: {reason}"))
+
+
+type _Done = subprocess.CompletedProcess[str] | None  # None: the tool was not found
+
+
+def _probe(
+    name: str, argv: Sequence[str], environ: Mapping[str, str], judge: Callable[[_Done], Check]
+) -> Check:
+    """Run `argv` and judge its result; a tool that does not answer within 5 s fails `name`."""
+    output = tool_output(argv, environ)
+    if isinstance(output, TimedOut):
+        return timeout_check(argv[0], name=name)
+    return judge(output)
 
 
 def _tool_check(
     name: str, argv: Sequence[str], judge: Callable[[str | None], Check], environ: Mapping[str, str]
 ) -> Check:
-    match tool_output(argv, environ):
-        case TimedOut():
-            return timeout_check(name)
-        case None:
-            return judge(None)
-        case subprocess.CompletedProcess() as done:
-            return judge(done.stdout)
-
-
-def _options(environ: Mapping[str, str]) -> Check:
-    match tool_output(["claude", "--help"], environ):
-        case TimedOut():
-            return dataclasses.replace(timeout_check("claude"), name="options")
-        case None:
-            return options_check("")
-        case subprocess.CompletedProcess() as done:
-            return options_check(done.stdout)
+    return _probe(name, argv, environ, lambda done: judge(None if done is None else done.stdout))
 
 
 def _config(path: Path, home: Path) -> Check:
@@ -112,7 +106,7 @@ def _config(path: Path, home: Path) -> Check:
     except ConfigError as error:
         return Check(level=CheckLevel.FAIL, name="config", text=printable(str(error)))
     except OSError as error:
-        return _failure("config", shown, error)
+        return _failure("config", shown, error.strerror or str(error))  # strerror: no raw path
     text = shown if path.exists() else f"{shown} (absent: defaults are used)"
     return Check(level=CheckLevel.OK, name="config", text=text)
 
@@ -121,8 +115,10 @@ def _database(path: Path, home: Path) -> Check:
     shown = shown_path(path, home)
     try:
         version = read_schema_version(path)
-    except (sqlite3.Error, OSError) as error:
-        return _failure("database", shown, error)
+    except OSError as error:
+        return _failure("database", shown, error.strerror or str(error))  # strerror: no raw path
+    except sqlite3.Error as error:
+        return _failure("database", shown, str(error))
     return database_check(shown, version, SCHEMA_VERSION)
 
 
@@ -145,21 +141,22 @@ def _state(path: Path, home: Path) -> Check:
     return Check(level=CheckLevel.FAIL, name="state", text=f"{shown}: not writable")
 
 
+def _server_line(prefix: str, done: _Done) -> Check:
+    if done is None:
+        return tmux_check(None, name="server")
+    if done.returncode != 0:
+        text = f"{prefix}: not running (meute starts it)"
+    else:
+        count = len([name for name in done.stdout.splitlines() if name])
+        text = f"{prefix}: running, {count} session{'' if count == 1 else 's'}"
+    return Check(level=CheckLevel.OK, name="server", text=text)
+
+
 def _server(environ: Mapping[str, str]) -> Check:
     socket = environ.get("MEUTE_TMUX_SOCKET") or DEFAULT_SOCKET
     argv = [*Tmux(socket=socket).base_args(), "list-sessions", "-F", "#{session_name}"]
     prefix = f"tmux server {printable(socket)}"
-    match tool_output(argv, environ):
-        case TimedOut():
-            return dataclasses.replace(timeout_check("tmux"), name="server")
-        case None:
-            return dataclasses.replace(tmux_check(None), name="server")
-        case subprocess.CompletedProcess() as done if done.returncode != 0:
-            text = f"{prefix}: not running (meute starts it)"
-        case subprocess.CompletedProcess() as done:
-            count = len([name for name in done.stdout.splitlines() if name])
-            text = f"{prefix}: running, {count} session{'' if count == 1 else 's'}"
-    return Check(level=CheckLevel.OK, name="server", text=text)
+    return _probe("server", argv, environ, lambda done: _server_line(prefix, done))
 
 
 def run_doctor(environ: Mapping[str, str], *, home: Path) -> list[Check]:
@@ -174,7 +171,10 @@ def run_doctor(environ: Mapping[str, str], *, home: Path) -> list[Check]:
     claude = _tool_check("claude", ["claude", "--version"], claude_check, environ)
     checks = [tmux, git, claude]
     if claude.level is not CheckLevel.FAIL:
-        checks.append(_options(environ))
+        help_check = _tool_check(
+            "options", ["claude", "--help"], lambda text: options_check(text or ""), environ
+        )
+        checks.append(help_check)
     checks += [
         _config(paths.config_file, home),
         _database(paths.db_file, home),
