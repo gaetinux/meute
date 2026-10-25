@@ -28,7 +28,7 @@ from meute.core.text import printable
 from meute.git.run import kill_read
 from meute.tmux.client import Tmux
 
-_TIMEOUT_SECONDS = 5
+TIMEOUT_SECONDS = 5  # what a tool has to answer `meute doctor`
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,12 +39,14 @@ class TimedOut:
 type ToolOutput = subprocess.CompletedProcess[str] | TimedOut | None
 
 
-def tool_output(argv: Sequence[str], environ: Mapping[str, str]) -> ToolOutput:
+def tool_output(
+    argv: Sequence[str], environ: Mapping[str, str], *, timeout: float = TIMEOUT_SECONDS
+) -> ToolOutput:
     """Run `argv` without a shell, its program looked up on the `PATH` of `environ`.
 
     Returns None when the program is not found, `TimedOut` when it does not answer within
-    5 s (its whole process group is then killed), else the result decoded as UTF-8 with
-    replacement characters, whatever its exit code.
+    `timeout` seconds (its whole process group is then killed), else the result decoded as
+    UTF-8 with replacement characters, whatever its exit code.
     """
     found = shutil.which(argv[0], path=environ.get("PATH"))
     if found is None:
@@ -62,7 +64,7 @@ def tool_output(argv: Sequence[str], environ: Mapping[str, str]) -> ToolOutput:
     except OSError as error:
         return subprocess.CompletedProcess(command, 126, "", str(error))
     try:
-        stdout, stderr = process.communicate(timeout=_TIMEOUT_SECONDS)
+        stdout, stderr = process.communicate(timeout=timeout)
     except BaseException as error:  # a timeout, or Ctrl-C during a slow tool: nothing left behind
         _ = kill_read(process)
         if isinstance(error, subprocess.TimeoutExpired):

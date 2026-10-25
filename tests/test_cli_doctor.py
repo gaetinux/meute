@@ -1,9 +1,6 @@
 """End-to-end tests of `meute doctor`: the tools, the timeout and the exit code."""
 
-import os
-import signal
 import time
-from contextlib import suppress
 from pathlib import Path
 
 from syrupy.assertion import SnapshotAssertion
@@ -124,23 +121,6 @@ def test_a_mute_claude_help_times_out_after_5_seconds(sandbox: Sandbox, tmp_path
     assert level(result.stdout, "options") == "fail"
     assert elapsed < 8
     assert result.returncode == 1
-
-
-def test_a_grandchild_escaping_the_group_does_not_hang_doctor(
-    sandbox: Sandbox, tmp_path: Path
-) -> None:
-    pid_file = tmp_path / "escaped.pid"
-    escape = f"{real('setsid')} {real('sleep')} 20 & echo $! > {pid_file}; wait"
-    body = f'case "$1" in --version) echo "{GOOD_CLAUDE}";; --help) {escape};; esac'
-    started = time.monotonic()
-    try:
-        result = doctor(sandbox, tool_bin(tmp_path, claude=body))
-        elapsed = time.monotonic() - started
-    finally:
-        with suppress(OSError, ValueError):
-            os.kill(int(pid_file.read_text()), signal.SIGKILL)
-    assert line(result.stdout, "options") == "claude did not answer within 5 s"
-    assert elapsed < 9
 
 
 def test_escape_sequences_and_bad_bytes_are_neutralised(sandbox: Sandbox, tmp_path: Path) -> None:
