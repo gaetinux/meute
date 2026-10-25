@@ -2,17 +2,28 @@
 
 meute is a CLI/TUI that drives several Claude Code sessions and Bash terminals in parallel from one terminal, including over SSH, and links them to lightweight task management.
 
-**Status:** Pre-alpha, being rewritten in Python.
+**Status:** V1.
 
-## Installation
+## Requirements
 
-From source, with [uv](https://docs.astral.sh/uv/) and Python 3.13:
+- Python 3.13 and [uv](https://docs.astral.sh/uv/);
+- tmux 3.2 or later (3.3 or later for the `M-t` quick task window);
+- git 2.36 or later (Git line of the cards, worktrees);
+- [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude` on the `PATH`), tested from 2.1.301; without it, only Bash sessions work.
+
+## Getting started
+
+From a clone of this repository:
 
 ```bash
 uv tool install --compile-bytecode .
+meute doctor        # checks the tools, the files and the tmux server, creating nothing
+meute               # opens meute in its own tmux server (socket meute)
 ```
 
 `--compile-bytecode` is optional. The startup spike measured no gain on warm runs (about 47 ms either way for the 50 ms budget of `meute ingest`); it only moves bytecode compilation to install time.
+
+The first `meute` writes a commented default configuration (`~/.config/meute/config.toml`, never overwritten afterwards) and creates the database. meute looks for Git repositories in the folders of `[repos] roots`, `~/git` by default, three levels deep; change them with `meute config set repos.roots '["~/git", "~/work"]'`. The repositories found are listed on the board and by `meute repo list`.
 
 ## Keys
 
@@ -59,6 +70,19 @@ Dashboard, Tasks tab (`Tab` or a click on the title switches tabs; `?` lists eve
 | `L` | launch Claude on the task; `Work on task #N.` is pasted, not sent, and Claude reads the task with the `task_read` tool |
 | `Del` | delete (asks for confirmation) |
 
+## Projects
+
+A project has a name, a description, instructions for Claude and one or more repositories. The board groups the sessions by project, else by repository, else under `Other`.
+
+The first new session meute starts in a repository without a project (`c`, `n`, `N`, `L`, `meute session new`, or a Bash session of a reopened state) creates a project named after the repository and links it; the next sessions reuse it. A linked worktree belongs to its main repository, so it joins the same project. A folder outside every known repository gets no project. The project of a new session is, in this order: the project of its task (`L`, or a task chosen in `N`), the project linked to its repository, the project named like its repository (case and outer spaces ignored), else the new one. Resuming (`r`), adopting an orphan pane and sessions started outside meute create nothing; sessions and repositories already known get their project at the next launch in them.
+
+Several repositories end up in one project when:
+
+- they have the same name in different roots (`~/git/web` and `~/work/web`): the project made for one is linked to all of them;
+- a session is launched on a task of another project (`L` on a task of `api`, in the repository `web`): it goes into `api`, and no `web` project is created for it.
+
+No command links a repository of another name to a project yet. Projects are listed by `meute project list`, the `this project` filter of the Tasks tab and the `@` of tasks; their instructions are set by `meute project edit` (see [Claude and tasks](#claude-and-tasks-mcp)).
+
 ## Worktrees
 
 ```bash
@@ -98,6 +122,48 @@ meute project show myproject                                # description, instr
 ```
 
 A context up to 8 000 bytes goes in the command line; a longer one goes through a private file in the session's folder.
+
+## Data
+
+| What | Where |
+|---|---|
+| configuration | `~/.config/meute/config.toml` (`$XDG_CONFIG_HOME`) |
+| database (SQLite) | `~/.local/share/meute/meute.db` (`$XDG_DATA_HOME`), with a backup `meute.db.bak-<version>` before each schema migration |
+| state | `~/.local/state/meute/` (`$XDG_STATE_HOME`): per-session settings, `ingest.log`, `mcp.log`, the tmux configuration |
+
+At each start of the board, the metric and quota samples and the session events older than 30 days are deleted; sessions, tasks, projects and saved states stay. When the database is locked by another process, the purge is skipped and retried at the next start.
+
+Nothing leaves the machine: meute has no network access of its own and never fetches, pushes or commits. Claude Code talks to Anthropic as it always does.
+
+## Troubleshooting
+
+`meute doctor` checks what meute needs and prints one line per check. It creates nothing (no configuration, no database, no folder) and never repairs anything; it exits with 1 when a line is `fail`, 0 otherwise. Every external command gets 5 s to answer.
+
+```
+ok    tmux      3.5a
+ok    git       2.47.3
+ok    claude    2.1.302 (Claude Code)
+ok    options   claude --help lists every option meute uses
+ok    config    ~/.config/meute/config.toml
+ok    database  ~/.local/share/meute/meute.db (schema 5)
+ok    state     ~/.local/state/meute
+ok    server    tmux server meute: running, 4 sessions
+note  note      --append-system-prompt-file (used above 8000 bytes of context) is not in claude --help and cannot be checked
+```
+
+When something is wrong, a last line counts the problems (`1 problem found`, `2 problems found`).
+
+| Line | What it says | What to do |
+|---|---|---|
+| `tmux` | `fail`: `not found` or older than 3.2, or an unreadable version; `warn`: 3.2, `M-t needs tmux 3.3 or later` | install or upgrade tmux |
+| `git` | `fail`: `not found` or older than 2.36 (`worktrees and the Git line need git 2.36 or later`) | install or upgrade git |
+| `claude` | `fail`: `not found: Claude sessions are disabled`; `warn`: older than 2.1.301, or an unreadable version | install Claude Code, or put `claude` on the `PATH`; Bash sessions work without it |
+| `options` | `fail`: `claude --help does not list: <options>` | upgrade Claude Code; meute passes these options to every Claude session |
+| any tool | `fail`: `<tool> did not answer within 5 s` | run the tool by hand to see why it hangs |
+| `config` | `fail`: `invalid configuration (<path>): <reason>`; `ok` with `(absent: defaults are used)` before the first start | fix the file (or remove it: the first start writes the defaults again) |
+| `database` | `fail`: `newer than this meute (<n>)`, or the reason it cannot be opened; `warn`: `migrated at the next start` (after a backup), `created at the first start` | upgrade meute when the database is newer; check the file's permissions |
+| `state` | `fail`: `<path>: not writable` | fix the permissions of the folder (or of its first existing parent) |
+| `server` | `running, <n> sessions` or `not running (meute starts it)`; never a problem | — |
 
 ## Development
 
