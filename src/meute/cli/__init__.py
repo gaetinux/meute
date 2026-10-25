@@ -1,7 +1,9 @@
 """Command-line interface."""
 
+import contextlib
 import importlib.metadata
 import os
+import sqlite3
 import sys
 from collections.abc import Sequence
 
@@ -72,7 +74,9 @@ def board() -> None:
     with open_context(os.environ) as ctx:
         env = open_tmux_env(ctx, os.environ)
         _ = scan_repos(ctx)
-        _ = purge_old_samples(ctx)
+        # a locked database must not keep the dashboard from starting: retried at the next start
+        with contextlib.suppress(sqlite3.Error, MeuteError):
+            _ = purge_old_samples(ctx)
         backend = CliBoardBackend(ctx, env, os.environ)
         try:
             options = BoardOptions(

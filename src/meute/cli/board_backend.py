@@ -80,7 +80,7 @@ def _as_meute_error() -> Generator[None]:
 
 
 def purge_old_samples(ctx: CliContext) -> int:
-    """Delete the metric and quota samples older than 30 days; return how many (§ 13)."""
+    """Delete the samples and session events older than 30 days; return how many (§ 13)."""
     return purge_samples(ctx.db, older_than=ctx.now - SAMPLE_RETENTION)
 
 
