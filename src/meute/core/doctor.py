@@ -11,7 +11,7 @@ from enum import StrEnum
 
 from meute.core.text import printable
 
-_VERSION = re.compile(r"\d+(?:\.\d+)+")
+_VERSION = re.compile(r"[0-9]{1,9}(?:\.[0-9]{1,9})+")
 _OPTION = re.compile(r"--[a-z][a-z-]*")
 _SHOWN_MAX = 40
 _TMUX_MIN = (3, 2)

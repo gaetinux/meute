@@ -67,3 +67,11 @@ def test_database_in_use_by_another_connection(tmp_path: Path) -> None:
     path = tmp_path / "meute.db"
     with Database.open(path, busy_timeout_ms=1000):
         assert read_schema_version(path) == len(MIGRATIONS)
+
+
+def test_empty_file_reads_as_version_zero_and_stays_empty(tmp_path: Path) -> None:
+    path = tmp_path / "meute.db"
+    path.touch()
+    assert read_schema_version(path) == 0
+    assert path.stat().st_size == 0
+    assert _listing(tmp_path) == ["meute.db"]

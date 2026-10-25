@@ -20,7 +20,8 @@ def read_schema_version(path: Path) -> int | None:
 
     The file is opened read-only: nothing is created, migrated or backed up. A WAL database with
     no `-wal` file (closed cleanly, nobody using it) is opened `immutable`: a plain read-only
-    connection would create `-wal` and `-shm` next to it.
+    connection would create `-wal` and `-shm` next to it. `immutable` also ignores a hot
+    rollback journal, so a crashed writer's last transaction is not seen.
 
     Raises:
         sqlite3.Error: the file exists but is not a readable database.

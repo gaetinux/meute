@@ -219,3 +219,9 @@ def test_exit_code() -> None:
     assert exit_code(_mixed()) == 1
     assert exit_code([Check(level=WARN, name="a", text=""), NOTE_CHECK]) == 0
     assert exit_code([]) == 0
+
+
+def test_parse_version_survives_huge_digit_runs() -> None:
+    assert parse_version("1." + "9" * 5000) is not None
+    assert parse_version("9" * 5000 + ".1") is not None
+    assert parse_version("٣.٤") is None
