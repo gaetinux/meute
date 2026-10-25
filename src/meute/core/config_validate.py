@@ -37,6 +37,7 @@ class UiConfig:
     board_width: int = 72
     narrow_threshold: int = 120
     show_details: bool = True
+    recent_days: int = 7
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -207,6 +208,7 @@ def validate_config(data: Mapping[str, object]) -> Config:
         ui=UiConfig(
             board_width=_int(ui, "ui.board_width", 72, 1),
             narrow_threshold=_int(ui, "ui.narrow_threshold", 120, 1),
+            recent_days=_int(ui, "ui.recent_days", 7, 1, 365),
             show_details=_bool(ui, "ui.show_details", default=True),
         ),
         keys=KeysConfig(

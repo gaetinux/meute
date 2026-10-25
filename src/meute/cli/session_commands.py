@@ -9,13 +9,15 @@ import typer
 
 from meute.claude.agents import run_agents
 from meute.claude.launch import find_claude
+from meute.cli.board_data import ended_instant, recent_ended_sessions
 from meute.cli.confirm import confirmed
-from meute.cli.context import open_context
+from meute.cli.context import local_now, open_context
 from meute.cli.folder_repo import main_repo_or_fail, repo_id_of_folder
 from meute.cli.json_out import echo_json
 from meute.cli.session_jump import jump_to_attention
 from meute.cli.session_launch_claude import start_session
 from meute.cli.session_refresh import refresh
+from meute.cli.session_resume import resume_session
 from meute.cli.session_show import show_session
 from meute.cli.session_stop import stop_session
 from meute.cli.tmux_env import open_tmux_env
@@ -25,10 +27,12 @@ from meute.core.claude_session import ClaudeDetails, claude_details_to_json
 from meute.core.db.claude_sessions import claude_details_by_session
 from meute.core.db.sessions import find_session
 from meute.core.errors import InvalidInput
+from meute.core.instants import format_instant
 from meute.core.json_types import JsonObject
-from meute.core.paths import display_path
+from meute.core.paths import display_path, shown_path
 from meute.core.session import AgentKind, Session, SessionId, session_to_json, short_id
 from meute.core.session_state import state_label
+from meute.core.sessions_view_text import age_text
 from meute.core.text import printable
 
 session_app = typer.Typer(no_args_is_help=True, help="Sessions running in tmux.")
@@ -153,6 +157,53 @@ def show(session_id: Annotated[str, typer.Argument(help="Session id or prefix.")
     with open_context(os.environ) as ctx:
         session = find_session(ctx.db, session_id)
         show_session(ctx, open_tmux_env(ctx, os.environ), session.id)
+
+
+def _resumable(details: Mapping[SessionId, ClaudeDetails], session: Session) -> bool:
+    """Whether `session` has a conversation id to resume it with."""
+    found = details.get(session.id)
+    return found is not None and found.native_id is not None
+
+
+@session_app.command("recent")
+def recent(*, json_: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False) -> None:
+    """List the Claude sessions that ended recently, the latest first."""
+    with open_context(os.environ) as ctx:
+        now = local_now(ctx)
+        sessions = recent_ended_sessions(ctx, now)
+        details = claude_details_by_session(ctx.db)
+    if json_:
+        echo_json(
+            {
+                "sessions": [
+                    {
+                        "id": s.id,
+                        "title": s.title,
+                        "cwd": str(s.cwd),
+                        "ended_at": format_instant(ended_instant(s)),
+                        "resumable": _resumable(details, s),
+                    }
+                    for s in sessions
+                ]
+            }
+        )
+        return
+    home = Path.home()
+    for s in sessions:
+        typer.echo(
+            f"{short_id(s.id)}  {printable(s.title)}  {shown_path(s.cwd, home)}"
+            f"  {age_text(ended_instant(s), now)}"
+            f"  {'resumable' if _resumable(details, s) else 'no conversation id'}"
+        )
+
+
+@session_app.command("resume")
+def resume(session_id: Annotated[str, typer.Argument(help="Session id or prefix.")]) -> None:
+    """Resume an ended Claude session with its conversation."""
+    with open_context(os.environ) as ctx:
+        session = find_session(ctx.db, session_id)
+        resumed = resume_session(ctx, open_tmux_env(ctx, os.environ), session.id, os.environ)
+    typer.echo(f"Resumed: {short_id(resumed.id)} {printable(resumed.title)}")
 
 
 @session_app.command("next", hidden=True)

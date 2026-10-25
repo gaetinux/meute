@@ -1,0 +1,30 @@
+# serializer version: 1
+# name: test_list_json
+  dict({
+    'states': list([
+      dict({
+        'created_at': '2026-10-14T08:30:00Z',
+        'name': 'last',
+        'sessions': 1,
+      }),
+      dict({
+        'created_at': '2026-10-14T08:30:00Z',
+        'name': 'empty',
+        'sessions': 0,
+      }),
+      dict({
+        'created_at': '2026-10-14T08:30:00Z',
+        'name': 'review',
+        'sessions': 2,
+      }),
+    ]),
+  })
+# ---
+# name: test_list_text
+  '''
+  last  1 session  now
+  empty  0 sessions  now
+  review  2 sessions  now
+  
+  '''
+# ---

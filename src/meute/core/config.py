@@ -51,6 +51,8 @@ board_width = 72
 narrow_threshold = 120
 # Show the details of the selected session under the list.
 show_details = true
+# Ended sessions shown by e (and meute session recent), in days.
+recent_days = 7
 
 [keys]
 # Global shortcuts, without the tmux prefix (M- = Alt).
@@ -91,6 +93,7 @@ def _flatten(config: Config) -> dict[str, object]:
         "ui.board_width": config.ui.board_width,
         "ui.narrow_threshold": config.ui.narrow_threshold,
         "ui.show_details": config.ui.show_details,
+        "ui.recent_days": config.ui.recent_days,
         "keys.focus_board": config.keys.focus_board,
         "keys.focus_main": config.keys.focus_main,
         "keys.next_attention": config.keys.next_attention,

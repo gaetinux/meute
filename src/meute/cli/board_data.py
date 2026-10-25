@@ -1,6 +1,6 @@
 """Loading the data the dashboard and the session jumps both show."""
 
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Collection, Iterator, Mapping, Sequence
 from datetime import datetime, time, timedelta
 from pathlib import Path
 
@@ -14,17 +14,16 @@ from meute.core.db.claude_sessions import claude_details_by_session
 from meute.core.db.projects import project_refs
 from meute.core.db.repos import list_repos, repo_project_links
 from meute.core.db.samples import latest_metrics_by_session, latest_quota, quota_history
+from meute.core.db.saved_states import list_states
 from meute.core.db.sessions import last_agent_by_repo, list_sessions
 from meute.core.db.task_reads import latest_notes
 from meute.core.db.tasks import TaskFilter, list_tasks
 from meute.core.quota_view import PROJECTION_WINDOW, QuotaLine, current_quota, projected_limit
-from meute.core.session import SessionId
+from meute.core.session import AgentKind, Session, SessionId
 from meute.core.session_project import repo_projects, session_project
 from meute.core.session_state import is_live
 from meute.core.statusline_render import peak_text
 from meute.core.views import bucket_of
-
-RECENTLY_ENDED = timedelta(days=7)
 
 
 def quota_line(ctx: CliContext, now: datetime, environ: Mapping[str, str]) -> QuotaLine:
@@ -49,14 +48,30 @@ def quota_line(ctx: CliContext, now: datetime, environ: Mapping[str, str]) -> Qu
 def recently_ended(
     ctx: CliContext, shown: Collection[SessionId], now: datetime
 ) -> tuple[SessionRow, ...]:
-    """Return the sessions ended within 7 days that `shown` lacks: they have no pane."""
-    since = now - RECENTLY_ENDED
+    """Return the sessions ended within `ui.recent_days` that `shown` lacks: no pane."""
     return tuple(
         SessionRow(session=session, has_pane=False, displayed=False)
+        for session in _ended_since(ctx, now)
+        if session.id not in shown
+    )
+
+
+def recent_ended_sessions(ctx: CliContext, now: datetime) -> tuple[Session, ...]:
+    """Return the Claude sessions ended within `ui.recent_days`, the latest first."""
+    claude = (s for s in _ended_since(ctx, now) if s.agent is AgentKind.CLAUDE)
+    return tuple(sorted(claude, key=ended_instant, reverse=True))
+
+
+def ended_instant(session: Session) -> datetime:
+    return session.ended_at or session.last_activity_at
+
+
+def _ended_since(ctx: CliContext, now: datetime) -> Iterator[Session]:
+    since = now - timedelta(days=ctx.config.ui.recent_days)
+    return (
+        session
         for session in list_sessions(ctx.db, include_ended=True)
-        if not is_live(session.state)
-        and session.id not in shown
-        and (session.ended_at or session.last_activity_at) >= since
+        if not is_live(session.state) and ended_instant(session) >= since
     )
 
 
@@ -108,6 +123,7 @@ def load_board_data(
         project_refs=refs,
         last_agents=last_agent_by_repo(db),
         repo_projects=repo_projects(repo_project_links(db), repos, refs),
+        saved_states=list_states(db),
         displayed_project=None
         if displayed is None
         else session_project(displayed, projects=refs, repos=repo_by_id),

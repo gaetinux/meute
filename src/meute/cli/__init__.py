@@ -17,6 +17,7 @@ from meute.cli.project_commands import project_app
 from meute.cli.render import task_line
 from meute.cli.repo_commands import repo_app
 from meute.cli.session_commands import session_app
+from meute.cli.state_commands import state_app
 from meute.cli.task_app import task_app
 from meute.cli.tmux_env import open_tmux_env
 from meute.cli.welcome import wait_forever, welcome_text
@@ -31,6 +32,7 @@ app.add_typer(project_app, name="project")
 app.add_typer(config_app, name="config")
 app.add_typer(repo_app, name="repo")
 app.add_typer(session_app, name="session")
+app.add_typer(state_app, name="state")
 app.add_typer(worktree_app, name="worktree")
 app.add_typer(layout_app, name="layout", hidden=True)
 

@@ -14,14 +14,16 @@ from meute.core.board_view import (
     LaunchClaude,
     LaunchOnTask,
     RemoveWorktree,
+    ReopenState,
     ResumeSession,
     StopSession,
     launching_text,
     resuming_text,
     stopping_text,
 )
-from meute.core.errors import MeuteError, PromptNotPasted
+from meute.core.errors import ActionNotice, MeuteError, PromptNotPasted
 from meute.core.orphans import Orphan, closing_text, orphan_agent
+from meute.core.saved_state import reopening_text
 from meute.core.session import Session, SessionId
 from meute.core.task import TaskId
 from meute.core.worktrees import WorktreeCheck
@@ -49,6 +51,7 @@ class BoardWorkers:
         self._closing: dict[str, str] = {}  # id -> command
         self._checking: dict[Path, str] = {}  # folders being checked before `W`: path -> shown
         self._removing: dict[Path, str] = {}  # worktrees being removed: path -> shown
+        self._reopening: str | None = None  # the saved state being reopened
 
     def is_stopping(self, session_id: SessionId) -> bool:
         """Whether the session is being stopped."""
@@ -95,6 +98,20 @@ class BoardWorkers:
             return
         self._resuming[session.id] = session.title
         self._run(ResumeSession(session_id=session.id), partial(self._resuming.pop, session.id))
+
+    def is_reopening(self) -> bool:
+        """Whether a saved state is being reopened."""
+        return self._reopening is not None
+
+    def reopen(self, name: str) -> None:
+        """Reopen the saved state `name` in a thread worker; ignored while one is reopened."""
+        if self._reopening is not None:
+            return
+        self._reopening = name
+        self._run(ReopenState(name=name), self._reopened)
+
+    def _reopened(self) -> None:
+        self._reopening = None
 
     def is_closing(self, orphan: Orphan) -> bool:
         """Whether the orphan pane is being closed."""
@@ -171,6 +188,8 @@ class BoardWorkers:
             return closing_text(next(reversed(self._closing.values())))
         if self._launching:
             return launching_text(next(reversed(self._launching)))
+        if self._reopening is not None:
+            return reopening_text(self._reopening)
         return self._worktree_footer()
 
     def _worktree_footer(self) -> str | None:
@@ -195,7 +214,7 @@ class BoardWorkers:
         notice: str | None = None
         try:
             self._perform(action)
-        except PromptNotPasted as untold:
+        except (PromptNotPasted, ActionNotice) as untold:
             notice = str(untold)
         except MeuteError as failure:
             error = str(failure)
