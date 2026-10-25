@@ -129,3 +129,22 @@ def test_an_escape_sequence_in_a_repository_name_is_neutralised(sandbox: Sandbox
     assert result.returncode == 1
     assert "\x1b" not in result.stderr
     assert "unknown repository: x�[31m" in result.stderr
+
+
+def test_link_scans_only_when_the_database_misses_the_repository(sandbox: Sandbox) -> None:
+    _ = _setup(sandbox)
+    _ = _repo(sandbox, "git", "late")
+    assert sandbox.run("project", "link", "api", "web").returncode == 0
+    with sandbox.db() as db:
+        assert sorted(r.name for r in list_repos(db)) == ["api", "web"]
+    result = sandbox.run("project", "link", "api", "late")
+    assert (result.returncode, result.stdout) == (0, "Linked: late → api\n")
+
+
+def test_unlink_never_scans(sandbox: Sandbox) -> None:
+    _ = _setup(sandbox)
+    _ = _repo(sandbox, "git", "late")
+    result = sandbox.run("project", "unlink", "api", "late")
+    assert (result.returncode, result.stderr) == (1, "meute: unknown repository: late\n")
+    with sandbox.db() as db:
+        assert sorted(r.name for r in list_repos(db)) == ["api", "web"]

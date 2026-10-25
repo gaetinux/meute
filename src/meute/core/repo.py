@@ -61,24 +61,26 @@ def repo_holding(folder: Path, repos: Sequence[Repo], main_repo: Path | None) ->
     return found
 
 
-def find_repo(repos: Sequence[Repo], wanted: str) -> Repo:
-    """Return the repository `wanted`: a path (already resolved by the caller) if it holds `/`.
+def repo_matches(repos: Sequence[Repo], wanted: Path | str) -> list[Repo]:
+    """Return the repositories at the path `wanted`, or named `wanted` (by `name_key`)."""
+    if isinstance(wanted, Path):
+        return [repo for repo in repos if repo.path == wanted]
+    key = name_key(wanted)
+    return [repo for repo in repos if name_key(repo.name) == key]
 
-    Otherwise `wanted` is a name, compared by `name_key`.
+
+def find_repo(repos: Sequence[Repo], wanted: Path | str) -> Repo:
+    """Return the one repository `wanted`: at that path (resolved by the caller), or of that name.
 
     Raises:
         InvalidInput: no repository matches, or several repositories bear that name.
     """
-    if "/" in wanted:
-        matches = [repo for repo in repos if str(repo.path) == wanted]
-    else:
-        key = name_key(wanted)
-        matches = [repo for repo in repos if name_key(repo.name) == key]
+    matches = repo_matches(repos, wanted)
     if not matches:
-        message = f"unknown repository: {printable(wanted)}"
+        message = f"unknown repository: {printable(str(wanted))}"
         raise InvalidInput(message)
     if len(matches) > 1:
         paths = ", ".join(shown_path(repo.path, None) for repo in matches)
-        message = f"ambiguous repository {printable(wanted.strip())}: {paths} (give its path)"
+        message = f"ambiguous repository {printable(str(wanted).strip())}: {paths} (give its path)"
         raise InvalidInput(message)
     return matches[0]
