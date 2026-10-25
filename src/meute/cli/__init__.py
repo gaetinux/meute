@@ -10,6 +10,7 @@ from pathlib import Path
 
 import typer
 
+from meute.cli import project_link_commands as project_link_commands
 from meute.cli import task_commands as task_commands
 from meute.cli import task_edit_commands as task_edit_commands
 from meute.cli import task_quick as task_quick

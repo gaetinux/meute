@@ -58,6 +58,29 @@ def link_repo(db: Database, project_id: ProjectId, repo_id: RepoId) -> None:
         )
 
 
+def move_repo(db: Database, project_id: ProjectId, repo_id: RepoId) -> None:
+    """Make `project_id` the only project of a repository; doing it again changes nothing."""
+    with db.transaction() as conn:
+        conn.execute(
+            "DELETE FROM project_repos WHERE repo_id = ? AND project_id != ?",
+            (repo_id, project_id),
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO project_repos (project_id, repo_id) VALUES (?, ?)",
+            (project_id, repo_id),
+        )
+
+
+def unlink_repo(db: Database, project_id: ProjectId, repo_id: RepoId) -> bool:
+    """Detach a repository from a project; true if there was a link to remove."""
+    with db.transaction() as conn:
+        cursor = conn.execute(
+            "DELETE FROM project_repos WHERE project_id = ? AND repo_id = ?",
+            (project_id, repo_id),
+        )
+    return cursor.rowcount > 0
+
+
 def repo_project_links(db: Database) -> dict[RepoId, ProjectId]:
     """Return, for each linked repository, the project with the smallest identifier."""
     rows = fetch_all(db.conn, "SELECT repo_id, MIN(project_id) FROM project_repos GROUP BY repo_id")

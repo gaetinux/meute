@@ -81,7 +81,7 @@ Several repositories end up in one project when:
 - they have the same name in different roots (`~/git/web` and `~/work/web`): the project made for one is linked to all of them;
 - a session is launched on a task of another project (in `N`, the repository `web` and a task of `api`): it goes into `api`, and no `web` project is created for it.
 
-No command links a repository of another name to a project yet. Projects are listed by `meute project list`, the `this project` filter of the Tasks tab and the `@` of tasks; their instructions are set by `meute project edit` (see [Claude and tasks](#claude-and-tasks-mcp)).
+`meute project link <project> <repo>` attaches any repository to a project (by name, or by path if it holds `/`; give the path when several repositories share a name) and removes it from its other projects, so new sessions in it join that project; `meute project unlink <project> <repo>` removes the link. Sessions already recorded keep their project, and an automatic project left empty stays until you delete it by hand. Projects are listed by `meute project list`, the `this project` filter of the Tasks tab and the `@` of tasks; their instructions are set by `meute project edit` (see [Claude and tasks](#claude-and-tasks-mcp)).
 
 ## Worktrees
 
@@ -119,6 +119,8 @@ Instructions are composed into the session's system prompt: global ones, the pro
 meute config set claude.instructions "Answer tersely."      # global, [claude] instructions
 meute project edit myproject --instructions "Tests first."  # or --instructions-file notes.md; "" clears
 meute project show myproject                                # description, instructions, repositories
+meute project link myproject web                            # new sessions in `web` join myproject
+meute project unlink myproject web
 ```
 
 A context up to 8 000 bytes goes in the command line; a longer one goes through a private file in the session's folder.

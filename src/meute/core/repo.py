@@ -5,9 +5,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from meute.core.errors import InvalidInput
 from meute.core.instants import format_instant
 from meute.core.json_types import JsonObject
+from meute.core.paths import shown_path
 from meute.core.project import RepoId
+from meute.core.text import printable
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -56,3 +59,26 @@ def repo_holding(folder: Path, repos: Sequence[Repo], main_repo: Path | None) ->
     if found is None and main_repo is not None:
         return _longest_holder(main_repo, repos)
     return found
+
+
+def find_repo(repos: Sequence[Repo], wanted: str) -> Repo:
+    """Return the repository `wanted`: a path (already resolved by the caller) if it holds `/`.
+
+    Otherwise `wanted` is a name, compared ignoring case and outer spaces.
+
+    Raises:
+        InvalidInput: no repository matches, or several repositories bear that name.
+    """
+    if "/" in wanted:
+        matches = [repo for repo in repos if str(repo.path) == wanted]
+    else:
+        key = wanted.strip().casefold()
+        matches = [repo for repo in repos if repo.name.strip().casefold() == key]
+    if not matches:
+        message = f"unknown repository: {printable(wanted)}"
+        raise InvalidInput(message)
+    if len(matches) > 1:
+        paths = ", ".join(shown_path(repo.path, None) for repo in matches)
+        message = f"ambiguous repository {printable(wanted.strip())}: {paths} (give its path)"
+        raise InvalidInput(message)
+    return matches[0]

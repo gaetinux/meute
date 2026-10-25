@@ -172,7 +172,7 @@ Limites connues, relevées pendant le plan 6b :
 
 Ce que le plan 6c laisse volontairement de côté. Le plan 6c livre les projets créés au lancement d'une nouvelle session dans un dépôt sans projet, `meute doctor` (constat seul, code 1 sur un `fail`), la purge de `session_events` à 30 jours (et la limite du plan 3 sur la purge corrigée : une base verrouillée n'empêche plus le tableau de démarrer), le README de la V1 et la version `1.0.0`. Rapport de mutation et essai scripté : `docs/dev/mutants/2026-plan-6c-python.md`. Écarts à la conception : `docs/superpowers/specs/2026-10-25-meute-v1-readiness-design.md` (« Écarts constatés à la réalisation »).
 
-- **Hors périmètre, restent ouverts** : un projet pour l'adoption d'un orphelin ou une session extérieure ; une migration de rattrapage des sessions et dépôts déjà en base ; une commande qui lie un dépôt d'un autre nom à un projet (en V1, les dépôts ne se regroupent que par leur nom ou par la tâche lancée) et une façon de fixer le dépôt d'une tâche (`tasks.repo_id` n'est écrit par aucune commande, touche ni outil MCP) ; `doctor --fix` et `--json` ; une rétention réglable, un plafond d'événements par session, `VACUUM`. Le tag et la release de la V1 restent à l'auteur.
+- **Hors périmètre, restent ouverts** : un projet pour l'adoption d'un orphelin ou une session extérieure ; une migration de rattrapage des sessions et dépôts déjà en base ; une façon de fixer le dépôt d'une tâche (`tasks.repo_id` n'est écrit par aucune commande, touche ni outil MCP) ; `doctor --fix` et `--json` ; une rétention réglable, un plafond d'événements par session, `VACUUM`. Le tag et la release de la V1 restent à l'auteur.
 
 Limites connues, relevées pendant le plan 6c :
 
