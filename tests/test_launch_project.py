@@ -6,6 +6,7 @@ import pytest
 
 from conftest import Sandbox
 from meute.cli.context import CliContext
+from meute.cli.launch_project import launch_project
 from meute.cli.session_launch import BashLaunch, launch_bash
 from meute.cli.session_launch_claude import ClaudeLaunch, launch_claude
 from meute.cli.session_resume import resume_session
@@ -18,9 +19,9 @@ from meute.core.db.projects import (
 from meute.core.db.repos import link_repo, repo_project_links, sync_repos
 from meute.core.db.sessions import get_session, list_sessions
 from meute.core.db.tasks import create_task
+from meute.core.errors import InvalidInput
 from meute.core.project import RepoId
 from meute.core.repo import NewRepo
-from meute.core.session import AgentKind
 from meute.core.session_state import Exited
 from meute.tmux.errors import TmuxError
 from meute.tmux.panes import pane_of_session
@@ -123,7 +124,7 @@ def test_a_missing_folder_creates_no_project(
     try:
         folder, repo_id = _repo(ctx, sandbox.root, "gone")
         folder.rmdir()
-        with pytest.raises(Exception, match="folder not found"):
+        with pytest.raises(InvalidInput, match="folder not found"):
             _ = launch_bash(
                 ctx,
                 env,
@@ -209,6 +210,15 @@ def test_resuming_a_session_creates_no_project(
         args.unlink()
         _ = resume_session(ctx, env, session.id, environ)
         assert list_projects(ctx.db) == []
-        assert session.agent is AgentKind.CLAUDE
+    finally:
+        ctx.db.close()
+
+
+def test_a_blank_repository_name_creates_no_project(sandbox: Sandbox) -> None:
+    ctx, _ = _ctx(sandbox)
+    try:
+        _, repo_id = _repo(ctx, sandbox.root, "   ", folder="blank")
+        assert launch_project(ctx, repo_id=repo_id, task_id=None) is None
+        assert list_projects(ctx.db) == []
     finally:
         ctx.db.close()

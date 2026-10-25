@@ -16,7 +16,7 @@ def launch_project(
 
     The task's project comes first, then the repository's linked project, then the project
     named like the repository; failing all three, a project is created for a known
-    repository. `None` when the session has no known repository and no task project.
+    repository whose name is not blank. `None` when there is none of these.
 
     Raises:
         NotFound: no such task.
@@ -32,6 +32,6 @@ def launch_project(
         links=repo_project_links(ctx.db),
         projects=list_projects(ctx.db),
     )
-    if found is not None or repo is None:
+    if found is not None or repo is None or not repo.name.strip():
         return found
     return create_repo_project(ctx.db, repo.name.strip()).id
