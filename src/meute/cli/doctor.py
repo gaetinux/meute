@@ -1,10 +1,8 @@
 """`meute doctor`: probe the tools, the files and the tmux server, creating nothing."""
 
-import contextlib
 import dataclasses
 import os
 import shutil
-import signal
 import sqlite3
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
@@ -28,10 +26,10 @@ from meute.core.doctor import (
 from meute.core.errors import ConfigError
 from meute.core.paths import Paths, shown_path
 from meute.core.text import printable
+from meute.git.run import kill_read
 from meute.tmux.client import Tmux
 
 _TIMEOUT_SECONDS = 5
-_DRAIN_SECONDS = 1  # after the kill, for the pipes to close
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,11 +64,10 @@ def tool_output(argv: Sequence[str], environ: Mapping[str, str]) -> ToolOutput:
         return subprocess.CompletedProcess(command, 126, "", str(error))
     try:
         stdout, stderr = process.communicate(timeout=_TIMEOUT_SECONDS)
-    except subprocess.TimeoutExpired:
-        _kill_group(process)
-        return TimedOut()
-    except BaseException:  # Ctrl-C during a slow tool: leave nothing running behind
-        _kill_group(process)
+    except BaseException as error:  # a timeout, or Ctrl-C during a slow tool: nothing left behind
+        _ = kill_read(process)
+        if isinstance(error, subprocess.TimeoutExpired):
+            return TimedOut()
         raise
     return subprocess.CompletedProcess(
         command,
@@ -78,22 +75,6 @@ def tool_output(argv: Sequence[str], environ: Mapping[str, str]) -> ToolOutput:
         stdout.decode("utf-8", errors="replace"),
         stderr.decode("utf-8", errors="replace"),
     )
-
-
-def _kill_group(process: subprocess.Popen[bytes]) -> None:
-    """Kill the process group of `process` and reap it, without waiting on escaped children.
-
-    A grandchild that left the group (`setsid`) may keep the pipes open: they are closed.
-    """
-    with contextlib.suppress(OSError):
-        os.killpg(process.pid, signal.SIGKILL)
-    try:
-        _ = process.communicate(timeout=_DRAIN_SECONDS)
-    except subprocess.TimeoutExpired:
-        for pipe in (process.stdout, process.stderr):
-            if pipe is not None:
-                pipe.close()
-        _ = process.wait()
 
 
 def _failure(name: str, shown: str, error: OSError | sqlite3.Error) -> Check:
