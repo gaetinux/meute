@@ -113,6 +113,15 @@ Les niveaux sur 6 colonnes, les noms sur 10. Les chemins passent par `shown_path
 - **Feuille de route** : 6c fait ; une section « Après la V1 » reprend ce qui reste ouvert (V1.1 : forges ; limites connues encore ouvertes).
 - **Version** : `pyproject.toml` passe à `1.0.0` (`meute --version`).
 
+## Rattacher un dépôt à un projet (décision de l'auteur, 2026-10-25)
+
+Le § 10 permet de regrouper plusieurs dépôts dans un même projet, mais aucune commande ne le faisait (relevé à l'essai du plan 6c). Ajouté à ce plan :
+
+- `meute project link <projet> <dépôt>` rattache le dépôt au projet et **le retire de ses autres projets** : un dépôt n'a qu'un projet pour les lancements (étape 2 de la règle, qui prend sinon le plus petit identifiant). Sortie : `Linked: <dépôt> → <projet>` ; le refaire ne change rien et répond pareil.
+- `meute project unlink <projet> <dépôt>` retire ce lien. Sortie : `Unlinked: <dépôt> from <projet>` ; sans lien, l'erreur `<dépôt> is not linked to <projet>`.
+- `<projet>` se lit comme ailleurs (`require_project` : jamais de création sur une faute de frappe). `<dépôt>` est un chemin s'il contient `/` (résolu, comparé au chemin enregistré), sinon un nom (casse et espaces ignorés) ; erreurs `unknown repository: <dépôt>` et, pour un nom porté par plusieurs dépôts, `ambiguous repository <nom>: <chemin>, <chemin> (give its path)`. Les chemins passent par `shown_path`, les noms par `printable`.
+- Les sessions déjà en base gardent leur `project_id` ; les nouvelles suivent le lien. Un projet créé automatiquement et devenu vide reste (on le supprime à la main).
+
 ## Tests
 
 - **Projets** : un lancement Bash puis Claude dans un dépôt sans projet crée le projet, le lie au dépôt et remplit `project_id` ; un second lancement réutilise le projet ; une tâche d'un autre projet garde le sien ; un dépôt lié à un projet d'un autre nom garde ce projet ; un dépôt dont le nom est celui d'un projet existant le rejoint ; un worktree lié rejoint le projet de son dépôt principal ; un dossier hors dépôt ne crée rien ; l'adoption et `r` ne créent rien ; un échec de tmux laisse le projet et aucune session ; le contexte composé lit les consignes du projet trouvé.

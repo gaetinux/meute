@@ -219,3 +219,21 @@
   5. `meute doctor` avec tout en place : code 0.
 - [ ] **Étape 4 : `/simplify`, puis `/security-review`** sur toute la branche. Appliquer les constats, puis faire une vérification complète.
 - [ ] **Étape 5 : commit, push, puis la PR**, en anglais et assignée à `gaetinux`. Elle liste l'exception n° 32 (si elle a servi), les écarts, les limites et les essais manuels de l'auteur (vrai terminal, vrai Claude : `meute doctor` sur sa machine, premier lancement dans un dépôt, regroupement de deux dépôts dans un projet).
+
+---
+
+### Task 6 : `meute project link` et `unlink` (ajoutée le 2026-10-25, décision de l'auteur)
+
+**Fichiers :**
+- Modifier : `src/meute/core/db/repos.py` (`move_repo`, `unlink_repo`) ; `src/meute/cli/project_commands.py` (les deux commandes ; si le fichier passe 300 lignes, les mettre dans `src/meute/cli/project_link_commands.py`, enregistrées sur `project_app`) ; `README.md` (section Projects : la limite « aucune commande » disparaît, les deux commandes y figurent) ; la feuille de route et les « Écarts » de la conception si elles citent cette limite.
+- Test : `tests/test_cli_project_link.py`
+
+**Interfaces :**
+- Produit :
+  - `move_repo(db, project_id: ProjectId, repo_id: RepoId) -> None` : dans une transaction, supprime les autres liens du dépôt puis insère celui-ci (sans effet s'il existe déjà seul) ;
+  - `unlink_repo(db, project_id, repo_id) -> bool` : vrai si un lien a été supprimé ;
+  - `find_repo(repos: Sequence[Repo], wanted: str) -> Repo` dans `meute.core.repo` : chemin si `/` dans `wanted` (comparaison de chemins résolus par l'appelant), sinon nom `strip().casefold()` ; lève `InvalidInput` avec les textes de la conception.
+- Textes exacts : section « Rattacher un dépôt à un projet » de la conception.
+
+- [ ] **Étape 1 : écrire les tests, qui doivent échouer.** `link` d'un dépôt `web` (projet automatique `web`) vers `api` : `repo_project_links` donne `api`, et un nouveau lancement dans `web` (faux `claude`, serveur du sandbox) a le projet `api` ; refaire `link` répond pareil ; `unlink` puis lancement : retour au projet `web` par le nom ; `unlink` sans lien → erreur et code 1 ; projet inconnu → l'erreur de `require_project` ; dépôt inconnu ; nom ambigu (deux racines) → la liste des chemins, puis `link` par chemin réussit ; un nom de dépôt avec une séquence d'échappement s'affiche par `printable`.
+- [ ] **Étape 2 : vérifier l'échec, implémenter, vérification complète, puis commit** `git commit -m "feat: meute project link and unlink"`
