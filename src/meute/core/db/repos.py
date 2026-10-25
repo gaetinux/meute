@@ -1,5 +1,6 @@
 """Discovered repositories in the database."""
 
+import sqlite3
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -57,13 +58,17 @@ def get_repo(db: Database, repo_id: RepoId) -> Repo | None:
     return None if row is None else _row_to_repo(row)
 
 
+def _insert_link(conn: sqlite3.Connection, project_id: ProjectId, repo_id: RepoId) -> None:
+    _ = conn.execute(
+        "INSERT OR IGNORE INTO project_repos (project_id, repo_id) VALUES (?, ?)",
+        (project_id, repo_id),
+    )
+
+
 def link_repo(db: Database, project_id: ProjectId, repo_id: RepoId) -> None:
     """Attach a repository to a project; attaching it again changes nothing."""
     with db.transaction() as conn:
-        conn.execute(
-            "INSERT OR IGNORE INTO project_repos (project_id, repo_id) VALUES (?, ?)",
-            (project_id, repo_id),
-        )
+        _insert_link(conn, project_id, repo_id)
 
 
 def move_repo(db: Database, project_id: ProjectId, repo_id: RepoId) -> None:
@@ -73,10 +78,7 @@ def move_repo(db: Database, project_id: ProjectId, repo_id: RepoId) -> None:
             "DELETE FROM project_repos WHERE repo_id = ? AND project_id != ?",
             (repo_id, project_id),
         )
-        conn.execute(
-            "INSERT OR IGNORE INTO project_repos (project_id, repo_id) VALUES (?, ?)",
-            (project_id, repo_id),
-        )
+        _insert_link(conn, project_id, repo_id)
 
 
 def unlink_repo(db: Database, project_id: ProjectId, repo_id: RepoId) -> bool:
