@@ -33,3 +33,9 @@ def test_no_project_when_nothing_matches() -> None:
     assert session_project(lost, projects=[_MEUTE], repos=_REPOS) is None
     other = replace(BOARD_SESSION_A, repo_id=RepoId(1))
     assert session_project(other, projects=[_NOTES], repos=_REPOS) is None
+
+
+def test_the_repository_name_ignores_surrounding_spaces() -> None:
+    spaced = {RepoId(3): board_repo(3, " Notes ", None)}
+    session = replace(BOARD_SESSION_A, repo_id=RepoId(3))
+    assert session_project(session, projects=[_MEUTE, _NOTES], repos=spaced) == _NOTES

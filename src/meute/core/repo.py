@@ -9,7 +9,7 @@ from meute.core.errors import InvalidInput
 from meute.core.instants import format_instant
 from meute.core.json_types import JsonObject
 from meute.core.paths import shown_path
-from meute.core.project import RepoId
+from meute.core.project import RepoId, name_key
 from meute.core.text import printable
 
 
@@ -64,7 +64,7 @@ def repo_holding(folder: Path, repos: Sequence[Repo], main_repo: Path | None) ->
 def find_repo(repos: Sequence[Repo], wanted: str) -> Repo:
     """Return the repository `wanted`: a path (already resolved by the caller) if it holds `/`.
 
-    Otherwise `wanted` is a name, compared ignoring case and outer spaces.
+    Otherwise `wanted` is a name, compared by `name_key`.
 
     Raises:
         InvalidInput: no repository matches, or several repositories bear that name.
@@ -72,8 +72,8 @@ def find_repo(repos: Sequence[Repo], wanted: str) -> Repo:
     if "/" in wanted:
         matches = [repo for repo in repos if str(repo.path) == wanted]
     else:
-        key = wanted.strip().casefold()
-        matches = [repo for repo in repos if repo.name.strip().casefold() == key]
+        key = name_key(wanted)
+        matches = [repo for repo in repos if name_key(repo.name) == key]
     if not matches:
         message = f"unknown repository: {printable(wanted)}"
         raise InvalidInput(message)

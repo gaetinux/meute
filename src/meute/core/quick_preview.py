@@ -8,7 +8,7 @@ from enum import StrEnum
 from typing import assert_never
 
 from meute.core.errors import InvalidInput
-from meute.core.project import ProjectId, ProjectRef
+from meute.core.project import ProjectId, ProjectRef, name_key
 from meute.core.quick_add import parse_quick_add
 from meute.core.status import Priority
 from meute.core.styled import Role, Span, StyledLine, labelled
@@ -108,10 +108,6 @@ class QuickPreview:
         return self.error is None and self.title is not None
 
 
-def _key(name: str) -> str:
-    return name.strip().casefold()
-
-
 def resolve_quick_project(
     name: str | None,
     default: ProjectRef | None,
@@ -125,18 +121,18 @@ def resolve_quick_project(
     """
     if name is None:
         return Floating(explicit=False) if default is None else Displayed(default)
-    key = _key(name)
+    key = name_key(name)
     if key == FLOATING_NAME:
         return Floating(explicit=True)
     for project in projects:
-        if _key(project.name) == key:
+        if name_key(project.name) == key:
             return Named(project)
     for repo_name in repo_names:
-        if _key(repo_name) == key:
+        if name_key(repo_name) == key:
             return NewFromRepo(repo_name.strip())
     names = [*(p.name for p in projects), *repo_names]
-    close = difflib.get_close_matches(key, [_key(n) for n in names], n=1, cutoff=_CUTOFF)
-    suggestion = next((n for n in names if close and _key(n) == close[0]), None)
+    close = difflib.get_close_matches(key, [name_key(n) for n in names], n=1, cutoff=_CUTOFF)
+    suggestion = next((n for n in names if close and name_key(n) == close[0]), None)
     return UnknownProject(name=name, suggestion=suggestion)
 
 

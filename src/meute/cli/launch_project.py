@@ -4,7 +4,7 @@ from meute.cli.context import CliContext
 from meute.core.db.projects import list_projects
 from meute.core.db.repos import create_repo_project, list_repos, repo_project_links
 from meute.core.db.tasks import get_task
-from meute.core.project import ProjectId, RepoId
+from meute.core.project import ProjectId, RepoId, name_key
 from meute.core.session_project import launch_project_id
 from meute.core.task import TaskId
 
@@ -32,6 +32,6 @@ def launch_project(
         links=repo_project_links(ctx.db),
         projects=list_projects(ctx.db),
     )
-    if found is not None or repo is None or not repo.name.strip():
+    if found is not None or repo is None or not name_key(repo.name):
         return found
-    return create_repo_project(ctx.db, repo.name.strip()).id
+    return create_repo_project(ctx.db, repo.name).id

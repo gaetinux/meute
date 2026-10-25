@@ -15,7 +15,7 @@ from meute.core.db.task_reads import project_repo_ids
 from meute.core.db.tasks import get_task
 from meute.core.errors import InvalidInput
 from meute.core.paths import make_private_dir
-from meute.core.project import RepoId
+from meute.core.project import RepoId, name_key
 from meute.core.repo import Repo
 from meute.core.session import SessionId
 from meute.core.task import Task, TaskId, task_label
@@ -34,8 +34,8 @@ def _task_repo(task: Task, repos: Mapping[RepoId, Repo], project_repos: Sequence
         if repo_id is not None and repo_id in repos:
             return repos[repo_id]
     if task.project is not None:
-        key = task.project.name.strip().casefold()
-        named = next((r for r in repos.values() if r.name.strip().casefold() == key), None)
+        key = name_key(task.project.name)
+        named = next((r for r in repos.values() if name_key(r.name) == key), None)
         if named is not None:
             return named
     message = f"{task_label(task.id)} has no repository: set one on the task or its project"
