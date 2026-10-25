@@ -6,6 +6,7 @@ import os
 import sqlite3
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 import typer
 
@@ -88,6 +89,17 @@ def board() -> None:
             BoardApp(backend, options, git).run()
         finally:
             backend.close()
+
+
+@app.command("doctor")
+def doctor() -> None:
+    """Check the tools, the files and the tmux server meute needs, creating nothing."""
+    from meute.cli.doctor import run_doctor  # noqa: PLC0415 — only this command probes the tools
+    from meute.core.doctor import exit_code, render_checks  # noqa: PLC0415 — only this command needs them
+
+    checks = run_doctor(os.environ, home=Path.home())
+    typer.echo(render_checks(checks))
+    raise typer.Exit(exit_code(checks))
 
 
 @app.command("mcp")
