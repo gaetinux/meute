@@ -2,7 +2,7 @@
 
 from meute.cli.context import CliContext
 from meute.core.db.projects import list_projects
-from meute.core.db.repos import create_repo_project, list_repos, repo_project_links
+from meute.core.db.repos import create_repo_project, get_repo, repo_project_links
 from meute.core.db.tasks import get_task
 from meute.core.project import ProjectId, RepoId, name_key
 from meute.core.session_project import launch_project_id
@@ -22,16 +22,16 @@ def launch_project(
         NotFound: no such task.
         sqlite3.Error: the database failed.
     """
-    task_project = None if task_id is None else get_task(ctx.db, task_id).project
-    repo = (
-        None if repo_id is None else next((r for r in list_repos(ctx.db) if r.id == repo_id), None)
-    )
+    if task_id is not None:
+        task_project = get_task(ctx.db, task_id).project
+        if task_project is not None:  # read through a join: it exists
+            return task_project.id
+    repo = None if repo_id is None else get_repo(ctx.db, repo_id)
+    if repo is None:
+        return None
     found = launch_project_id(
-        None if task_project is None else task_project.id,
-        repo,
-        links=repo_project_links(ctx.db),
-        projects=list_projects(ctx.db),
+        None, repo, links=repo_project_links(ctx.db), projects=list_projects(ctx.db)
     )
-    if found is not None or repo is None or not name_key(repo.name):
+    if found is not None or not name_key(repo.name):
         return found
     return create_repo_project(ctx.db, repo.name).id

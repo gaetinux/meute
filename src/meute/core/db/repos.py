@@ -5,7 +5,7 @@ from pathlib import Path
 
 from meute.core.db.connection import Database
 from meute.core.db.projects import create_project, project_by_name
-from meute.core.db.rows import as_integer, as_text, fetch_all
+from meute.core.db.rows import as_integer, as_text, fetch_all, fetch_one
 from meute.core.db.task_reads import project_repo_ids
 from meute.core.instants import from_db, to_db
 from meute.core.project import Project, ProjectId, RepoId, name_key
@@ -47,6 +47,14 @@ def list_repos(db: Database) -> list[Repo]:
         (_row_to_repo(row) for row in rows),
         key=lambda repo: (repo.name.casefold(), str(repo.path)),
     )
+
+
+def get_repo(db: Database, repo_id: RepoId) -> Repo | None:
+    """Return the repository `repo_id`, or None."""
+    row = fetch_one(
+        db.conn, "SELECT id, path, name, kind, discovered_at FROM repos WHERE id = ?", (repo_id,)
+    )
+    return None if row is None else _row_to_repo(row)
 
 
 def link_repo(db: Database, project_id: ProjectId, repo_id: RepoId) -> None:
