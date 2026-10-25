@@ -69,3 +69,26 @@ def repo_projects(
         if repo.id not in result and found is not None:
             result[repo.id] = found
     return result
+
+
+def launch_project_id(
+    requested: ProjectId | None,
+    repo: Repo | None,
+    *,
+    links: Mapping[RepoId, ProjectId],
+    projects: Sequence[NamedProject],
+) -> ProjectId | None:
+    """Return the existing project a new session belongs to; None when there is none.
+
+    In order: the `requested` project if it still exists, the project linked to `repo`, the
+    project named like `repo` (ignoring case and outer spaces).
+    """
+    if any(project.id == requested for project in projects):
+        return requested
+    if repo is None:
+        return None
+    linked = links.get(repo.id)
+    if linked is not None:
+        return linked
+    key = repo.name.strip().casefold()
+    return next((p.id for p in projects if p.name.strip().casefold() == key), None)
