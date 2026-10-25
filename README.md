@@ -79,7 +79,7 @@ The first new session meute starts in a repository without a project (`c`, `n`, 
 Several repositories end up in one project when:
 
 - they have the same name in different roots (`~/git/web` and `~/work/web`): the project made for one is linked to all of them;
-- a session is launched on a task of another project (`L` on a task of `api`, in the repository `web`): it goes into `api`, and no `web` project is created for it.
+- a session is launched on a task of another project (in `N`, the repository `web` and a task of `api`): it goes into `api`, and no `web` project is created for it.
 
 No command links a repository of another name to a project yet. Projects are listed by `meute project list`, the `this project` filter of the Tasks tab and the `@` of tasks; their instructions are set by `meute project edit` (see [Claude and tasks](#claude-and-tasks-mcp)).
 
@@ -163,7 +163,7 @@ When something is wrong, a last line counts the problems (`1 problem found`, `2 
 | `config` | `fail`: `invalid configuration (<path>): <reason>`; `ok` with `(absent: defaults are used)` before the first start | fix the file (or remove it: the first start writes the defaults again) |
 | `database` | `fail`: `newer than this meute (<n>)`, or the reason it cannot be opened; `warn`: `migrated at the next start` (after a backup), `created at the first start` | upgrade meute when the database is newer; check the file's permissions |
 | `state` | `fail`: `<path>: not writable` | fix the permissions of the folder (or of its first existing parent) |
-| `server` | `running, <n> sessions` or `not running (meute starts it)`; never a problem | — |
+| `server` | `running, <n> sessions` (the tmux sessions of the `meute` server, not meute's own sessions) or `not running (meute starts it)`; never a problem | — |
 
 ## Development
 
