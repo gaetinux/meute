@@ -77,9 +77,10 @@ def session_events(db: Database, session_id: SessionId, *, limit: int = 50) -> l
 
 
 def purge_samples(db: Database, *, older_than: datetime) -> int:
-    """Delete the metric and quota samples created before `older_than`; return how many."""
+    """Delete the samples and session events created before `older_than`; return how many."""
     cutoff = to_db(older_than)
     with db.transaction() as conn:
         metrics = conn.execute("DELETE FROM metric_samples WHERE created_at < ?", (cutoff,))
         quotas = conn.execute("DELETE FROM quota_samples WHERE created_at < ?", (cutoff,))
-        return metrics.rowcount + quotas.rowcount
+        events = conn.execute("DELETE FROM session_events WHERE created_at < ?", (cutoff,))
+        return metrics.rowcount + quotas.rowcount + events.rowcount

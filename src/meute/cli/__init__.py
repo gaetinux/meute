@@ -1,12 +1,16 @@
 """Command-line interface."""
 
+import contextlib
 import importlib.metadata
 import os
+import sqlite3
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 import typer
 
+from meute.cli import project_link_commands as project_link_commands
 from meute.cli import task_commands as task_commands
 from meute.cli import task_edit_commands as task_edit_commands
 from meute.cli import task_quick as task_quick
@@ -72,7 +76,9 @@ def board() -> None:
     with open_context(os.environ) as ctx:
         env = open_tmux_env(ctx, os.environ)
         _ = scan_repos(ctx)
-        _ = purge_old_samples(ctx)
+        # a locked database must not keep the dashboard from starting: retried at the next start
+        with contextlib.suppress(sqlite3.Error, MeuteError):
+            _ = purge_old_samples(ctx)
         backend = CliBoardBackend(ctx, env, os.environ)
         try:
             options = BoardOptions(
@@ -84,6 +90,17 @@ def board() -> None:
             BoardApp(backend, options, git).run()
         finally:
             backend.close()
+
+
+@app.command("doctor")
+def doctor() -> None:
+    """Check the tools, the files and the tmux server meute needs, creating nothing."""
+    from meute.cli.doctor import run_doctor  # noqa: PLC0415 — only this command probes the tools
+    from meute.core.doctor import exit_code, render_checks  # noqa: PLC0415 — only this command needs them
+
+    checks = run_doctor(os.environ, home=Path.home())
+    typer.echo(render_checks(checks))
+    raise typer.Exit(exit_code(checks))
 
 
 @app.command("mcp")

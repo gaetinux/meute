@@ -7,6 +7,7 @@ from typing import assert_never
 
 from meute.claude.launch import claude_argv, find_claude
 from meute.cli.context import CliContext
+from meute.cli.launch_project import launch_project
 from meute.cli.session_context import ClaudeOrigin, prepare_claude
 from meute.cli.session_launch import (
     BashLaunch,
@@ -54,10 +55,14 @@ def launch_claude(
     claude = find_claude(environ)
     if claude is None:
         raise InvalidInput(CLAUDE_MISSING)
+    project_id = launch_project(ctx, repo_id=request.repo_id, task_id=request.task_id)
     session_id = new_session_id()
     title = request.title or cwd.name
     origin = ClaudeOrigin(
-        repo_id=request.repo_id, task_id=request.task_id, permission_mode=request.permission_mode
+        project_id=project_id,
+        repo_id=request.repo_id,
+        task_id=request.task_id,
+        permission_mode=request.permission_mode,
     )
     start = prepare_claude(ctx, session_id, origin)
     argv = claude_argv(
@@ -80,6 +85,7 @@ def launch_claude(
             cwd=cwd,
             state=Unknown(),
             repo_id=request.repo_id,
+            project_id=project_id,
             permission_mode=start.permission_mode,
             task_id=request.task_id,
         ),

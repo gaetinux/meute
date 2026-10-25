@@ -1,0 +1,15 @@
+# serializer version: 1
+# name: test_everything_fine
+  '''
+  ok    tmux      3.5a
+  ok    git       2.43.0
+  ok    claude    2.1.302 (Claude Code)
+  ok    options   claude --help lists every option meute uses
+  ok    config    <root>/config/meute/config.toml
+  ok    database  <root>/data/meute/meute.db (schema 5)
+  ok    state     <root>/state/meute
+  ok    server    tmux server <socket>: running, 1 session
+  note  note      --append-system-prompt-file (used above 8000 bytes of context) is not in claude --help and cannot be checked
+  
+  '''
+# ---

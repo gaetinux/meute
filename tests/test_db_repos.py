@@ -4,7 +4,8 @@ from datetime import timedelta
 from pathlib import Path
 
 from meute.core.db.connection import Database
-from meute.core.db.repos import list_repos, sync_repos
+from meute.core.db.repos import get_repo, list_repos, sync_repos
+from meute.core.project import RepoId
 from meute.core.repo import NewRepo, repo_to_json
 from support import FIXED
 
@@ -57,3 +58,9 @@ def test_sql_metacharacters_in_names_are_data(db: Database) -> None:
     (repo,) = sync_repos(db, [NewRepo(path=Path("/g") / name, name=name, kind=None)])
     assert repo.name == name
     assert len(list_repos(db)) == 1
+
+
+def test_get_repo_reads_one_repository_by_id(db: Database) -> None:
+    stored = sync_repos(db, [NewRepo(path=Path("/g/a"), name="a", kind="rust")])
+    assert get_repo(db, stored[0].id) == stored[0]
+    assert get_repo(db, RepoId(stored[0].id + 1)) is None

@@ -11,7 +11,7 @@ from meute.core.db.rows import (
 )
 from meute.core.errors import InvalidInput, NotFound
 from meute.core.instants import to_db
-from meute.core.project import Project, ProjectId, ProjectRef
+from meute.core.project import Project, ProjectId, ProjectRef, name_key
 from meute.core.text import INSTRUCTIONS_CONTROL, has_control_character
 
 
@@ -32,7 +32,7 @@ def create_project(db: Database, name: str, description: str = "") -> Project:
                 "INSERT INTO projects (name, name_key, description, created_at)"
                 " VALUES (?, ?, ?, ?)"
                 " RETURNING id, name, description, instructions, created_at",
-                (clean, clean.casefold(), description, to_db(db.now())),
+                (clean, name_key(clean), description, to_db(db.now())),
             )
     except sqlite3.IntegrityError as error:
         if error.sqlite_errorname == "SQLITE_CONSTRAINT_UNIQUE":
@@ -50,7 +50,7 @@ def project_by_name(db: Database, name: str) -> Project | None:
     row = fetch_one(
         db.conn,
         f"{PROJECT_SELECT} WHERE name_key = ?",
-        (name.strip().casefold(),),
+        (name_key(name),),
     )
     return None if row is None else row_to_project(row)
 

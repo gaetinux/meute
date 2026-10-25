@@ -1,14 +1,15 @@
 """Discovered repositories in the database."""
 
+import sqlite3
 from collections.abc import Sequence
 from pathlib import Path
 
 from meute.core.db.connection import Database
 from meute.core.db.projects import create_project, project_by_name
-from meute.core.db.rows import as_integer, as_text, fetch_all
+from meute.core.db.rows import as_integer, as_text, fetch_all, fetch_one
 from meute.core.db.task_reads import project_repo_ids
 from meute.core.instants import from_db, to_db
-from meute.core.project import Project, ProjectId, RepoId
+from meute.core.project import Project, ProjectId, RepoId, name_key
 from meute.core.repo import NewRepo, Repo
 
 _text = as_text
@@ -49,13 +50,45 @@ def list_repos(db: Database) -> list[Repo]:
     )
 
 
+def get_repo(db: Database, repo_id: RepoId) -> Repo | None:
+    """Return the repository `repo_id`, or None."""
+    row = fetch_one(
+        db.conn, "SELECT id, path, name, kind, discovered_at FROM repos WHERE id = ?", (repo_id,)
+    )
+    return None if row is None else _row_to_repo(row)
+
+
+def _insert_link(conn: sqlite3.Connection, project_id: ProjectId, repo_id: RepoId) -> None:
+    _ = conn.execute(
+        "INSERT OR IGNORE INTO project_repos (project_id, repo_id) VALUES (?, ?)",
+        (project_id, repo_id),
+    )
+
+
 def link_repo(db: Database, project_id: ProjectId, repo_id: RepoId) -> None:
     """Attach a repository to a project; attaching it again changes nothing."""
     with db.transaction() as conn:
+        _insert_link(conn, project_id, repo_id)
+
+
+def move_repo(db: Database, project_id: ProjectId, repo_id: RepoId) -> None:
+    """Make `project_id` the only project of a repository; doing it again changes nothing."""
+    with db.transaction() as conn:
         conn.execute(
-            "INSERT OR IGNORE INTO project_repos (project_id, repo_id) VALUES (?, ?)",
+            "DELETE FROM project_repos WHERE repo_id = ? AND project_id != ?",
+            (repo_id, project_id),
+        )
+        _insert_link(conn, project_id, repo_id)
+
+
+def unlink_repo(db: Database, project_id: ProjectId, repo_id: RepoId) -> bool:
+    """Detach a repository from a project; true if there was a link to remove."""
+    with db.transaction() as conn:
+        cursor = conn.execute(
+            "DELETE FROM project_repos WHERE project_id = ? AND repo_id = ?",
             (project_id, repo_id),
         )
+    return cursor.rowcount > 0
 
 
 def repo_project_links(db: Database) -> dict[RepoId, ProjectId]:
@@ -65,7 +98,7 @@ def repo_project_links(db: Database) -> dict[RepoId, ProjectId]:
 
 
 def create_repo_project(db: Database, name: str) -> Project:
-    """Return the project `name` (ignoring case), with every repository of that name attached.
+    """Return the project `name` (by `name_key`), with every repository of that name attached.
 
     The project is created if needed; one of that name made meanwhile, by another window or
     a failed attempt, is reused.
@@ -74,9 +107,9 @@ def create_repo_project(db: Database, name: str) -> Project:
         InvalidInput: the name is empty.
     """
     project = project_by_name(db, name) or create_project(db, name)
-    key = project.name.casefold()
+    key = name_key(project.name)
     for repo in list_repos(db):
-        if repo.name.strip().casefold() == key:
+        if name_key(repo.name) == key:
             link_repo(db, project.id, repo.id)
     return project
 

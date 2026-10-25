@@ -11,6 +11,11 @@ ProjectId = NewType("ProjectId", int)
 RepoId = NewType("RepoId", int)
 
 
+def name_key(name: str) -> str:
+    """The key project and repository names are matched by: no outer spaces, case folded."""
+    return name.strip().casefold()
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Project:
     """A project grouping tasks."""

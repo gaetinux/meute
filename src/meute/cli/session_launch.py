@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from meute.cli.context import CliContext
+from meute.cli.launch_project import launch_project
 from meute.cli.tmux_env import TmuxEnv
 from meute.core.db.sessions import create_session
 from meute.core.errors import InvalidInput
@@ -77,6 +78,7 @@ def launch_bash(
         TmuxError: tmux failed.
     """
     cwd = resolve_folder(request.cwd)
+    project_id = launch_project(ctx, repo_id=request.repo_id, task_id=None)
     session_id = new_session_id()
     shell = environ.get("SHELL") or _DEFAULT_SHELL
     return spawn_and_record(
@@ -90,5 +92,6 @@ def launch_bash(
             cwd=cwd,
             state=Running(),
             repo_id=request.repo_id,
+            project_id=project_id,
         ),
     )

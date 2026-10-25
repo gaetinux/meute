@@ -5,9 +5,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from meute.core.errors import InvalidInput
 from meute.core.instants import format_instant
 from meute.core.json_types import JsonObject
-from meute.core.project import RepoId
+from meute.core.paths import shown_path
+from meute.core.project import RepoId, name_key
+from meute.core.text import printable
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -56,3 +59,28 @@ def repo_holding(folder: Path, repos: Sequence[Repo], main_repo: Path | None) ->
     if found is None and main_repo is not None:
         return _longest_holder(main_repo, repos)
     return found
+
+
+def repo_matches(repos: Sequence[Repo], wanted: Path | str) -> list[Repo]:
+    """Return the repositories at the path `wanted`, or named `wanted` (by `name_key`)."""
+    if isinstance(wanted, Path):
+        return [repo for repo in repos if repo.path == wanted]
+    key = name_key(wanted)
+    return [repo for repo in repos if name_key(repo.name) == key]
+
+
+def find_repo(repos: Sequence[Repo], wanted: Path | str) -> Repo:
+    """Return the one repository `wanted`: at that path (resolved by the caller), or of that name.
+
+    Raises:
+        InvalidInput: no repository matches, or several repositories bear that name.
+    """
+    matches = repo_matches(repos, wanted)
+    if not matches:
+        message = f"unknown repository: {printable(str(wanted))}"
+        raise InvalidInput(message)
+    if len(matches) > 1:
+        paths = ", ".join(shown_path(repo.path, None) for repo in matches)
+        message = f"ambiguous repository {printable(str(wanted).strip())}: {paths} (give its path)"
+        raise InvalidInput(message)
+    return matches[0]
