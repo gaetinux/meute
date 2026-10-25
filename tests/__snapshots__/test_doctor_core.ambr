@@ -1,0 +1,11 @@
+# serializer version: 1
+# name: test_render_mixed_levels
+  '''
+  ok    tmux      3.5a
+  warn  claude    2.1.300: meute is tested with claude 2.1.301 or later
+  fail  git       not found: worktrees and the Git line need git 2.36 or later
+  ok    config    /home/u/.config/meute/config.toml
+  note  note      --append-system-prompt-file (used above 8000 bytes of context) is not in claude --help and cannot be checked
+  2 problems found
+  '''
+# ---
